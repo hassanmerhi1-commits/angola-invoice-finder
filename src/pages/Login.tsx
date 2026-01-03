@@ -47,10 +47,10 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto w-16 h-16 rounded-2xl bg-primary flex items-center justify-center">
-            <Building2 className="w-8 h-8 text-primary-foreground" />
+            <span className="text-primary-foreground font-bold text-3xl">K</span>
           </div>
           <div>
-            <CardTitle className="text-2xl">Smart ERP</CardTitle>
+            <CardTitle className="text-2xl">Kwanza ERP</CardTitle>
             <CardDescription>Sistema de Gestão Empresarial</CardDescription>
           </div>
         </CardHeader>
