@@ -9,7 +9,9 @@ import {
   Building2,
   BarChart3,
   Settings,
-  Calculator,
+  ArrowRightLeft,
+  Calendar,
+  Upload,
 } from 'lucide-react';
 
 const navItems = [
@@ -17,8 +19,10 @@ const navItems = [
   { icon: ShoppingCart, label: 'POS / Caixa', path: '/pos' },
   { icon: FileText, label: 'Facturas', path: '/invoices' },
   { icon: Package, label: 'Inventário', path: '/inventory' },
-  { icon: Calculator, label: 'Contabilidade', path: '/accounting' },
-  { icon: Users, label: 'Clientes', path: '/customers' },
+  { icon: Calendar, label: 'Relatórios Diários', path: '/daily-reports' },
+  { icon: ArrowRightLeft, label: 'Transferências', path: '/stock-transfer' },
+  { icon: Users, label: 'Clientes', path: '/clients' },
+  { icon: Upload, label: 'Sincronização', path: '/data-sync' },
   { icon: Building2, label: 'Filiais', path: '/branches' },
   { icon: BarChart3, label: 'Relatórios', path: '/reports' },
   { icon: Settings, label: 'Configurações', path: '/settings' },

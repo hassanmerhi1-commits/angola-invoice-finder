@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Branch, Product, Sale, User, CartItem, SaleItem } from '@/types/erp';
+import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, SyncPackage } from '@/types/erp';
 import * as storage from '@/lib/storage';
 
 export function useBranches() {
@@ -220,4 +220,194 @@ export function useAuth() {
   }, []);
 
   return { user, isLoading, login, logout };
+}
+
+// Daily Reports management
+export function useDailyReports(branchId?: string) {
+  const [reports, setReports] = useState<DailySummary[]>([]);
+
+  const refreshReports = useCallback(() => {
+    setReports(storage.getDailyReports(branchId));
+  }, [branchId]);
+
+  useEffect(() => {
+    refreshReports();
+  }, [refreshReports]);
+
+  const generateReport = useCallback((branchId: string, date: string): DailySummary => {
+    const report = storage.generateDailyReport(branchId, date);
+    storage.saveDailyReport(report);
+    refreshReports();
+    return report;
+  }, [refreshReports]);
+
+  const closeDay = useCallback((reportId: string, closingBalance: number, notes: string, userId: string) => {
+    const allReports = storage.getDailyReports();
+    const report = allReports.find(r => r.id === reportId);
+    if (report) {
+      report.status = 'closed';
+      report.closingBalance = closingBalance;
+      report.notes = notes;
+      report.closedBy = userId;
+      report.closedAt = new Date().toISOString();
+      storage.saveDailyReport(report);
+      refreshReports();
+    }
+  }, [refreshReports]);
+
+  const getTodayReport = useCallback((branchId: string): DailySummary | null => {
+    return storage.getTodayReport(branchId);
+  }, []);
+
+  return { reports, generateReport, closeDay, getTodayReport, refreshReports };
+}
+
+// Client management
+export function useClients() {
+  const [clients, setClients] = useState<Client[]>([]);
+
+  const refreshClients = useCallback(() => {
+    setClients(storage.getClients());
+  }, []);
+
+  useEffect(() => {
+    refreshClients();
+  }, [refreshClients]);
+
+  const saveClient = useCallback((client: Client) => {
+    storage.saveClient(client);
+    refreshClients();
+  }, [refreshClients]);
+
+  const deleteClient = useCallback((clientId: string) => {
+    storage.deleteClient(clientId);
+    refreshClients();
+  }, [refreshClients]);
+
+  const createClient = useCallback((data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Client => {
+    const client: Client = {
+      ...data,
+      id: `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    storage.saveClient(client);
+    refreshClients();
+    return client;
+  }, [refreshClients]);
+
+  return { clients, saveClient, deleteClient, createClient, refreshClients };
+}
+
+// Stock Transfer management
+export function useStockTransfers(branchId?: string) {
+  const [transfers, setTransfers] = useState<StockTransfer[]>([]);
+
+  const refreshTransfers = useCallback(() => {
+    setTransfers(storage.getStockTransfers(branchId));
+  }, [branchId]);
+
+  useEffect(() => {
+    refreshTransfers();
+  }, [refreshTransfers]);
+
+  const createTransfer = useCallback((
+    fromBranchId: string,
+    toBranchId: string,
+    items: { productId: string; productName: string; sku: string; quantity: number }[],
+    requestedBy: string,
+    notes?: string
+  ): StockTransfer => {
+    const branches = storage.getBranches();
+    const fromBranch = branches.find(b => b.id === fromBranchId);
+    const toBranch = branches.find(b => b.id === toBranchId);
+
+    const transfer: StockTransfer = {
+      id: `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      transferNumber: storage.generateTransferNumber(),
+      fromBranchId,
+      fromBranchName: fromBranch?.name || '',
+      toBranchId,
+      toBranchName: toBranch?.name || '',
+      items,
+      status: 'pending',
+      requestedBy,
+      requestedAt: new Date().toISOString(),
+      notes,
+    };
+
+    storage.saveStockTransfer(transfer);
+    refreshTransfers();
+    return transfer;
+  }, [refreshTransfers]);
+
+  const approveTransfer = useCallback((transferId: string, userId: string) => {
+    storage.processStockTransfer(transferId, 'approve', userId);
+    refreshTransfers();
+  }, [refreshTransfers]);
+
+  const receiveTransfer = useCallback((transferId: string, userId: string, receivedQuantities?: Record<string, number>) => {
+    const allTransfers = storage.getStockTransfers();
+    const transfer = allTransfers.find(t => t.id === transferId);
+    if (transfer && receivedQuantities) {
+      transfer.items.forEach(item => {
+        item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
+      });
+      storage.saveStockTransfer(transfer);
+    }
+    storage.processStockTransfer(transferId, 'receive', userId);
+    refreshTransfers();
+  }, [refreshTransfers]);
+
+  const cancelTransfer = useCallback((transferId: string, userId: string) => {
+    storage.processStockTransfer(transferId, 'cancel', userId);
+    refreshTransfers();
+  }, [refreshTransfers]);
+
+  return { transfers, createTransfer, approveTransfer, receiveTransfer, cancelTransfer, refreshTransfers };
+}
+
+// Data Sync management
+export function useDataSync() {
+  const exportData = useCallback((branchId: string, dateFrom: string, dateTo: string): SyncPackage => {
+    return storage.createSyncPackage(branchId, dateFrom, dateTo);
+  }, []);
+
+  const importData = useCallback((syncPackage: SyncPackage): { salesImported: number; reportsImported: number } => {
+    return storage.importSyncPackage(syncPackage);
+  }, []);
+
+  const downloadSyncPackage = useCallback((syncPackage: SyncPackage) => {
+    const dataStr = JSON.stringify(syncPackage, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `kwanza_sync_${syncPackage.branchCode}_${syncPackage.dateRange.from}_${syncPackage.dateRange.to}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const sendSyncPackageByEmail = useCallback((syncPackage: SyncPackage, email: string) => {
+    const dataStr = JSON.stringify(syncPackage, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const subject = encodeURIComponent(`Sincronização Kwanza ERP - ${syncPackage.branchName} - ${syncPackage.dateRange.from}`);
+    const body = encodeURIComponent(`Dados de sincronização da filial ${syncPackage.branchName}\nPeríodo: ${syncPackage.dateRange.from} a ${syncPackage.dateRange.to}\n\nPor favor, anexe o ficheiro JSON baixado a este email.`);
+    
+    window.open(`mailto:${email}?subject=${subject}&body=${body}`);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `kwanza_sync_${syncPackage.branchCode}_${syncPackage.dateRange.from}_${syncPackage.dateRange.to}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  return { exportData, importData, downloadSyncPackage, sendSyncPackageByEmail };
 }

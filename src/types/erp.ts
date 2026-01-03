@@ -52,6 +52,7 @@ export interface Sale {
   saftHash?: string; // For AGT compliance
   createdAt: string;
   syncedAt?: string;
+  syncedToMain?: boolean;
 }
 
 export interface SaleItem {
@@ -77,12 +78,94 @@ export interface User {
 }
 
 export interface DailySummary {
+  id: string;
   date: string;
   branchId: string;
+  branchName: string;
   totalSales: number;
   totalTransactions: number;
   cashTotal: number;
   cardTotal: number;
   transferTotal: number;
   taxCollected: number;
+  openingBalance: number;
+  closingBalance: number;
+  status: 'open' | 'closed';
+  closedBy?: string;
+  closedAt?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  nif: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  country: string;
+  creditLimit: number;
+  currentBalance: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StockTransfer {
+  id: string;
+  transferNumber: string;
+  fromBranchId: string;
+  fromBranchName: string;
+  toBranchId: string;
+  toBranchName: string;
+  items: StockTransferItem[];
+  status: 'pending' | 'in_transit' | 'received' | 'cancelled';
+  requestedBy: string;
+  requestedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  receivedBy?: string;
+  receivedAt?: string;
+  notes?: string;
+}
+
+export interface StockTransferItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  receivedQuantity?: number;
+}
+
+export interface DataExport {
+  id: string;
+  type: 'sales' | 'daily_report' | 'full_backup';
+  branchId: string;
+  branchName: string;
+  dateFrom: string;
+  dateTo: string;
+  recordCount: number;
+  exportedBy: string;
+  exportedAt: string;
+  fileName: string;
+  status: 'pending' | 'exported' | 'imported';
+}
+
+export interface SyncPackage {
+  id: string;
+  branchId: string;
+  branchCode: string;
+  branchName: string;
+  exportDate: string;
+  dateRange: {
+    from: string;
+    to: string;
+  };
+  sales: Sale[];
+  dailyReports: DailySummary[];
+  clients?: Client[];
+  stockTransfers?: StockTransfer[];
+  version: string;
 }
