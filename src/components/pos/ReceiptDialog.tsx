@@ -132,7 +132,7 @@ export function ReceiptDialog({
           <Separator className="border-dashed" />
 
           <div className="text-center text-[10px] space-y-1">
-            <p>Documento processado por Smart ERP</p>
+            <p>Documento processado por Kwanza ERP</p>
             <p>Obrigado pela preferência!</p>
           </div>
         </div>

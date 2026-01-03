@@ -49,10 +49,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="h-16 border-b flex items-center px-4 lg:hidden">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">S</span>
+              <span className="text-primary-foreground font-bold text-lg">K</span>
             </div>
             <div>
-              <h1 className="font-bold text-lg leading-none">Smart ERP</h1>
+              <h1 className="font-bold text-lg leading-none">Kwanza ERP</h1>
               <p className="text-xs text-muted-foreground">Sistema de Gestão</p>
             </div>
           </div>

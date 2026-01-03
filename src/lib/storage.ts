@@ -2,12 +2,12 @@
 import { Branch, Product, Sale, User } from '@/types/erp';
 
 const STORAGE_KEYS = {
-  branches: 'smarterp_branches',
-  products: 'smarterp_products',
-  sales: 'smarterp_sales',
-  users: 'smarterp_users',
-  currentBranch: 'smarterp_current_branch',
-  currentUser: 'smarterp_current_user',
+  branches: 'kwanzaerp_branches',
+  products: 'kwanzaerp_products',
+  sales: 'kwanzaerp_sales',
+  users: 'kwanzaerp_users',
+  currentBranch: 'kwanzaerp_current_branch',
+  currentUser: 'kwanzaerp_current_user',
 };
 
 // Generic storage functions
