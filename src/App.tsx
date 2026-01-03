@@ -10,6 +10,10 @@ import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
 import Invoices from "./pages/Invoices";
 import Inventory from "./pages/Inventory";
+import DailyReports from "./pages/DailyReports";
+import Clients from "./pages/Clients";
+import StockTransfer from "./pages/StockTransfer";
+import DataSync from "./pages/DataSync";
 import Placeholder from "./pages/Placeholder";
 import NotFound from "./pages/NotFound";
 
@@ -50,6 +54,10 @@ function AppRoutes() {
         <Route path="/pos" element={<POS />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/inventory" element={<Inventory />} />
+        <Route path="/daily-reports" element={<DailyReports />} />
+        <Route path="/clients" element={<Clients />} />
+        <Route path="/stock-transfer" element={<StockTransfer />} />
+        <Route path="/data-sync" element={<DataSync />} />
         <Route path="/accounting" element={<Placeholder />} />
         <Route path="/customers" element={<Placeholder />} />
         <Route path="/branches" element={<Placeholder />} />

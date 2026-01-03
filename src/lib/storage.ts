@@ -1,5 +1,5 @@
-// Local storage layer - will be replaced with Supabase later
-import { Branch, Product, Sale, User } from '@/types/erp';
+// Local storage layer for Kwanza ERP
+import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, SyncPackage } from '@/types/erp';
 
 const STORAGE_KEYS = {
   branches: 'kwanzaerp_branches',
@@ -8,6 +8,9 @@ const STORAGE_KEYS = {
   users: 'kwanzaerp_users',
   currentBranch: 'kwanzaerp_current_branch',
   currentUser: 'kwanzaerp_current_user',
+  dailyReports: 'kwanzaerp_daily_reports',
+  clients: 'kwanzaerp_clients',
+  stockTransfers: 'kwanzaerp_stock_transfers',
 };
 
 // Generic storage functions
@@ -57,8 +60,12 @@ export function getProducts(branchId?: string): Product[] {
   return products;
 }
 
+export function getAllProducts(): Product[] {
+  return getItem<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
+}
+
 export function saveProduct(product: Product): void {
-  const products = getItem<Product[]>(STORAGE_KEYS.products, []);
+  const products = getAllProducts();
   const index = products.findIndex(p => p.id === product.id);
   if (index >= 0) {
     products[index] = product;
@@ -69,7 +76,7 @@ export function saveProduct(product: Product): void {
 }
 
 export function updateProductStock(productId: string, quantityChange: number): void {
-  const products = getItem<Product[]>(STORAGE_KEYS.products, []);
+  const products = getAllProducts();
   const index = products.findIndex(p => p.id === productId);
   if (index >= 0) {
     products[index].stock += quantityChange;
@@ -86,8 +93,12 @@ export function getSales(branchId?: string): Sale[] {
   return sales;
 }
 
+export function getAllSales(): Sale[] {
+  return getItem<Sale[]>(STORAGE_KEYS.sales, []);
+}
+
 export function saveSale(sale: Sale): void {
-  const sales = getItem<Sale[]>(STORAGE_KEYS.sales, []);
+  const sales = getAllSales();
   sales.push(sale);
   setItem(STORAGE_KEYS.sales, sales);
   
@@ -98,12 +109,214 @@ export function saveSale(sale: Sale): void {
 }
 
 export function generateInvoiceNumber(branchCode: string): string {
-  const sales = getSales();
+  const sales = getAllSales();
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const count = sales.filter(s => 
     s.invoiceNumber.startsWith(`FT ${branchCode}/${today}`)
   ).length + 1;
   return `FT ${branchCode}/${today}/${count.toString().padStart(4, '0')}`;
+}
+
+// Daily Report functions
+export function getDailyReports(branchId?: string): DailySummary[] {
+  const reports = getItem<DailySummary[]>(STORAGE_KEYS.dailyReports, []);
+  return branchId ? reports.filter(r => r.branchId === branchId) : reports;
+}
+
+export function saveDailyReport(report: DailySummary): void {
+  const reports = getDailyReports();
+  const index = reports.findIndex(r => r.id === report.id);
+  if (index >= 0) {
+    reports[index] = report;
+  } else {
+    reports.push(report);
+  }
+  setItem(STORAGE_KEYS.dailyReports, reports);
+}
+
+export function getTodayReport(branchId: string): DailySummary | null {
+  const today = new Date().toISOString().split('T')[0];
+  const reports = getDailyReports(branchId);
+  return reports.find(r => r.date === today) || null;
+}
+
+export function generateDailyReport(branchId: string, date: string): DailySummary {
+  const sales = getSales(branchId).filter(s => 
+    s.createdAt.startsWith(date) && s.status === 'completed'
+  );
+  const branch = getBranches().find(b => b.id === branchId);
+  
+  const cashTotal = sales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
+  const cardTotal = sales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
+  const transferTotal = sales.filter(s => s.paymentMethod === 'transfer').reduce((sum, s) => sum + s.total, 0);
+  
+  return {
+    id: `report_${branchId}_${date}`,
+    date,
+    branchId,
+    branchName: branch?.name || '',
+    totalSales: sales.reduce((sum, s) => sum + s.total, 0),
+    totalTransactions: sales.length,
+    cashTotal,
+    cardTotal,
+    transferTotal,
+    taxCollected: sales.reduce((sum, s) => sum + s.taxAmount, 0),
+    openingBalance: 0,
+    closingBalance: cashTotal,
+    status: 'open',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+// Client functions
+export function getClients(): Client[] {
+  return getItem<Client[]>(STORAGE_KEYS.clients, []);
+}
+
+export function saveClient(client: Client): void {
+  const clients = getClients();
+  const index = clients.findIndex(c => c.id === client.id);
+  if (index >= 0) {
+    clients[index] = { ...client, updatedAt: new Date().toISOString() };
+  } else {
+    clients.push(client);
+  }
+  setItem(STORAGE_KEYS.clients, clients);
+}
+
+export function deleteClient(clientId: string): void {
+  const clients = getClients().filter(c => c.id !== clientId);
+  setItem(STORAGE_KEYS.clients, clients);
+}
+
+// Stock Transfer functions
+export function getStockTransfers(branchId?: string): StockTransfer[] {
+  const transfers = getItem<StockTransfer[]>(STORAGE_KEYS.stockTransfers, []);
+  if (!branchId) return transfers;
+  return transfers.filter(t => t.fromBranchId === branchId || t.toBranchId === branchId);
+}
+
+export function saveStockTransfer(transfer: StockTransfer): void {
+  const transfers = getStockTransfers();
+  const index = transfers.findIndex(t => t.id === transfer.id);
+  if (index >= 0) {
+    transfers[index] = transfer;
+  } else {
+    transfers.push(transfer);
+  }
+  setItem(STORAGE_KEYS.stockTransfers, transfers);
+}
+
+export function processStockTransfer(transferId: string, action: 'approve' | 'receive' | 'cancel', userId: string): void {
+  const transfers = getStockTransfers();
+  const transfer = transfers.find(t => t.id === transferId);
+  if (!transfer) return;
+  
+  if (action === 'approve') {
+    transfer.status = 'in_transit';
+    transfer.approvedBy = userId;
+    transfer.approvedAt = new Date().toISOString();
+    
+    // Deduct from source branch
+    transfer.items.forEach(item => {
+      const products = getAllProducts();
+      const product = products.find(p => p.id === item.productId && p.branchId === transfer.fromBranchId);
+      if (product) {
+        updateProductStock(product.id, -item.quantity);
+      }
+    });
+  } else if (action === 'receive') {
+    transfer.status = 'received';
+    transfer.receivedBy = userId;
+    transfer.receivedAt = new Date().toISOString();
+    
+    // Add to destination branch
+    transfer.items.forEach(item => {
+      const products = getAllProducts();
+      let product = products.find(p => p.sku === item.sku && p.branchId === transfer.toBranchId);
+      
+      if (product) {
+        updateProductStock(product.id, item.receivedQuantity || item.quantity);
+      } else {
+        // Create new product entry for this branch
+        const sourceProduct = products.find(p => p.id === item.productId);
+        if (sourceProduct) {
+          const newProduct: Product = {
+            ...sourceProduct,
+            id: `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            branchId: transfer.toBranchId,
+            stock: item.receivedQuantity || item.quantity,
+            createdAt: new Date().toISOString(),
+          };
+          saveProduct(newProduct);
+        }
+      }
+    });
+  } else if (action === 'cancel') {
+    transfer.status = 'cancelled';
+  }
+  
+  saveStockTransfer(transfer);
+}
+
+export function generateTransferNumber(): string {
+  const transfers = getStockTransfers();
+  const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const sequence = String(transfers.length + 1).padStart(4, '0');
+  return `TRF${today}${sequence}`;
+}
+
+// Data Sync functions
+export function createSyncPackage(branchId: string, dateFrom: string, dateTo: string): SyncPackage {
+  const branch = getBranches().find(b => b.id === branchId);
+  const sales = getSales(branchId).filter(s => {
+    const saleDate = s.createdAt.split('T')[0];
+    return saleDate >= dateFrom && saleDate <= dateTo && !s.syncedToMain;
+  });
+  const dailyReports = getDailyReports(branchId).filter(r => {
+    return r.date >= dateFrom && r.date <= dateTo;
+  });
+  
+  return {
+    id: `sync_${branchId}_${Date.now()}`,
+    branchId,
+    branchCode: branch?.code || '',
+    branchName: branch?.name || '',
+    exportDate: new Date().toISOString(),
+    dateRange: { from: dateFrom, to: dateTo },
+    sales,
+    dailyReports,
+    version: '1.0.0',
+  };
+}
+
+export function importSyncPackage(syncPackage: SyncPackage): { salesImported: number; reportsImported: number } {
+  let salesImported = 0;
+  let reportsImported = 0;
+  
+  // Import sales
+  const existingSales = getAllSales();
+  syncPackage.sales.forEach(sale => {
+    if (!existingSales.find(s => s.id === sale.id)) {
+      sale.syncedToMain = true;
+      sale.syncedAt = new Date().toISOString();
+      existingSales.push(sale);
+      salesImported++;
+    }
+  });
+  setItem(STORAGE_KEYS.sales, existingSales);
+  
+  // Import daily reports
+  const existingReports = getDailyReports();
+  syncPackage.dailyReports.forEach(report => {
+    if (!existingReports.find(r => r.id === report.id)) {
+      existingReports.push(report);
+      reportsImported++;
+    }
+  });
+  setItem(STORAGE_KEYS.dailyReports, existingReports);
+  
+  return { salesImported, reportsImported };
 }
 
 // User functions
@@ -251,7 +464,7 @@ function getDefaultUsers(): User[] {
   return [
     {
       id: 'user-001',
-      email: 'admin@smarterp.ao',
+      email: 'admin@kwanzaerp.ao',
       name: 'Administrador',
       role: 'admin',
       branchId: 'branch-001',
@@ -260,7 +473,7 @@ function getDefaultUsers(): User[] {
     },
     {
       id: 'user-002',
-      email: 'caixa1@smarterp.ao',
+      email: 'caixa1@kwanzaerp.ao',
       name: 'João Silva',
       role: 'cashier',
       branchId: 'branch-001',
