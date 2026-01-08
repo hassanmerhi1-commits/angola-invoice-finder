@@ -1,5 +1,5 @@
 // Local storage layer for Kwanza ERP
-import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, SyncPackage } from '@/types/erp';
+import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder } from '@/types/erp';
 
 const STORAGE_KEYS = {
   branches: 'kwanzaerp_branches',
@@ -11,6 +11,8 @@ const STORAGE_KEYS = {
   dailyReports: 'kwanzaerp_daily_reports',
   clients: 'kwanzaerp_clients',
   stockTransfers: 'kwanzaerp_stock_transfers',
+  suppliers: 'kwanzaerp_suppliers',
+  purchaseOrders: 'kwanzaerp_purchase_orders',
 };
 
 // Generic storage functions
@@ -481,4 +483,92 @@ function getDefaultUsers(): User[] {
       createdAt: new Date().toISOString(),
     },
   ];
+}
+
+// Supplier functions
+export function getSuppliers(): Supplier[] {
+  return getItem<Supplier[]>(STORAGE_KEYS.suppliers, []);
+}
+
+export function saveSupplier(supplier: Supplier): void {
+  const suppliers = getSuppliers();
+  const index = suppliers.findIndex(s => s.id === supplier.id);
+  if (index >= 0) {
+    suppliers[index] = supplier;
+  } else {
+    suppliers.push(supplier);
+  }
+  setItem(STORAGE_KEYS.suppliers, suppliers);
+}
+
+export function deleteSupplier(supplierId: string): void {
+  const suppliers = getSuppliers().filter(s => s.id !== supplierId);
+  setItem(STORAGE_KEYS.suppliers, suppliers);
+}
+
+// Purchase Order functions
+export function getPurchaseOrders(branchId?: string): PurchaseOrder[] {
+  const orders = getItem<PurchaseOrder[]>(STORAGE_KEYS.purchaseOrders, []);
+  if (branchId) {
+    return orders.filter(o => o.branchId === branchId);
+  }
+  return orders;
+}
+
+export function savePurchaseOrder(order: PurchaseOrder): void {
+  const orders = getPurchaseOrders();
+  const index = orders.findIndex(o => o.id === order.id);
+  if (index >= 0) {
+    orders[index] = order;
+  } else {
+    orders.push(order);
+  }
+  setItem(STORAGE_KEYS.purchaseOrders, orders);
+}
+
+export function generatePurchaseOrderNumber(): string {
+  const orders = getPurchaseOrders();
+  const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const sequence = String(orders.length + 1).padStart(4, '0');
+  return `PO${today}${sequence}`;
+}
+
+export function processPurchaseOrderReceive(orderId: string, receivedQuantities: Record<string, number>, userId: string): void {
+  const orders = getPurchaseOrders();
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+
+  // Update received quantities
+  order.items.forEach(item => {
+    item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
+  });
+
+  // Check if partial or full receive
+  const allReceived = order.items.every(item => (item.receivedQuantity || 0) >= item.quantity);
+  const someReceived = order.items.some(item => (item.receivedQuantity || 0) > 0);
+
+  if (allReceived) {
+    order.status = 'received';
+  } else if (someReceived) {
+    order.status = 'partial';
+  }
+
+  order.receivedBy = userId;
+  order.receivedAt = new Date().toISOString();
+
+  savePurchaseOrder(order);
+
+  // Update stock for each item
+  order.items.forEach(item => {
+    const received = receivedQuantities[item.productId] || 0;
+    if (received > 0) {
+      // Find product in the destination branch
+      const products = getAllProducts();
+      let product = products.find(p => p.id === item.productId);
+      
+      if (product) {
+        updateProductStock(product.id, received);
+      }
+    }
+  });
 }

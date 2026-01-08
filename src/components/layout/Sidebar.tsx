@@ -12,6 +12,8 @@ import {
   ArrowRightLeft,
   Calendar,
   Upload,
+  Truck,
+  ClipboardList,
 } from 'lucide-react';
 
 const navItems = [
@@ -19,6 +21,8 @@ const navItems = [
   { icon: ShoppingCart, label: 'POS / Caixa', path: '/pos' },
   { icon: FileText, label: 'Facturas', path: '/invoices' },
   { icon: Package, label: 'Inventário', path: '/inventory' },
+  { icon: Truck, label: 'Fornecedores', path: '/suppliers' },
+  { icon: ClipboardList, label: 'Encomendas', path: '/purchase-orders' },
   { icon: Calendar, label: 'Relatórios Diários', path: '/daily-reports' },
   { icon: ArrowRightLeft, label: 'Transferências', path: '/stock-transfer' },
   { icon: Users, label: 'Clientes', path: '/clients' },

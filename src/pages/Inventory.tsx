@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useBranches, useProducts } from '@/hooks/useERP';
+import { Product } from '@/types/erp';
+import { saveProduct } from '@/lib/storage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,11 +15,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Search, Package, Plus, Edit, AlertTriangle } from 'lucide-react';
+import { ProductFormDialog } from '@/components/inventory/ProductFormDialog';
 
 export default function Inventory() {
   const { currentBranch } = useBranches();
-  const { products } = useProducts(currentBranch?.id);
+  const { products, refreshProducts } = useProducts(currentBranch?.id);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -28,6 +33,16 @@ export default function Inventory() {
   const totalValue = products.reduce((sum, p) => sum + (p.cost * p.stock), 0);
   const lowStockCount = products.filter(p => p.stock <= 10 && p.isActive).length;
 
+  const handleOpenDialog = (product?: Product) => {
+    setSelectedProduct(product || null);
+    setDialogOpen(true);
+  };
+
+  const handleSaveProduct = (product: Product) => {
+    saveProduct(product);
+    refreshProducts();
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -37,7 +52,7 @@ export default function Inventory() {
             Gestão de produtos e stock
           </p>
         </div>
-        <Button>
+        <Button onClick={() => handleOpenDialog()}>
           <Plus className="w-4 h-4 mr-2" />
           Novo Produto
         </Button>
@@ -145,7 +160,7 @@ export default function Inventory() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(product)}>
                       <Edit className="w-4 h-4" />
                     </Button>
                   </TableCell>
@@ -155,6 +170,13 @@ export default function Inventory() {
           </Table>
         </CardContent>
       </Card>
+
+      <ProductFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        product={selectedProduct}
+        onSave={handleSaveProduct}
+      />
     </div>
   );
 }

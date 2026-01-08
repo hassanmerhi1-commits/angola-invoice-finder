@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, SyncPackage } from '@/types/erp';
+import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, PurchaseOrderItem } from '@/types/erp';
 import * as storage from '@/lib/storage';
 
 export function useBranches() {
@@ -410,4 +410,122 @@ export function useDataSync() {
   }, []);
 
   return { exportData, importData, downloadSyncPackage, sendSyncPackageByEmail };
+}
+
+// Supplier management
+export function useSuppliers() {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  const refreshSuppliers = useCallback(() => {
+    setSuppliers(storage.getSuppliers());
+  }, []);
+
+  useEffect(() => {
+    refreshSuppliers();
+  }, [refreshSuppliers]);
+
+  const saveSupplier = useCallback((supplier: Supplier) => {
+    storage.saveSupplier(supplier);
+    refreshSuppliers();
+  }, [refreshSuppliers]);
+
+  const deleteSupplier = useCallback((supplierId: string) => {
+    storage.deleteSupplier(supplierId);
+    refreshSuppliers();
+  }, [refreshSuppliers]);
+
+  const createSupplier = useCallback((data: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Supplier => {
+    const supplier: Supplier = {
+      ...data,
+      id: `supplier_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    storage.saveSupplier(supplier);
+    refreshSuppliers();
+    return supplier;
+  }, [refreshSuppliers]);
+
+  return { suppliers, saveSupplier, deleteSupplier, createSupplier, refreshSuppliers };
+}
+
+// Purchase Order management
+export function usePurchaseOrders(branchId?: string) {
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+
+  const refreshOrders = useCallback(() => {
+    setOrders(storage.getPurchaseOrders(branchId));
+  }, [branchId]);
+
+  useEffect(() => {
+    refreshOrders();
+  }, [refreshOrders]);
+
+  const createOrder = useCallback((
+    supplierId: string,
+    branchId: string,
+    items: PurchaseOrderItem[],
+    createdBy: string,
+    notes?: string,
+    expectedDeliveryDate?: string
+  ): PurchaseOrder => {
+    const suppliers = storage.getSuppliers();
+    const branches = storage.getBranches();
+    const supplier = suppliers.find(s => s.id === supplierId);
+    const branch = branches.find(b => b.id === branchId);
+
+    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const taxAmount = items.reduce((sum, item) => sum + (item.subtotal * item.taxRate / 100), 0);
+
+    const order: PurchaseOrder = {
+      id: `po_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      orderNumber: storage.generatePurchaseOrderNumber(),
+      supplierId,
+      supplierName: supplier?.name || '',
+      branchId,
+      branchName: branch?.name || '',
+      items,
+      subtotal,
+      taxAmount,
+      total: subtotal + taxAmount,
+      status: 'pending',
+      notes,
+      createdBy,
+      createdAt: new Date().toISOString(),
+      expectedDeliveryDate,
+    };
+
+    storage.savePurchaseOrder(order);
+    refreshOrders();
+    return order;
+  }, [refreshOrders]);
+
+  const approveOrder = useCallback((orderId: string, userId: string) => {
+    const allOrders = storage.getPurchaseOrders();
+    const order = allOrders.find(o => o.id === orderId);
+    if (order) {
+      order.status = 'approved';
+      order.approvedBy = userId;
+      order.approvedAt = new Date().toISOString();
+      storage.savePurchaseOrder(order);
+      refreshOrders();
+    }
+  }, [refreshOrders]);
+
+  const receiveOrder = useCallback((orderId: string, userId: string, receivedQuantities: Record<string, number>) => {
+    storage.processPurchaseOrderReceive(orderId, receivedQuantities, userId);
+    refreshOrders();
+  }, [refreshOrders]);
+
+  const cancelOrder = useCallback((orderId: string) => {
+    const allOrders = storage.getPurchaseOrders();
+    const order = allOrders.find(o => o.id === orderId);
+    if (order) {
+      order.status = 'cancelled';
+      storage.savePurchaseOrder(order);
+      refreshOrders();
+    }
+  }, [refreshOrders]);
+
+  return { orders, createOrder, approveOrder, receiveOrder, cancelOrder, refreshOrders };
 }
