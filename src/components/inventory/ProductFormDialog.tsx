@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Product } from '@/types/erp';
-import { useBranches } from '@/hooks/useERP';
+import { useBranches, useCategories } from '@/hooks/useERP';
 import {
   Dialog,
   DialogContent,
@@ -28,17 +28,6 @@ interface ProductFormDialogProps {
   onSave: (product: Product) => void;
 }
 
-const CATEGORIES = [
-  'Alimentação',
-  'Bebidas',
-  'Limpeza',
-  'Higiene',
-  'Electrónicos',
-  'Vestuário',
-  'Papelaria',
-  'Outros',
-];
-
 const UNITS = [
   { value: 'un', label: 'Unidade' },
   { value: 'kg', label: 'Quilograma' },
@@ -56,13 +45,16 @@ export function ProductFormDialog({
   onSave,
 }: ProductFormDialogProps) {
   const { branches } = useBranches();
+  const { categories } = useCategories();
   const { toast } = useToast();
   
+  const activeCategories = categories.filter(c => c.isActive);
+
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
     barcode: '',
-    category: 'Alimentação',
+    category: '',
     price: 0,
     cost: 0,
     stock: 0,
@@ -205,9 +197,15 @@ export function ProductFormDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
+                  {activeCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.name}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: cat.color || '#6b7280' }}
+                        />
+                        {cat.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

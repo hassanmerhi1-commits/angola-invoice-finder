@@ -1,5 +1,5 @@
 // Local storage layer for Kwanza ERP
-import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder } from '@/types/erp';
+import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, Category } from '@/types/erp';
 
 const STORAGE_KEYS = {
   branches: 'kwanzaerp_branches',
@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   stockTransfers: 'kwanzaerp_stock_transfers',
   suppliers: 'kwanzaerp_suppliers',
   purchaseOrders: 'kwanzaerp_purchase_orders',
+  categories: 'kwanzaerp_categories',
 };
 
 // Generic storage functions
@@ -571,4 +572,38 @@ export function processPurchaseOrderReceive(orderId: string, receivedQuantities:
       }
     }
   });
+}
+
+// Category functions
+export function getCategories(): Category[] {
+  return getItem<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
+}
+
+export function saveCategory(category: Category): void {
+  const categories = getCategories();
+  const index = categories.findIndex(c => c.id === category.id);
+  if (index >= 0) {
+    categories[index] = category;
+  } else {
+    categories.push(category);
+  }
+  setItem(STORAGE_KEYS.categories, categories);
+}
+
+export function deleteCategory(categoryId: string): void {
+  const categories = getCategories().filter(c => c.id !== categoryId);
+  setItem(STORAGE_KEYS.categories, categories);
+}
+
+function getDefaultCategories(): Category[] {
+  return [
+    { id: 'cat-001', name: 'Alimentação', description: 'Produtos alimentares', color: '#22c55e', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-002', name: 'Bebidas', description: 'Bebidas e sumos', color: '#3b82f6', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-003', name: 'Limpeza', description: 'Produtos de limpeza', color: '#a855f7', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-004', name: 'Higiene', description: 'Higiene pessoal', color: '#ec4899', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-005', name: 'Electrónicos', description: 'Electrónicos e acessórios', color: '#f59e0b', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-006', name: 'Vestuário', description: 'Roupa e calçado', color: '#ef4444', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-007', name: 'Papelaria', description: 'Material de escritório', color: '#14b8a6', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-008', name: 'Outros', description: 'Outros produtos', color: '#6b7280', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  ];
 }

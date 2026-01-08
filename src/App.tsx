@@ -16,6 +16,7 @@ import StockTransfer from "./pages/StockTransfer";
 import DataSync from "./pages/DataSync";
 import Suppliers from "./pages/Suppliers";
 import PurchaseOrders from "./pages/PurchaseOrders";
+import Categories from "./pages/Categories";
 import Placeholder from "./pages/Placeholder";
 import NotFound from "./pages/NotFound";
 
@@ -56,6 +57,7 @@ function AppRoutes() {
         <Route path="/pos" element={<POS />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/inventory" element={<Inventory />} />
+        <Route path="/categories" element={<Categories />} />
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/purchase-orders" element={<PurchaseOrders />} />
         <Route path="/daily-reports" element={<DailyReports />} />
