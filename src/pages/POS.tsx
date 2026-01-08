@@ -1,14 +1,17 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { useBranches, useProducts, useCart, useSales, useAuth } from '@/hooks/useERP';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
+import { useKeyboardShortcuts, KeyboardShortcut } from '@/hooks/useKeyboardShortcuts';
 import { Sale, Product } from '@/types/erp';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ProductGrid } from '@/components/pos/ProductGrid';
 import { Cart } from '@/components/pos/Cart';
 import { CheckoutDialog } from '@/components/pos/CheckoutDialog';
 import { ReceiptDialog } from '@/components/pos/ReceiptDialog';
-import { Search, ScanBarcode } from 'lucide-react';
+import { Search, ScanBarcode, Keyboard } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function POS() {
@@ -60,11 +63,82 @@ export default function POS() {
 
   useBarcodeScanner({ onScan: handleBarcodeScan });
 
-  const handleCheckout = () => {
+  const handleCheckout = useCallback(() => {
     if (cart.items.length > 0) {
       setCheckoutOpen(true);
+    } else {
+      toast.info('Carrinho vazio', { description: 'Adicione produtos para finalizar' });
     }
-  };
+  }, [cart.items.length]);
+
+  const handleClearCart = useCallback(() => {
+    if (cart.items.length > 0) {
+      cart.clearCart();
+      toast.info('Carrinho limpo');
+    }
+  }, [cart]);
+
+  const focusSearch = useCallback(() => {
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  }, []);
+
+  // Keyboard shortcuts
+  const shortcuts: KeyboardShortcut[] = useMemo(
+    () => [
+      {
+        key: 'F12',
+        action: handleCheckout,
+        description: 'Finalizar venda',
+      },
+      {
+        key: 'Escape',
+        action: handleClearCart,
+        description: 'Limpar carrinho',
+      },
+      {
+        key: 'F2',
+        action: focusSearch,
+        description: 'Pesquisar produto',
+      },
+      {
+        key: '+',
+        action: () => {
+          if (cart.items.length > 0) {
+            const lastItem = cart.items[cart.items.length - 1];
+            cart.updateQuantity(lastItem.product.id, lastItem.quantity + 1);
+          }
+        },
+        description: 'Aumentar quantidade do último item',
+      },
+      {
+        key: '-',
+        action: () => {
+          if (cart.items.length > 0) {
+            const lastItem = cart.items[cart.items.length - 1];
+            if (lastItem.quantity > 1) {
+              cart.updateQuantity(lastItem.product.id, lastItem.quantity - 1);
+            }
+          }
+        },
+        description: 'Diminuir quantidade do último item',
+      },
+      {
+        key: 'Delete',
+        action: () => {
+          if (cart.items.length > 0) {
+            const lastItem = cart.items[cart.items.length - 1];
+            cart.removeItem(lastItem.product.id);
+            toast.info(`${lastItem.product.name} removido`);
+          }
+        },
+        description: 'Remover último item',
+      },
+    ],
+    [handleCheckout, handleClearCart, focusSearch, cart]
+  );
+
+  useKeyboardShortcuts({ shortcuts, enabled: !checkoutOpen && !receiptOpen });
 
   const handleCompleteSale = (
     paymentMethod: Sale['paymentMethod'],
@@ -117,6 +191,28 @@ export default function POS() {
               <ScanBarcode className="w-4 h-4" />
               {lastScannedBarcode ? lastScannedBarcode : 'Scanner Pronto'}
             </Badge>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="shrink-0">
+                  <Keyboard className="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72" align="end">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Atalhos de Teclado</h4>
+                  <div className="space-y-1.5 text-sm">
+                    {shortcuts.map((s) => (
+                      <div key={s.key} className="flex items-center justify-between">
+                        <span className="text-muted-foreground">{s.description}</span>
+                        <kbd className="px-2 py-0.5 bg-muted rounded text-xs font-mono">
+                          {s.key}
+                        </kbd>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
         <div className="flex-1 overflow-auto p-4">
