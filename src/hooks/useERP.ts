@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, PurchaseOrderItem } from '@/types/erp';
+import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, PurchaseOrderItem, Category } from '@/types/erp';
 import * as storage from '@/lib/storage';
 
 export function useBranches() {
@@ -528,4 +528,41 @@ export function usePurchaseOrders(branchId?: string) {
   }, [refreshOrders]);
 
   return { orders, createOrder, approveOrder, receiveOrder, cancelOrder, refreshOrders };
+}
+
+// Category management
+export function useCategories() {
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  const refreshCategories = useCallback(() => {
+    setCategories(storage.getCategories());
+  }, []);
+
+  useEffect(() => {
+    refreshCategories();
+  }, [refreshCategories]);
+
+  const saveCategory = useCallback((category: Category) => {
+    storage.saveCategory(category);
+    refreshCategories();
+  }, [refreshCategories]);
+
+  const deleteCategory = useCallback((categoryId: string) => {
+    storage.deleteCategory(categoryId);
+    refreshCategories();
+  }, [refreshCategories]);
+
+  const createCategory = useCallback((data: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Category => {
+    const category: Category = {
+      ...data,
+      id: `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    storage.saveCategory(category);
+    refreshCategories();
+    return category;
+  }, [refreshCategories]);
+
+  return { categories, saveCategory, deleteCategory, createCategory, refreshCategories };
 }

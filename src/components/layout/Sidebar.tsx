@@ -14,6 +14,7 @@ import {
   Upload,
   Truck,
   ClipboardList,
+  Tags,
 } from 'lucide-react';
 
 const navItems = [
@@ -21,6 +22,7 @@ const navItems = [
   { icon: ShoppingCart, label: 'POS / Caixa', path: '/pos' },
   { icon: FileText, label: 'Facturas', path: '/invoices' },
   { icon: Package, label: 'Inventário', path: '/inventory' },
+  { icon: Tags, label: 'Categorias', path: '/categories' },
   { icon: Truck, label: 'Fornecedores', path: '/suppliers' },
   { icon: ClipboardList, label: 'Encomendas', path: '/purchase-orders' },
   { icon: Calendar, label: 'Relatórios Diários', path: '/daily-reports' },
