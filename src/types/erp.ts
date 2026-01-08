@@ -169,3 +169,53 @@ export interface SyncPackage {
   stockTransfers?: StockTransfer[];
   version: string;
 }
+
+export interface Supplier {
+  id: string;
+  name: string;
+  nif: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  country: string;
+  contactPerson?: string;
+  paymentTerms: 'immediate' | '15_days' | '30_days' | '60_days' | '90_days';
+  isActive: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  orderNumber: string;
+  supplierId: string;
+  supplierName: string;
+  branchId: string;
+  branchName: string;
+  items: PurchaseOrderItem[];
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  status: 'draft' | 'pending' | 'approved' | 'received' | 'partial' | 'cancelled';
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  receivedBy?: string;
+  receivedAt?: string;
+  expectedDeliveryDate?: string;
+}
+
+export interface PurchaseOrderItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  receivedQuantity?: number;
+  unitCost: number;
+  taxRate: number;
+  subtotal: number;
+}
