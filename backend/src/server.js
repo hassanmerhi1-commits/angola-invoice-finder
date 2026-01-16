@@ -68,6 +68,7 @@ io.on('connection', (socket) => {
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const agtRoutes = require('./routes/agt');
 const branchRoutes = require('./routes/branches');
 const productRoutes = require('./routes/products');
 const salesRoutes = require('./routes/sales');
@@ -80,6 +81,7 @@ const purchaseOrderRoutes = require('./routes/purchaseOrders');
 
 // Use routes
 app.use('/api/auth', authRoutes);
+app.use('/api/agt', agtRoutes(broadcastTable));
 app.use('/api/branches', branchRoutes(broadcastTable));
 app.use('/api/products', productRoutes(broadcastTable));
 app.use('/api/sales', salesRoutes(broadcastTable));
