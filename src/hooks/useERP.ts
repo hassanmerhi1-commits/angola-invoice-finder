@@ -948,6 +948,7 @@ function mapBranchFromDb(row: any): Branch {
 }
 
 function mapProductFromDb(row: any): Product {
+  const cost = Number(row.cost);
   return {
     id: row.id,
     name: row.name,
@@ -955,13 +956,19 @@ function mapProductFromDb(row: any): Product {
     barcode: row.barcode,
     category: row.category,
     price: Number(row.price),
-    cost: Number(row.cost),
+    cost: cost,
+    firstCost: Number(row.first_cost ?? row.firstCost ?? cost),
+    lastCost: Number(row.last_cost ?? row.lastCost ?? cost),
+    avgCost: Number(row.avg_cost ?? row.avgCost ?? cost),
     stock: Number(row.stock),
     unit: row.unit,
     taxRate: Number(row.tax_rate ?? row.taxRate ?? 14),
     branchId: row.branch_id ?? row.branchId,
+    supplierId: row.supplier_id ?? row.supplierId,
+    supplierName: row.supplier_name ?? row.supplierName,
     isActive: row.is_active ?? row.isActive ?? true,
     createdAt: row.created_at ?? row.createdAt,
+    updatedAt: row.updated_at ?? row.updatedAt,
   };
 }
 

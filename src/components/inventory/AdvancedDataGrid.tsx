@@ -25,14 +25,18 @@ interface AdvancedDataGridProps {
 
 const COLUMNS = [
   { key: 'sku', label: 'Produto', width: 'w-24' },
-  { key: 'name', label: 'Descrição', width: 'w-64' },
+  { key: 'name', label: 'Descrição', width: 'w-48' },
   { key: 'price', label: 'Preço', width: 'w-20', type: 'number' },
-  { key: 'cost', label: 'Custo', width: 'w-20', type: 'number' },
+  { key: 'firstCost', label: 'Custo Inicial', width: 'w-24', type: 'number' },
+  { key: 'lastCost', label: 'Últ. Custo', width: 'w-24', type: 'number' },
+  { key: 'avgCost', label: 'Custo Médio', width: 'w-24', type: 'number' },
+  { key: 'profitMargin', label: 'Lucro %', width: 'w-20', type: 'number', computed: true },
   { key: 'stock', label: 'Qty', width: 'w-16', type: 'number' },
   { key: 'taxRate', label: 'IVA %', width: 'w-16', type: 'number' },
-  { key: 'unit', label: 'Unidade', width: 'w-20' },
-  { key: 'category', label: 'Categoria', width: 'w-32' },
-  { key: 'branchId', label: 'Filial', width: 'w-24' },
+  { key: 'unit', label: 'Unidade', width: 'w-16' },
+  { key: 'category', label: 'Categoria', width: 'w-28' },
+  { key: 'supplierName', label: 'Fornecedor', width: 'w-28' },
+  { key: 'branchId', label: 'Filial', width: 'w-20' },
 ] as const;
 
 type ColumnKey = typeof COLUMNS[number]['key'];
@@ -134,11 +138,25 @@ export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId 
   const hasActiveFilters = Object.keys(columnFilters).length > 0 || 
     Object.values(columnSearches).some(v => v);
 
+  // Calculate profit margin based on average cost
+  const calculateProfitMargin = (product: Product): number => {
+    const cost = product.avgCost || product.lastCost || product.firstCost || product.cost || 0;
+    if (cost <= 0 || product.price <= 0) return 0;
+    return ((product.price - cost) / cost) * 100;
+  };
+
   const formatValue = (product: Product, key: ColumnKey) => {
+    // Handle computed columns
+    if (key === 'profitMargin') {
+      const margin = calculateProfitMargin(product);
+      const color = margin > 0 ? 'text-green-600' : margin < 0 ? 'text-red-600' : '';
+      return <span className={color}>{margin.toFixed(1)}%</span>;
+    }
+    
     const val = product[key as keyof Product];
     
-    if (key === 'price' || key === 'cost') {
-      return (val as number).toLocaleString('pt-AO', { minimumFractionDigits: 2 });
+    if (key === 'price' || key === 'firstCost' || key === 'lastCost' || key === 'avgCost') {
+      return (val as number || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 });
     }
     if (key === 'taxRate') {
       return `${val}%`;

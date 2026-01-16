@@ -125,12 +125,16 @@ export function ProductFormDialog({
       category: formData.category,
       price: formData.price,
       cost: formData.cost,
+      firstCost: product?.firstCost || formData.cost, // Keep original first cost or use current
+      lastCost: formData.cost, // Update last cost with current cost
+      avgCost: product?.avgCost || formData.cost, // Keep avg or use current
       stock: formData.stock,
       unit: formData.unit,
       taxRate: formData.taxRate,
       branchId: formData.branchId,
       isActive: formData.isActive,
       createdAt: product?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     onSave(savedProduct);
