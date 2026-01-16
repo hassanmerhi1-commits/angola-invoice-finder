@@ -1,5 +1,5 @@
-// Local storage layer for Kwanza ERP
-import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, Category } from '@/types/erp';
+// Local storage layer for Kwanza ERP - Offline First Architecture
+import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, Category, StockMovement } from '@/types/erp';
 
 const STORAGE_KEYS = {
   branches: 'kwanzaerp_branches',
@@ -14,6 +14,7 @@ const STORAGE_KEYS = {
   suppliers: 'kwanzaerp_suppliers',
   purchaseOrders: 'kwanzaerp_purchase_orders',
   categories: 'kwanzaerp_categories',
+  stockMovements: 'kwanzaerp_stock_movements',
 };
 
 // Generic storage functions
@@ -269,57 +270,235 @@ export function generateTransferNumber(): string {
   return `TRF${today}${sequence}`;
 }
 
-// Data Sync functions
+// ==================== STOCK MOVEMENTS ====================
+// Track every stock IN/OUT with reason for full traceability
+
+export function getStockMovements(branchId?: string): StockMovement[] {
+  const movements = getItem<StockMovement[]>(STORAGE_KEYS.stockMovements, []);
+  if (branchId) {
+    return movements.filter(m => m.branchId === branchId);
+  }
+  return movements;
+}
+
+export function saveStockMovement(movement: StockMovement): void {
+  const movements = getStockMovements();
+  movements.push(movement);
+  setItem(STORAGE_KEYS.stockMovements, movements);
+}
+
+export function createStockMovement(
+  productId: string,
+  branchId: string,
+  type: 'IN' | 'OUT',
+  quantity: number,
+  reason: StockMovement['reason'],
+  userId: string,
+  referenceId?: string,
+  referenceNumber?: string,
+  notes?: string
+): StockMovement {
+  const products = getAllProducts();
+  const product = products.find(p => p.id === productId);
+  
+  const movement: StockMovement = {
+    id: `mov_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    productId,
+    productName: product?.name || '',
+    sku: product?.sku || '',
+    branchId,
+    type,
+    quantity,
+    reason,
+    referenceId,
+    referenceNumber,
+    costAtTime: product?.lastCost || product?.cost,
+    notes,
+    createdBy: userId,
+    createdAt: new Date().toISOString(),
+  };
+  
+  saveStockMovement(movement);
+  return movement;
+}
+
+// ==================== DATA SYNC (FILIAL → HEAD OFFICE) ====================
+// Complete sync package for offline-first architecture
+
 export function createSyncPackage(branchId: string, dateFrom: string, dateTo: string): SyncPackage {
   const branch = getBranches().find(b => b.id === branchId);
-  const sales = getSales(branchId).filter(s => {
-    const saleDate = s.createdAt.split('T')[0];
-    return saleDate >= dateFrom && saleDate <= dateTo && !s.syncedToMain;
-  });
-  const dailyReports = getDailyReports(branchId).filter(r => {
-    return r.date >= dateFrom && r.date <= dateTo;
-  });
+  
+  // Filter function for date range
+  const isInDateRange = (dateStr: string) => {
+    const date = dateStr.split('T')[0];
+    return date >= dateFrom && date <= dateTo;
+  };
+  
+  // Get all data for this branch within date range
+  const products = getProducts(branchId);
+  const suppliers = getSuppliers();
+  const clients = getClients();
+  
+  const purchases = getPurchaseOrders(branchId).filter(p => isInDateRange(p.createdAt));
+  const sales = getSales(branchId).filter(s => isInDateRange(s.createdAt) && !s.syncedToMain);
+  const stockMovements = getStockMovements(branchId).filter(m => isInDateRange(m.createdAt));
+  const stockTransfers = getStockTransfers(branchId).filter(t => isInDateRange(t.requestedAt));
+  const dailyReports = getDailyReports(branchId).filter(r => r.date >= dateFrom && r.date <= dateTo);
+  
+  const totalRecords = products.length + suppliers.length + clients.length + 
+                       purchases.length + sales.length + stockMovements.length + 
+                       stockTransfers.length + dailyReports.length;
   
   return {
-    id: `sync_${branchId}_${Date.now()}`,
+    id: `sync_${branch?.code || branchId}_${Date.now()}`,
     branchId,
     branchCode: branch?.code || '',
     branchName: branch?.name || '',
     exportDate: new Date().toISOString(),
     dateRange: { from: dateFrom, to: dateTo },
+    products,
+    suppliers,
+    clients,
+    purchases,
     sales,
+    stockMovements,
+    stockTransfers,
     dailyReports,
-    version: '1.0.0',
+    version: '2.0.0',
+    totalRecords,
   };
 }
 
-export function importSyncPackage(syncPackage: SyncPackage): { salesImported: number; reportsImported: number } {
-  let salesImported = 0;
-  let reportsImported = 0;
+export interface ImportResult {
+  productsImported: number;
+  suppliersImported: number;
+  clientsImported: number;
+  purchasesImported: number;
+  salesImported: number;
+  stockMovementsImported: number;
+  stockTransfersImported: number;
+  reportsImported: number;
+  totalImported: number;
+}
+
+export function importSyncPackage(syncPackage: SyncPackage): ImportResult {
+  const result: ImportResult = {
+    productsImported: 0,
+    suppliersImported: 0,
+    clientsImported: 0,
+    purchasesImported: 0,
+    salesImported: 0,
+    stockMovementsImported: 0,
+    stockTransfersImported: 0,
+    reportsImported: 0,
+    totalImported: 0,
+  };
+  
+  // Import products (update existing or add new)
+  if (syncPackage.products) {
+    const existingProducts = getAllProducts();
+    syncPackage.products.forEach(product => {
+      const existing = existingProducts.find(p => p.id === product.id || p.sku === product.sku);
+      if (!existing) {
+        existingProducts.push(product);
+        result.productsImported++;
+      }
+    });
+    setItem(STORAGE_KEYS.products, existingProducts);
+  }
+  
+  // Import suppliers
+  if (syncPackage.suppliers) {
+    const existingSuppliers = getSuppliers();
+    syncPackage.suppliers.forEach(supplier => {
+      if (!existingSuppliers.find(s => s.id === supplier.id || s.nif === supplier.nif)) {
+        existingSuppliers.push(supplier);
+        result.suppliersImported++;
+      }
+    });
+    setItem(STORAGE_KEYS.suppliers, existingSuppliers);
+  }
+  
+  // Import clients
+  if (syncPackage.clients) {
+    const existingClients = getClients();
+    syncPackage.clients.forEach(client => {
+      if (!existingClients.find(c => c.id === client.id || c.nif === client.nif)) {
+        existingClients.push(client);
+        result.clientsImported++;
+      }
+    });
+    setItem(STORAGE_KEYS.clients, existingClients);
+  }
+  
+  // Import purchases
+  if (syncPackage.purchases) {
+    const existingPurchases = getPurchaseOrders();
+    syncPackage.purchases.forEach(purchase => {
+      if (!existingPurchases.find(p => p.id === purchase.id)) {
+        existingPurchases.push(purchase);
+        result.purchasesImported++;
+      }
+    });
+    setItem(STORAGE_KEYS.purchaseOrders, existingPurchases);
+  }
   
   // Import sales
-  const existingSales = getAllSales();
-  syncPackage.sales.forEach(sale => {
-    if (!existingSales.find(s => s.id === sale.id)) {
-      sale.syncedToMain = true;
-      sale.syncedAt = new Date().toISOString();
-      existingSales.push(sale);
-      salesImported++;
-    }
-  });
-  setItem(STORAGE_KEYS.sales, existingSales);
+  if (syncPackage.sales) {
+    const existingSales = getAllSales();
+    syncPackage.sales.forEach(sale => {
+      if (!existingSales.find(s => s.id === sale.id)) {
+        sale.syncedToMain = true;
+        sale.syncedAt = new Date().toISOString();
+        existingSales.push(sale);
+        result.salesImported++;
+      }
+    });
+    setItem(STORAGE_KEYS.sales, existingSales);
+  }
+  
+  // Import stock movements
+  if (syncPackage.stockMovements) {
+    const existingMovements = getStockMovements();
+    syncPackage.stockMovements.forEach(movement => {
+      if (!existingMovements.find(m => m.id === movement.id)) {
+        existingMovements.push(movement);
+        result.stockMovementsImported++;
+      }
+    });
+    setItem(STORAGE_KEYS.stockMovements, existingMovements);
+  }
+  
+  // Import stock transfers
+  if (syncPackage.stockTransfers) {
+    const existingTransfers = getStockTransfers();
+    syncPackage.stockTransfers.forEach(transfer => {
+      if (!existingTransfers.find(t => t.id === transfer.id)) {
+        existingTransfers.push(transfer);
+        result.stockTransfersImported++;
+      }
+    });
+    setItem(STORAGE_KEYS.stockTransfers, existingTransfers);
+  }
   
   // Import daily reports
-  const existingReports = getDailyReports();
-  syncPackage.dailyReports.forEach(report => {
-    if (!existingReports.find(r => r.id === report.id)) {
-      existingReports.push(report);
-      reportsImported++;
-    }
-  });
-  setItem(STORAGE_KEYS.dailyReports, existingReports);
+  if (syncPackage.dailyReports) {
+    const existingReports = getDailyReports();
+    syncPackage.dailyReports.forEach(report => {
+      if (!existingReports.find(r => r.id === report.id)) {
+        existingReports.push(report);
+        result.reportsImported++;
+      }
+    });
+    setItem(STORAGE_KEYS.dailyReports, existingReports);
+  }
   
-  return { salesImported, reportsImported };
+  result.totalImported = result.productsImported + result.suppliersImported + 
+                         result.clientsImported + result.purchasesImported + 
+                         result.salesImported + result.stockMovementsImported + 
+                         result.stockTransfersImported + result.reportsImported;
+  
+  return result;
 }
 
 // User functions

@@ -625,7 +625,7 @@ export function useDataSync() {
     return storage.createSyncPackage(branchId, dateFrom, dateTo);
   }, []);
 
-  const importData = useCallback((syncPackage: SyncPackage): { salesImported: number; reportsImported: number } => {
+  const importData = useCallback((syncPackage: SyncPackage): storage.ImportResult => {
     return storage.importSyncPackage(syncPackage);
   }, []);
 
