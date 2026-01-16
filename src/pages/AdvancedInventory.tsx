@@ -789,8 +789,6 @@ export default function AdvancedInventory() {
           }
         }}
         product={editingProduct}
-        categories={categories}
-        branchId={currentBranch?.id || ''}
         onSave={(product) => {
           if (editingProduct) {
             updateProduct(product);

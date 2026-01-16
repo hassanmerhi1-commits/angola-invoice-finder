@@ -39,7 +39,24 @@ export function useProducts(branchId?: string) {
     refreshProducts();
   }, [refreshProducts]);
 
-  return { products, refreshProducts };
+  const addProduct = useCallback((product: Product) => {
+    storage.saveProduct(product);
+    refreshProducts();
+  }, [refreshProducts]);
+
+  const updateProduct = useCallback((product: Product) => {
+    storage.saveProduct(product);
+    refreshProducts();
+  }, [refreshProducts]);
+
+  const deleteProduct = useCallback((productId: string) => {
+    const allProducts = storage.getAllProducts();
+    const filtered = allProducts.filter(p => p.id !== productId);
+    localStorage.setItem('kwanza_products', JSON.stringify(filtered));
+    refreshProducts();
+  }, [refreshProducts]);
+
+  return { products, refreshProducts, addProduct, updateProduct, deleteProduct };
 }
 
 export function useCart() {
