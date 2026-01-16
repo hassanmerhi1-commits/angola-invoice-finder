@@ -170,6 +170,7 @@ export function ProductDetailDialog({
   }, [product, open]);
 
   const handleSave = () => {
+    const cost = formData.iniciarCustoAK || formData.custoMedioAK;
     const savedProduct: Product = {
       id: formData.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: formData.name,
@@ -177,13 +178,19 @@ export function ProductDetailDialog({
       barcode: formData.barcodes[0]?.barPrice || undefined,
       category: formData.category,
       price: formData.price1 || formData.posPrice,
-      cost: formData.iniciarCustoAK || formData.custoMedioAK,
+      cost: cost,
+      firstCost: product?.firstCost || formData.iniciarCustoAK || cost,
+      lastCost: formData.ultimoCustoUS || cost,
+      avgCost: formData.custoMedioAK || cost,
       stock: formData.stock,
       unit: formData.unit,
       taxRate: formData.iva,
       branchId: formData.branchId,
+      supplierId: undefined,
+      supplierName: formData.fornecedorName || undefined,
       isActive: formData.isActive,
       createdAt: product?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     
     onSave(savedProduct);

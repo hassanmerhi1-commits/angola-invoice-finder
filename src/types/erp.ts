@@ -27,13 +27,20 @@ export interface Product {
   barcode?: string;
   category: string;
   price: number;
-  cost: number;
+  cost: number; // Current cost (legacy/fallback)
+  // Multi-cost tracking for accounting
+  firstCost: number; // First purchase cost (Custo Inicial)
+  lastCost: number; // Last purchase cost (Último Custo)
+  avgCost: number; // Weighted average cost (Custo Médio)
   stock: number;
   unit: string;
   taxRate: number; // IVA rate for Angola
   branchId: string;
+  supplierId?: string;
+  supplierName?: string;
   isActive: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CartItem {
