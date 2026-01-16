@@ -15,12 +15,14 @@ import {
   Truck,
   ClipboardList,
   Tags,
+  FileCheck,
 } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: ShoppingCart, label: 'POS / Caixa', path: '/pos' },
   { icon: FileText, label: 'Facturas', path: '/invoices' },
+  { icon: FileCheck, label: 'Documentos Fiscais', path: '/fiscal-documents' },
   { icon: Package, label: 'Inventário', path: '/inventory' },
   { icon: Tags, label: 'Categorias', path: '/categories' },
   { icon: Truck, label: 'Fornecedores', path: '/suppliers' },
