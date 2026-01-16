@@ -443,7 +443,7 @@ export function importSyncPackage(syncPackage: SyncPackage): ImportResult {
     setItem(STORAGE_KEYS.purchaseOrders, existingPurchases);
   }
   
-  // Import sales
+  // Import sales and DEDUCT STOCK from main office for each sale
   if (syncPackage.sales) {
     const existingSales = getAllSales();
     syncPackage.sales.forEach(sale => {
@@ -452,6 +452,14 @@ export function importSyncPackage(syncPackage: SyncPackage): ImportResult {
         sale.syncedAt = new Date().toISOString();
         existingSales.push(sale);
         result.salesImported++;
+        
+        // CRITICAL: Deduct stock from main office for imported sales
+        // This ensures the main office stock reflects all branch sales
+        if (sale.items && Array.isArray(sale.items)) {
+          sale.items.forEach(item => {
+            updateProductStock(item.productId, -item.quantity);
+          });
+        }
       }
     });
     setItem(STORAGE_KEYS.sales, existingSales);
