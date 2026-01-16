@@ -14,8 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, FileText, Download, Eye, QrCode } from 'lucide-react';
+import { Search, FileText, Eye, QrCode, Building2 } from 'lucide-react';
 import { InvoiceViewDialog } from '@/components/invoice/InvoiceViewDialog';
+import { SAFTExportDialog } from '@/components/fiscal/SAFTExportDialog';
+import { CompanySettingsDialog } from '@/components/settings/CompanySettingsDialog';
 
 export default function Invoices() {
   const { t, language } = useTranslation();
@@ -25,6 +27,8 @@ export default function Invoices() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [saftDialogOpen, setSaftDialogOpen] = useState(false);
+  const [companySettingsOpen, setCompanySettingsOpen] = useState(false);
 
   const filteredSales = sales.filter(sale =>
     sale.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -46,10 +50,16 @@ export default function Invoices() {
             {t.invoices.subtitle}
           </p>
         </div>
-        <Button>
-          <FileText className="w-4 h-4 mr-2" />
-          {t.invoices.exportSaft}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setCompanySettingsOpen(true)}>
+            <Building2 className="w-4 h-4 mr-2" />
+            Config. Empresa
+          </Button>
+          <Button onClick={() => setSaftDialogOpen(true)}>
+            <FileText className="w-4 h-4 mr-2" />
+            {t.invoices.exportSaft}
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -145,6 +155,18 @@ export default function Invoices() {
         onOpenChange={setViewDialogOpen}
         sale={selectedSale}
         branch={currentBranch}
+      />
+
+      {/* SAF-T Export Dialog */}
+      <SAFTExportDialog
+        open={saftDialogOpen}
+        onOpenChange={setSaftDialogOpen}
+      />
+
+      {/* Company Settings Dialog */}
+      <CompanySettingsDialog
+        open={companySettingsOpen}
+        onOpenChange={setCompanySettingsOpen}
       />
     </div>
   );
