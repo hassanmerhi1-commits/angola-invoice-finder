@@ -17,6 +17,7 @@ import {
   ClipboardList,
   Tags,
   FileCheck,
+  Shield,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -40,6 +41,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { icon: ArrowRightLeft, label: t.stockTransfer.title, path: '/stock-transfer' },
     { icon: Users, label: t.nav.clients, path: '/clients' },
     { icon: Upload, label: t.nav.dataSync, path: '/data-sync' },
+    { icon: Shield, label: 'User Management', path: '/users' },
     { icon: Building2, label: 'Branches', path: '/branches' },
     { icon: BarChart3, label: 'Reports', path: '/reports' },
     { icon: Settings, label: t.nav.settings, path: '/settings' },
