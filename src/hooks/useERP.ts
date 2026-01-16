@@ -1,3 +1,4 @@
+// ERP Hooks - Core business logic
 import { useState, useEffect, useCallback } from 'react';
 import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, PurchaseOrderItem, Category } from '@/types/erp';
 import * as storage from '@/lib/storage';

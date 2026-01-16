@@ -1,3 +1,4 @@
+// Advanced Inventory Page with Excel Import/Export
 import { useState, useMemo } from 'react';
 import { useBranches, useProducts, useCategories } from '@/hooks/useERP';
 import { useTranslation } from '@/i18n';
