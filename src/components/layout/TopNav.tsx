@@ -1,13 +1,13 @@
-// Top Navigation Bar with horizontal menu
+// Top Navigation Bar matching Smart ERP design
+// Menu Bar + Tab Navigation + Action Toolbar
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Branch, User } from '@/types/erp';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -18,15 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from '@/components/ui/navigation-menu';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { 
   Building2, 
@@ -49,6 +42,26 @@ import {
   FileCheck,
   Shield,
   ChevronDown,
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  Filter,
+  Download,
+  FileSpreadsheet,
+  RefreshCw,
+  Save,
+  Printer,
+  X,
+  Info,
+  HelpCircle,
+  Database,
+  Calculator,
+  Receipt,
+  Factory,
+  Import,
+  UserCog,
+  FolderOpen,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/i18n';
@@ -69,68 +82,190 @@ export function TopNav({
   onLogout,
 }: TopNavProps) {
   const { t } = useTranslation();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const navGroups = [
+  // Menu bar items (dropdowns)
+  const menuItems = [
     {
-      label: 'Sales',
+      label: 'File',
       items: [
-        { icon: LayoutDashboard, label: t.nav.dashboard, path: '/' },
-        { icon: ShoppingCart, label: t.nav.pos, path: '/pos' },
-        { icon: FileText, label: t.nav.invoices, path: '/invoices' },
-        { icon: FileCheck, label: t.nav.fiscalDocuments, path: '/fiscal-documents' },
+        { label: 'New', icon: Plus },
+        { label: 'Save', icon: Save },
+        { label: 'Print', icon: Printer },
+        { label: 'separator' },
+        { label: 'Exit', icon: LogOut, action: onLogout },
       ],
     },
     {
-      label: 'Inventory',
+      label: 'Company',
       items: [
-        { icon: Package, label: t.nav.inventory, path: '/inventory' },
-        { icon: Tags, label: t.nav.categories, path: '/categories' },
-        { icon: ArrowRightLeft, label: t.stockTransfer.title, path: '/stock-transfer' },
+        { label: 'Branches', icon: Building2, path: '/branches' },
+        { label: 'Users', icon: UserCog, path: '/users' },
+        { label: 'Settings', icon: Settings, path: '/settings' },
       ],
     },
     {
-      label: 'Purchasing',
+      label: 'Invoicing',
       items: [
-        { icon: Truck, label: t.nav.suppliers, path: '/suppliers' },
-        { icon: ClipboardList, label: t.nav.purchaseOrders, path: '/purchase-orders' },
+        { label: 'POS', icon: ShoppingCart, path: '/pos' },
+        { label: 'Invoices', icon: FileText, path: '/invoices' },
+        { label: 'Fiscal Documents', icon: FileCheck, path: '/fiscal-documents' },
       ],
     },
     {
-      label: 'Reports',
+      label: 'Accounting',
       items: [
-        { icon: Calendar, label: t.nav.dailyReports, path: '/daily-reports' },
-        { icon: BarChart3, label: 'Reports', path: '/reports' },
-        { icon: Upload, label: t.nav.dataSync, path: '/data-sync' },
+        { label: 'Daily Reports', icon: Calendar, path: '/daily-reports' },
+        { label: 'Reports', icon: BarChart3, path: '/reports' },
       ],
     },
     {
-      label: 'Admin',
+      label: 'Stock',
       items: [
-        { icon: Users, label: t.nav.clients, path: '/clients' },
-        { icon: Shield, label: 'User Management', path: '/users' },
-        { icon: Building2, label: 'Branches', path: '/branches' },
-        { icon: Settings, label: t.nav.settings, path: '/settings' },
+        { label: 'Inventory', icon: Package, path: '/inventory' },
+        { label: 'Categories', icon: Tags, path: '/categories' },
+        { label: 'Stock Transfer', icon: ArrowRightLeft, path: '/stock-transfer' },
+      ],
+    },
+    {
+      label: 'Utilities',
+      items: [
+        { label: 'Data Sync', icon: Upload, path: '/data-sync' },
+        { label: 'Import/Export', icon: FileSpreadsheet },
+      ],
+    },
+    {
+      label: 'Help',
+      items: [
+        { label: 'About', icon: Info },
+        { label: 'Help', icon: HelpCircle },
       ],
     },
   ];
-  
+
+  // Main tabs (like Smart ERP's Inicio, Mapa De Contas, Stock, etc.)
+  const mainTabs = [
+    { label: 'Home', path: '/', icon: LayoutDashboard },
+    { label: 'POS', path: '/pos', icon: ShoppingCart },
+    { label: 'Stock', path: '/inventory', icon: Package },
+    { label: 'Invoices', path: '/invoices', icon: FileText },
+    { label: 'Fiscal', path: '/fiscal-documents', icon: FileCheck },
+    { label: 'Purchasing', path: '/purchase-orders', icon: ClipboardList },
+    { label: 'Suppliers', path: '/suppliers', icon: Truck },
+    { label: 'Clients', path: '/clients', icon: Users },
+    { label: 'Reports', path: '/daily-reports', icon: Calendar },
+  ];
+
+  // Context-specific action buttons based on current route
+  const getActionButtons = () => {
+    const path = location.pathname;
+    
+    const commonButtons = [
+      { label: 'All', icon: FolderOpen, variant: 'default' as const },
+      { label: 'New', icon: Plus, variant: 'default' as const },
+      { label: 'Edit', icon: Pencil, variant: 'outline' as const },
+      { label: 'Delete', icon: Trash2, variant: 'destructive' as const },
+    ];
+
+    if (path.includes('inventory') || path.includes('stock')) {
+      return [
+        ...commonButtons,
+        { label: 'Transfer', icon: ArrowRightLeft, variant: 'outline' as const },
+        { label: 'Adjust', icon: RefreshCw, variant: 'outline' as const },
+        { label: 'Import', icon: Download, variant: 'outline' as const },
+        { label: 'Export', icon: FileSpreadsheet, variant: 'outline' as const },
+      ];
+    }
+    
+    if (path.includes('invoices') || path.includes('fiscal')) {
+      return [
+        ...commonButtons,
+        { label: 'Print', icon: Printer, variant: 'outline' as const },
+        { label: 'Export', icon: FileSpreadsheet, variant: 'outline' as const },
+      ];
+    }
+
+    if (path.includes('pos')) {
+      return [
+        { label: 'New Sale', icon: Plus, variant: 'default' as const },
+        { label: 'Hold', icon: Save, variant: 'outline' as const },
+        { label: 'Recall', icon: RefreshCw, variant: 'outline' as const },
+        { label: 'Void', icon: X, variant: 'destructive' as const },
+      ];
+    }
+
+    return commonButtons;
+  };
+
+  const actionButtons = getActionButtons();
+
   return (
     <header className="border-b bg-card sticky top-0 z-50">
-      {/* Main Header Row */}
-      <div className="h-14 px-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      {/* Row 1: Menu Bar */}
+      <div className="h-8 px-2 bg-gradient-to-b from-muted/50 to-muted hidden lg:flex items-center justify-between border-b text-sm">
+        <div className="flex items-center">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">K</span>
+          <div className="flex items-center gap-2 pr-4 border-r mr-2">
+            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-xs">K</span>
             </div>
-            <div className="hidden sm:block">
-              <h1 className="font-bold text-base leading-none">Kwanza ERP</h1>
-            </div>
+            <span className="font-semibold text-sm">Kwanza ERP</span>
           </div>
 
-          {/* Branch Selector */}
+          {/* Menu Items */}
+          {menuItems.map((menu) => (
+            <DropdownMenu key={menu.label}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                  {menu.label}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[160px]">
+                {menu.items.map((item, idx) => 
+                  item.label === 'separator' ? (
+                    <DropdownMenuSeparator key={idx} />
+                  ) : (
+                    <DropdownMenuItem 
+                      key={item.label} 
+                      asChild={!!item.path}
+                      onClick={item.action}
+                      className="text-sm"
+                    >
+                      {item.path ? (
+                        <NavLink to={item.path} className="flex items-center gap-2">
+                          {item.icon && <item.icon className="w-4 h-4" />}
+                          {item.label}
+                        </NavLink>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          {item.icon && <item.icon className="w-4 h-4" />}
+                          {item.label}
+                        </span>
+                      )}
+                    </DropdownMenuItem>
+                  )
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ))}
+        </div>
+
+        {/* Right side: Search, Branch, User */}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+            <Input 
+              placeholder="Search..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-6 w-40 pl-7 text-xs"
+            />
+          </div>
+          
+          <LanguageSwitcher />
+          
           <Select
             value={currentBranch?.id}
             onValueChange={(id) => {
@@ -138,159 +273,167 @@ export function TopNav({
               if (branch) onBranchChange(branch);
             }}
           >
-            <SelectTrigger className="w-[160px] h-9 text-sm">
-              <Building2 className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Select branch" />
+            <SelectTrigger className="h-6 w-[140px] text-xs">
+              <Building2 className="w-3 h-3 mr-1" />
+              <SelectValue placeholder="Branch" />
             </SelectTrigger>
             <SelectContent>
               {branches.map(branch => (
-                <SelectItem key={branch.id} value={branch.id}>
-                  <div className="flex items-center gap-2">
-                    <span>{branch.name}</span>
-                    {branch.isMain && (
-                      <Badge variant="secondary" className="text-[10px]">HQ</Badge>
-                    )}
-                  </div>
+                <SelectItem key={branch.id} value={branch.id} className="text-xs">
+                  {branch.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {/* Mobile menu button */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="lg:hidden"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
-
-          {/* Language Switcher */}
-          <LanguageSwitcher />
-
-          {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="gap-2 h-9">
-                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-                  <UserIcon className="w-4 h-4 text-primary" />
-                </div>
-                <span className="hidden sm:inline text-sm">{user?.name}</span>
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1">
+                <UserIcon className="w-3 h-3" />
+                {user?.name}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div>
-                  <p className="font-medium">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <NavLink to="/settings" className="cursor-pointer">
-                  <Settings className="w-4 h-4 mr-2" />
-                  {t.nav.settings}
-                </NavLink>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLogout} className="text-destructive cursor-pointer">
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onLogout} className="text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />
-                {t.nav.logout}
+                Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      {/* Navigation Row - Desktop */}
-      <nav className="h-10 px-4 hidden lg:flex items-center gap-1 border-t bg-muted/30">
-        {navGroups.map((group) => (
-          <DropdownMenu key={group.label}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 text-sm gap-1">
-                {group.label}
-                <ChevronDown className="w-3 h-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
-              {group.items.map((item) => (
-                <DropdownMenuItem key={item.path} asChild>
-                  <NavLink 
-                    to={item.path} 
-                    className={({ isActive }) => cn(
-                      "flex items-center gap-2 cursor-pointer w-full",
-                      isActive && "bg-primary/10 text-primary"
-                    )}
-                  >
-                    <item.icon className="w-4 h-4" />
-                    {item.label}
-                  </NavLink>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+      {/* Row 2: Main Tabs */}
+      <div className="h-9 px-2 bg-muted/30 hidden lg:flex items-center gap-1 border-b overflow-x-auto">
+        {mainTabs.map((tab) => (
+          <NavLink
+            key={tab.path}
+            to={tab.path}
+            className={({ isActive }) => cn(
+              "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-t-md border-b-2 transition-colors",
+              isActive 
+                ? "bg-background border-primary text-primary" 
+                : "border-transparent hover:bg-muted hover:text-foreground text-muted-foreground"
+            )}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </NavLink>
+        ))}
+      </div>
+
+      {/* Row 3: Action Toolbar */}
+      <div className="h-10 px-2 bg-gradient-to-b from-background to-muted/20 hidden lg:flex items-center gap-1 border-b overflow-x-auto">
+        {actionButtons.map((btn, idx) => (
+          <Button
+            key={idx}
+            variant={btn.variant}
+            size="sm"
+            className="h-7 text-xs gap-1"
+          >
+            <btn.icon className="w-3.5 h-3.5" />
+            {btn.label}
+          </Button>
         ))}
         
-        {/* Quick access links */}
-        <div className="ml-auto flex items-center gap-1">
-          <NavLink to="/pos">
-            {({ isActive }) => (
-              <Button 
-                variant={isActive ? "secondary" : "ghost"} 
-                size="sm" 
-                className="h-8 text-sm"
-              >
-                <ShoppingCart className="w-4 h-4 mr-1" />
-                POS
-              </Button>
-            )}
-          </NavLink>
-          <NavLink to="/">
-            {({ isActive }) => (
-              <Button 
-                variant={isActive ? "secondary" : "ghost"} 
-                size="sm" 
-                className="h-8 text-sm"
-              >
-                <LayoutDashboard className="w-4 h-4 mr-1" />
-                Dashboard
-              </Button>
-            )}
-          </NavLink>
+        <div className="flex-1" />
+        
+        {/* Right side action buttons */}
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+          <Filter className="w-3.5 h-3.5" />
+          Filter
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+          <Download className="w-3.5 h-3.5" />
+          Import
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+          <FileSpreadsheet className="w-3.5 h-3.5" />
+          Excel
+        </Button>
+      </div>
+
+      {/* Mobile Header */}
+      <div className="h-12 px-3 flex lg:hidden items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-bold">K</span>
+          </div>
+          <span className="font-semibold">Kwanza ERP</span>
         </div>
-      </nav>
+        
+        <div className="flex items-center gap-2">
+          <Select
+            value={currentBranch?.id}
+            onValueChange={(id) => {
+              const branch = branches.find(b => b.id === id);
+              if (branch) onBranchChange(branch);
+            }}
+          >
+            <SelectTrigger className="h-8 w-[120px] text-xs">
+              <Building2 className="w-3 h-3 mr-1" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {branches.map(branch => (
+                <SelectItem key={branch.id} value={branch.id} className="text-xs">
+                  {branch.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Button 
+            variant="ghost" 
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+        </div>
+      </div>
 
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
-        <nav className="lg:hidden border-t bg-card p-4 space-y-4">
-          {navGroups.map((group) => (
-            <div key={group.label}>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                {group.label}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {group.items.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) => cn(
-                      "flex items-center gap-2 px-3 py-2 rounded-md text-sm",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted"
-                    )}
-                  >
-                    <item.icon className="w-4 h-4" />
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
+        <nav className="lg:hidden border-t bg-card p-3 space-y-3 max-h-[70vh] overflow-y-auto">
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search..." 
+              className="pl-9"
+            />
+          </div>
+          
+          <div className="grid grid-cols-3 gap-2">
+            {mainTabs.map((tab) => (
+              <NavLink
+                key={tab.path}
+                to={tab.path}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) => cn(
+                  "flex flex-col items-center gap-1 p-3 rounded-lg text-xs",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted hover:bg-muted/80"
+                )}
+              >
+                <tab.icon className="w-5 h-5" />
+                {tab.label}
+              </NavLink>
+            ))}
+          </div>
+
+          <div className="pt-3 border-t flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserIcon className="w-4 h-4" />
+              <span className="text-sm">{user?.name}</span>
             </div>
-          ))}
+            <Button variant="ghost" size="sm" onClick={onLogout} className="text-destructive">
+              <LogOut className="w-4 h-4 mr-1" />
+              Logout
+            </Button>
+          </div>
         </nav>
       )}
     </header>
