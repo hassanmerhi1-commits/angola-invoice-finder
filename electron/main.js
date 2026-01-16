@@ -1,9 +1,23 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
+const crypto = require('crypto');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 if (require('electron-squirrel-startup')) {
   app.quit();
+}
+
+// AGT Services (lazy loaded)
+let agtServices = null;
+function getAGTServices() {
+  if (!agtServices) {
+    try {
+      agtServices = require('./services');
+    } catch (e) {
+      console.error('[AGT] Services not available:', e.message);
+    }
+  }
+  return agtServices;
 }
 
 let mainWindow;
@@ -119,4 +133,76 @@ app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler(() => {
     return { action: 'deny' };
   });
+});
+
+// ==================== IPC HANDLERS FOR AGT SERVICES ====================
+
+// Sign invoice with RSA-SHA256
+ipcMain.handle('agt:sign-invoice', async (event, { invoiceData, keyAlias, passphrase }) => {
+  const services = getAGTServices();
+  if (!services) {
+    return { success: false, error: 'AGT services not available' };
+  }
+  
+  try {
+    const result = services.signInvoice(invoiceData, keyAlias, passphrase);
+    return { success: true, ...result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Generate RSA key pair
+ipcMain.handle('agt:generate-keys', async (event, { keyAlias, passphrase }) => {
+  const services = getAGTServices();
+  if (!services) {
+    return { success: false, error: 'AGT services not available' };
+  }
+  
+  try {
+    const result = services.generateKeyPair(keyAlias, passphrase);
+    return { 
+      success: true, 
+      publicKey: result.publicKey,
+      privateKeyHash: result.privateKeyHash
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// List available keys
+ipcMain.handle('agt:list-keys', async () => {
+  const services = getAGTServices();
+  if (!services) {
+    return { success: false, keys: [] };
+  }
+  
+  try {
+    return { success: true, keys: services.listKeys() };
+  } catch (error) {
+    return { success: false, error: error.message, keys: [] };
+  }
+});
+
+// Verify signature
+ipcMain.handle('agt:verify-signature', async (event, { invoiceData, signature, keyAlias }) => {
+  const services = getAGTServices();
+  if (!services) {
+    return { success: false, valid: false };
+  }
+  
+  try {
+    const valid = services.verifySignature(invoiceData, signature, keyAlias);
+    return { success: true, valid };
+  } catch (error) {
+    return { success: false, error: error.message, valid: false };
+  }
+});
+
+// Calculate hash
+ipcMain.handle('agt:calculate-hash', async (event, { data }) => {
+  return { 
+    hash: crypto.createHash('sha256').update(data).digest('hex')
+  };
 });
