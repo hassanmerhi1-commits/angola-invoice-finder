@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useBranches, useDataSync, useAuth } from '@/hooks/useERP';
 import { SyncPackage } from '@/types/erp';
+import { ImportResult } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Download, Upload, Mail, HardDrive, FileJson, CheckCircle, AlertCircle, Building } from 'lucide-react';
+import { 
+  Download, Upload, Mail, HardDrive, FileJson, CheckCircle, AlertCircle, Building,
+  Package, Users, ShoppingCart, Truck, FileText, BarChart3, ArrowRightLeft
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -28,7 +32,7 @@ export default function DataSync() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [syncPackage, setSyncPackage] = useState<SyncPackage | null>(null);
-  const [importResult, setImportResult] = useState<{ salesImported: number; reportsImported: number } | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   const isMainOffice = currentBranch?.isMain;
 
@@ -48,7 +52,7 @@ export default function DataSync() {
     
     toast({
       title: 'Pacote preparado',
-      description: `${pkg.sales.length} vendas e ${pkg.dailyReports.length} relatórios prontos para exportar`,
+      description: `${pkg.totalRecords} registos prontos para exportar`,
     });
   };
 
@@ -85,7 +89,7 @@ export default function DataSync() {
         const pkg = JSON.parse(content) as SyncPackage;
         
         // Validate package structure
-        if (!pkg.id || !pkg.branchId || !pkg.sales) {
+        if (!pkg.id || !pkg.branchId) {
           throw new Error('Formato de ficheiro inválido');
         }
 
@@ -94,7 +98,7 @@ export default function DataSync() {
         
         toast({
           title: 'Importação concluída',
-          description: `${result.salesImported} vendas e ${result.reportsImported} relatórios importados`,
+          description: `${result.totalImported} registos importados com sucesso`,
         });
       } catch (error) {
         toast({
@@ -121,13 +125,13 @@ export default function DataSync() {
         </div>
       </div>
 
-      {/* Info Alert */}
+      {/* Architecture Info */}
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Sistema Offline-First</AlertTitle>
         <AlertDescription>
-          Cada filial trabalha com dados locais. No final do dia, exporte os dados e envie para a sede 
-          via pen drive ou email. A sede pode então importar os dados de todas as filiais.
+          Cada filial trabalha com dados locais. No final do dia/semana, exporte os dados e envie para a sede 
+          via pen drive ou email. A sede importa os dados de todas as filiais para consolidação.
         </AlertDescription>
       </Alert>
 
@@ -148,9 +152,9 @@ export default function DataSync() {
         <TabsContent value="export" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Exportar Dados de Vendas</CardTitle>
+              <CardTitle>Exportar Pacote Completo</CardTitle>
               <CardDescription>
-                Prepare um pacote de dados para enviar para a sede
+                Gera um ficheiro JSON com todos os dados da filial para enviar à sede
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -209,25 +213,85 @@ export default function DataSync() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Package Summary */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Filial</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Filial</p>
+                    </div>
                     <p className="font-medium">{syncPackage.branchName}</p>
+                    <p className="text-xs text-muted-foreground">Código: {syncPackage.branchCode}</p>
                   </div>
                   <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Período</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Período</p>
+                    </div>
                     <p className="font-medium">
-                      {format(new Date(syncPackage.dateRange.from), 'dd/MM', { locale: pt })} - 
-                      {format(new Date(syncPackage.dateRange.to), 'dd/MM', { locale: pt })}
+                      {format(new Date(syncPackage.dateRange.from), 'dd/MM/yyyy', { locale: pt })}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      até {format(new Date(syncPackage.dateRange.to), 'dd/MM/yyyy', { locale: pt })}
                     </p>
                   </div>
                   <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Vendas</p>
-                    <p className="font-medium">{syncPackage.sales.length}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Package className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Total Registos</p>
+                    </div>
+                    <p className="font-bold text-xl">{syncPackage.totalRecords}</p>
                   </div>
                   <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Relatórios</p>
-                    <p className="font-medium">{syncPackage.dailyReports.length}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileJson className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Versão</p>
+                    </div>
+                    <p className="font-medium">{syncPackage.version}</p>
+                  </div>
+                </div>
+
+                {/* Detailed breakdown */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                  <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg text-center">
+                    <Package className="w-5 h-5 mx-auto mb-1 text-blue-600" />
+                    <p className="text-lg font-bold">{syncPackage.products.length}</p>
+                    <p className="text-xs text-muted-foreground">Produtos</p>
+                  </div>
+                  <div className="bg-purple-50 dark:bg-purple-950/30 p-3 rounded-lg text-center">
+                    <Truck className="w-5 h-5 mx-auto mb-1 text-purple-600" />
+                    <p className="text-lg font-bold">{syncPackage.suppliers.length}</p>
+                    <p className="text-xs text-muted-foreground">Fornecedores</p>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-950/30 p-3 rounded-lg text-center">
+                    <Users className="w-5 h-5 mx-auto mb-1 text-green-600" />
+                    <p className="text-lg font-bold">{syncPackage.clients.length}</p>
+                    <p className="text-xs text-muted-foreground">Clientes</p>
+                  </div>
+                  <div className="bg-orange-50 dark:bg-orange-950/30 p-3 rounded-lg text-center">
+                    <ShoppingCart className="w-5 h-5 mx-auto mb-1 text-orange-600" />
+                    <p className="text-lg font-bold">{syncPackage.purchases.length}</p>
+                    <p className="text-xs text-muted-foreground">Compras</p>
+                  </div>
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 p-3 rounded-lg text-center">
+                    <FileText className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
+                    <p className="text-lg font-bold">{syncPackage.sales.length}</p>
+                    <p className="text-xs text-muted-foreground">Vendas</p>
+                  </div>
+                  <div className="bg-cyan-50 dark:bg-cyan-950/30 p-3 rounded-lg text-center">
+                    <ArrowRightLeft className="w-5 h-5 mx-auto mb-1 text-cyan-600" />
+                    <p className="text-lg font-bold">{syncPackage.stockMovements.length}</p>
+                    <p className="text-xs text-muted-foreground">Movimentos</p>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg text-center">
+                    <Truck className="w-5 h-5 mx-auto mb-1 text-amber-600" />
+                    <p className="text-lg font-bold">{syncPackage.stockTransfers.length}</p>
+                    <p className="text-xs text-muted-foreground">Transferências</p>
+                  </div>
+                  <div className="bg-indigo-50 dark:bg-indigo-950/30 p-3 rounded-lg text-center">
+                    <BarChart3 className="w-5 h-5 mx-auto mb-1 text-indigo-600" />
+                    <p className="text-lg font-bold">{syncPackage.dailyReports.length}</p>
+                    <p className="text-xs text-muted-foreground">Relatórios</p>
                   </div>
                 </div>
 
@@ -280,11 +344,48 @@ export default function DataSync() {
                 </div>
 
                 {importResult && (
-                  <Alert className="bg-green-50 border-green-200">
+                  <Alert className="bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertTitle className="text-green-800">Importação Concluída</AlertTitle>
-                    <AlertDescription className="text-green-700">
-                      Foram importadas {importResult.salesImported} vendas e {importResult.reportsImported} relatórios diários.
+                    <AlertTitle className="text-green-800 dark:text-green-200">Importação Concluída</AlertTitle>
+                    <AlertDescription className="text-green-700 dark:text-green-300">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+                        <div className="text-center">
+                          <p className="font-bold text-lg">{importResult.productsImported}</p>
+                          <p className="text-xs">Produtos</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-bold text-lg">{importResult.suppliersImported}</p>
+                          <p className="text-xs">Fornecedores</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-bold text-lg">{importResult.clientsImported}</p>
+                          <p className="text-xs">Clientes</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-bold text-lg">{importResult.purchasesImported}</p>
+                          <p className="text-xs">Compras</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-bold text-lg">{importResult.salesImported}</p>
+                          <p className="text-xs">Vendas</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-bold text-lg">{importResult.stockMovementsImported}</p>
+                          <p className="text-xs">Movimentos</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-bold text-lg">{importResult.stockTransfersImported}</p>
+                          <p className="text-xs">Transferências</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-bold text-lg">{importResult.reportsImported}</p>
+                          <p className="text-xs">Relatórios</p>
+                        </div>
+                      </div>
+                      <div className="text-center mt-4 pt-3 border-t border-green-300 dark:border-green-700">
+                        <p className="font-bold text-xl">{importResult.totalImported}</p>
+                        <p className="text-sm">Total de Registos Importados</p>
+                      </div>
                     </AlertDescription>
                   </Alert>
                 )}
@@ -301,9 +402,39 @@ export default function DataSync() {
                   <li>Receba o ficheiro JSON da filial (via pen drive ou email)</li>
                   <li>Clique em "Selecionar Ficheiro" e escolha o ficheiro recebido</li>
                   <li>O sistema irá validar e importar os dados automaticamente</li>
-                  <li>Vendas duplicadas serão ignoradas (baseado no ID)</li>
-                  <li>Os relatórios diários serão consolidados</li>
+                  <li>Registos duplicados serão ignorados (baseado no ID ou NIF)</li>
+                  <li>Os dados serão consolidados no sistema central</li>
                 </ol>
+                
+                <div className="mt-4 p-4 bg-muted rounded-lg">
+                  <h4 className="font-medium mb-2">Dados Incluídos no Pacote:</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-4 h-4" /> Produtos
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-4 h-4" /> Fornecedores
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4" /> Clientes
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="w-4 h-4" /> Compras (POs)
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" /> Vendas (Facturas)
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ArrowRightLeft className="w-4 h-4" /> Movimentos Stock
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-4 h-4" /> Transferências
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4" /> Relatórios Diários
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -327,7 +458,7 @@ export default function DataSync() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="sede@kwanzaerp.ao"
+                placeholder="sede@empresa.ao"
               />
             </div>
           </div>

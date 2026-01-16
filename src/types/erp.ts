@@ -174,6 +174,25 @@ export interface DataExport {
   status: 'pending' | 'exported' | 'imported';
 }
 
+// Stock Movement - Tracks every stock IN/OUT
+export interface StockMovement {
+  id: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  branchId: string;
+  type: 'IN' | 'OUT';
+  quantity: number;
+  reason: 'purchase' | 'sale' | 'transfer_in' | 'transfer_out' | 'adjustment' | 'damage' | 'return' | 'initial';
+  referenceId?: string; // PO ID, Sale ID, Transfer ID
+  referenceNumber?: string; // PO number, Invoice number, etc.
+  costAtTime?: number; // Cost at the time of movement
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+// Complete Sync Package for Filial → Head Office
 export interface SyncPackage {
   id: string;
   branchId: string;
@@ -184,11 +203,20 @@ export interface SyncPackage {
     from: string;
     to: string;
   };
+  // Core data
+  products: Product[];
+  suppliers: Supplier[];
+  clients: Client[];
+  // Transactions
+  purchases: PurchaseOrder[];
   sales: Sale[];
+  stockMovements: StockMovement[];
+  stockTransfers: StockTransfer[];
+  // Reports
   dailyReports: DailySummary[];
-  clients?: Client[];
-  stockTransfers?: StockTransfer[];
+  // Metadata
   version: string;
+  totalRecords: number;
 }
 
 export interface Supplier {
