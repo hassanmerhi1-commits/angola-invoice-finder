@@ -5,6 +5,7 @@
  */
 
 import { Sale, Branch } from '@/types/erp';
+import { buildAGTQRCodeString, saleToAGTQRData, getInvoiceHash } from './agtQRCode';
 
 // Printer configuration
 export interface PrinterConfig {
@@ -438,13 +439,37 @@ export function printViaBrowser(
   ${sale.customerName ? `<div class="row small"><span>Cliente:</span><span>${sale.customerName}</span></div>` : ''}
   ` : ''}
   
+  <div class="divider"></div>
+  
+  <!-- AGT QR Code Section -->
+  <div class="center" style="padding: 10px 0;">
+    <div id="qrcode" style="display: inline-block; padding: 5px; background: white;"></div>
+    <div style="font-size: 8px; margin-top: 5px; font-family: monospace;">
+      Hash: ${getInvoiceHash(sale)}
+    </div>
+    <div style="font-size: 7px; color: #666; margin-top: 3px;">
+      Documento processado por programa certificado AGT
+    </div>
+  </div>
+  
+  <div class="divider"></div>
+  
   <div class="footer center">
-    <div class="divider"></div>
-    <div>Documento processado por</div>
-    <div class="bold">Kwanza ERP</div>
+    <div>Software: Kwanza ERP</div>
+    <div style="font-size: 9px;">Certificado AGT</div>
     <br>
     <div>Obrigado pela preferência!</div>
   </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script>
+    const qrData = "${buildAGTQRCodeString(saleToAGTQRData(sale, branch)).replace(/"/g, '\\"')}";
+    QRCode.toCanvas(document.createElement('canvas'), qrData, { width: 100, margin: 1 }, function(err, canvas) {
+      if (!err) {
+        document.getElementById('qrcode').appendChild(canvas);
+      }
+    });
+  </script>
 </body>
 </html>
   `;

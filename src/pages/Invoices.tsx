@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useBranches, useSales } from '@/hooks/useERP';
 import { useTranslation } from '@/i18n';
+import { Sale } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, FileText, Download, Eye } from 'lucide-react';
+import { Search, FileText, Download, Eye, QrCode } from 'lucide-react';
+import { InvoiceViewDialog } from '@/components/invoice/InvoiceViewDialog';
 
 export default function Invoices() {
   const { t, language } = useTranslation();
@@ -21,12 +23,19 @@ export default function Invoices() {
   const { currentBranch } = useBranches();
   const { sales } = useSales(currentBranch?.id);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
 
   const filteredSales = sales.filter(sale =>
     sale.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     sale.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     sale.customerNif?.includes(searchTerm)
   );
+
+  const handleViewInvoice = (sale: Sale) => {
+    setSelectedSale(sale);
+    setViewDialogOpen(true);
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -104,11 +113,21 @@ export default function Invoices() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleViewInvoice(sale)}
+                          title="Ver factura"
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon">
-                          <Download className="w-4 h-4" />
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleViewInvoice(sale)}
+                          title="Ver QR Code AGT"
+                        >
+                          <QrCode className="w-4 h-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -119,6 +138,14 @@ export default function Invoices() {
           )}
         </CardContent>
       </Card>
+
+      {/* Invoice View Dialog with AGT QR Code */}
+      <InvoiceViewDialog
+        open={viewDialogOpen}
+        onOpenChange={setViewDialogOpen}
+        sale={selectedSale}
+        branch={currentBranch}
+      />
     </div>
   );
 }

@@ -15,6 +15,8 @@ import {
   openCashDrawer 
 } from '@/lib/thermalPrinter';
 import { PrinterSettingsDialog } from './PrinterSettingsDialog';
+import { AGTQRCode } from '@/components/invoice/AGTQRCode';
+import { getInvoiceHash } from '@/lib/agtQRCode';
 import { toast } from 'sonner';
 
 interface ReceiptDialogProps {
@@ -178,8 +180,21 @@ export function ReceiptDialog({
 
           <Separator className="border-dashed" />
 
+          {/* AGT QR Code - Required by Executive Decree 683/25 */}
+          <div className="py-2">
+            <AGTQRCode 
+              sale={sale} 
+              branch={branch} 
+              size={100}
+              showVerificationText={true}
+            />
+          </div>
+
+          <Separator className="border-dashed" />
+
           <div className="text-center text-[10px] space-y-1">
             <p>Documento processado por Kwanza ERP</p>
+            <p>Software certificado AGT</p>
             <p>Obrigado pela preferência!</p>
           </div>
         </div>
