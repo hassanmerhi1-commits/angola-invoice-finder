@@ -369,6 +369,172 @@ export function createSyncPackage(branchId: string, dateFrom: string, dateTo: st
   };
 }
 
+// ==================== DATA SYNC (HEAD OFFICE → FILIAL) ====================
+// Price and code updates only - NO stock information
+
+export interface PriceUpdatePackage {
+  id: string;
+  fromBranchId: string;
+  fromBranchName: string;
+  exportDate: string;
+  products: Array<{
+    id: string;
+    sku: string;
+    barcode?: string;
+    name: string;
+    price: number;
+    cost: number;
+    taxRate: number;
+    category: string;
+    unit: string;
+    supplierName?: string;
+    // Explicitly NO stock field
+  }>;
+  categories: Array<{
+    id: string;
+    name: string;
+  }>;
+  version: string;
+  totalRecords: number;
+}
+
+export function createPriceUpdatePackage(): PriceUpdatePackage {
+  const mainBranch = getBranches().find(b => b.isMain);
+  const allProducts = getAllProducts();
+  const categories = getCategories();
+  
+  // Extract only pricing and identification data - NO STOCK
+  const priceProducts = allProducts.map(p => ({
+    id: p.id,
+    sku: p.sku,
+    barcode: p.barcode,
+    name: p.name,
+    price: p.price,
+    cost: p.cost,
+    taxRate: p.taxRate,
+    category: p.category,
+    unit: p.unit,
+    supplierName: p.supplierName,
+  }));
+  
+  return {
+    id: `price_update_${Date.now()}`,
+    fromBranchId: mainBranch?.id || '',
+    fromBranchName: mainBranch?.name || 'Sede',
+    exportDate: new Date().toISOString(),
+    products: priceProducts,
+    categories: categories.map(c => ({ id: c.id, name: c.name })),
+    version: '1.0.0',
+    totalRecords: priceProducts.length,
+  };
+}
+
+export interface PriceUpdateResult {
+  productsUpdated: number;
+  productsAdded: number;
+  categoriesUpdated: number;
+  totalProcessed: number;
+}
+
+export function importPriceUpdatePackage(pkg: PriceUpdatePackage): PriceUpdateResult {
+  const result: PriceUpdateResult = {
+    productsUpdated: 0,
+    productsAdded: 0,
+    categoriesUpdated: 0,
+    totalProcessed: 0,
+  };
+  
+  // Import categories
+  if (pkg.categories) {
+    const existingCategories = getCategories();
+    pkg.categories.forEach(cat => {
+      if (!existingCategories.find(c => c.id === cat.id || c.name === cat.name)) {
+        existingCategories.push({
+          id: cat.id,
+          name: cat.name,
+          description: '',
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        result.categoriesUpdated++;
+      }
+    });
+    setItem(STORAGE_KEYS.categories, existingCategories);
+  }
+  
+  // Import/update products - PRESERVE LOCAL STOCK
+  if (pkg.products) {
+    const existingProducts = getAllProducts();
+    
+    pkg.products.forEach(newProduct => {
+      const existingIndex = existingProducts.findIndex(
+        p => p.id === newProduct.id || p.sku === newProduct.sku
+      );
+      
+      if (existingIndex >= 0) {
+        // Update existing product - KEEP LOCAL STOCK
+        const existing = existingProducts[existingIndex];
+        existingProducts[existingIndex] = {
+          ...existing,
+          // Update pricing and identification
+          sku: newProduct.sku,
+          barcode: newProduct.barcode,
+          name: newProduct.name,
+          price: newProduct.price,
+          cost: newProduct.cost,
+          taxRate: newProduct.taxRate,
+          category: newProduct.category,
+          unit: newProduct.unit,
+          supplierName: newProduct.supplierName,
+          updatedAt: new Date().toISOString(),
+          // KEEP LOCAL STOCK - do not override
+        };
+        result.productsUpdated++;
+      } else {
+        // Add new product with ZERO stock at filial
+        const newProd: Product = {
+          id: newProduct.id,
+          sku: newProduct.sku,
+          barcode: newProduct.barcode,
+          name: newProduct.name,
+          price: newProduct.price,
+          cost: newProduct.cost,
+          firstCost: newProduct.cost,
+          lastCost: newProduct.cost,
+          avgCost: newProduct.cost,
+          taxRate: newProduct.taxRate,
+          category: newProduct.category,
+          unit: newProduct.unit,
+          supplierName: newProduct.supplierName,
+          stock: 0, // New products start with ZERO stock at filial
+          branchId: '', // Will be set based on current branch
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        };
+        existingProducts.push(newProd);
+        result.productsAdded++;
+      }
+    });
+    
+    setItem(STORAGE_KEYS.products, existingProducts);
+  }
+  
+  result.totalProcessed = result.productsUpdated + result.productsAdded + result.categoriesUpdated;
+  return result;
+}
+
+// Helper to check if current branch is a filial (not main office)
+export function isFilialBranch(branchId?: string): boolean {
+  const branches = getBranches();
+  if (!branchId) {
+    const currentBranch = branches.find(b => !b.isMain); // Default check
+    return currentBranch ? !currentBranch.isMain : false;
+  }
+  const branch = branches.find(b => b.id === branchId);
+  return branch ? !branch.isMain : false;
+}
+
 export interface ImportResult {
   productsImported: number;
   suppliersImported: number;
