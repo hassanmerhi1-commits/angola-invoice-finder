@@ -467,7 +467,7 @@ function getDefaultUsers(): User[] {
   return [
     {
       id: 'user-001',
-      email: 'admin@kwanzaerp.ao',
+      email: 'admin',
       name: 'Administrador',
       role: 'admin',
       branchId: 'branch-001',
@@ -476,9 +476,18 @@ function getDefaultUsers(): User[] {
     },
     {
       id: 'user-002',
-      email: 'caixa1@kwanzaerp.ao',
+      email: 'caixa1',
       name: 'João Silva',
       role: 'cashier',
+      branchId: 'branch-001',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'user-003',
+      email: 'gerente',
+      name: 'Maria Santos',
+      role: 'manager',
       branchId: 'branch-001',
       isActive: true,
       createdAt: new Date().toISOString(),
