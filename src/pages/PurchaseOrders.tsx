@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useBranches, useProducts, useSuppliers, usePurchaseOrders, useAuth } from '@/hooks/useERP';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { PurchaseOrder, PurchaseOrderItem, Product } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Eye, CheckCircle, Package, ShoppingCart, Trash2 } from 'lucide-react';
+import { Search, Plus, Eye, CheckCircle, Package, ShoppingCart, Trash2, Barcode, ScanLine } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -78,6 +79,101 @@ export default function PurchaseOrders() {
     quantity: 1,
     unitCost: 0,
   });
+
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [scanMode, setScanMode] = useState<'create' | 'receive' | null>(null);
+
+  // Handle barcode scan for adding products
+  const handleBarcodeScan = useCallback((barcode: string) => {
+    const product = products.find(p => 
+      p.barcode === barcode || p.sku.toLowerCase() === barcode.toLowerCase()
+    );
+    
+    if (!product) {
+      toast({
+        title: 'Produto não encontrado',
+        description: `Código: ${barcode}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (scanMode === 'create') {
+      // Check if product already in order
+      const existingItem = orderForm.items.find(i => i.productId === product.id);
+      if (existingItem) {
+        // Increase quantity
+        setOrderForm({
+          ...orderForm,
+          items: orderForm.items.map(i => 
+            i.productId === product.id 
+              ? { ...i, quantity: i.quantity + 1 }
+              : i
+          ),
+        });
+        toast({
+          title: 'Quantidade aumentada',
+          description: `${product.name} - Qtd: ${existingItem.quantity + 1}`,
+        });
+      } else {
+        // Add new item
+        setOrderForm({
+          ...orderForm,
+          items: [...orderForm.items, {
+            productId: product.id,
+            quantity: 1,
+            unitCost: product.cost,
+          }],
+        });
+        toast({
+          title: 'Produto adicionado',
+          description: product.name,
+        });
+      }
+    } else if (scanMode === 'receive' && selectedOrder) {
+      // Find item in order and increment received quantity
+      const orderItem = selectedOrder.items.find(i => i.productId === product.id);
+      if (orderItem) {
+        const currentQty = receivedQuantities[product.id] || 0;
+        if (currentQty < orderItem.quantity) {
+          setReceivedQuantities({
+            ...receivedQuantities,
+            [product.id]: currentQty + 1,
+          });
+          toast({
+            title: 'Produto recebido',
+            description: `${product.name} - ${currentQty + 1}/${orderItem.quantity}`,
+          });
+        } else {
+          toast({
+            title: 'Quantidade completa',
+            description: `${product.name} já atingiu a quantidade da encomenda`,
+            variant: 'destructive',
+          });
+        }
+      } else {
+        toast({
+          title: 'Produto não pertence à encomenda',
+          description: product.name,
+          variant: 'destructive',
+        });
+      }
+    }
+  }, [products, scanMode, orderForm, selectedOrder, receivedQuantities, toast]);
+
+  // Barcode scanner hook
+  useBarcodeScanner({
+    onScan: handleBarcodeScan,
+  });
+
+  // Handle manual barcode input
+  const handleManualBarcodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (barcodeInput.trim()) {
+      handleBarcodeScan(barcodeInput.trim());
+      setBarcodeInput('');
+    }
+  };
 
   const filteredOrders = orders.filter(order =>
     order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -469,9 +565,42 @@ export default function PurchaseOrders() {
               </div>
             </div>
 
-            {/* Add product to order */}
+            {/* Barcode Scanner Section */}
+            <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium flex items-center gap-2">
+                  <ScanLine className="w-5 h-5 text-primary" />
+                  Leitura de Código de Barras
+                </h4>
+                <Badge variant={scanMode === 'create' ? 'default' : 'outline'}>
+                  {scanMode === 'create' ? 'Activo' : 'Inactivo'}
+                </Badge>
+              </div>
+              <form onSubmit={handleManualBarcodeSubmit} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Digite ou escaneie o código de barras..."
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    onFocus={() => setScanMode('create')}
+                    className="pl-10"
+                    autoComplete="off"
+                  />
+                </div>
+                <Button type="submit" variant="secondary">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Adicionar
+                </Button>
+              </form>
+              <p className="text-xs text-muted-foreground">
+                Use um leitor de código de barras ou digite manualmente. Produtos repetidos aumentam a quantidade.
+              </p>
+            </div>
+
+            {/* Add product to order manually */}
             <div className="border rounded-lg p-4 space-y-4">
-              <h4 className="font-medium">Adicionar Produto</h4>
+              <h4 className="font-medium">Adicionar Produto Manualmente</h4>
               <div className="grid grid-cols-4 gap-4">
                 <div className="col-span-2">
                   <Select
@@ -491,7 +620,7 @@ export default function PurchaseOrders() {
                     <SelectContent>
                       {products.filter(p => p.isActive).map((product) => (
                         <SelectItem key={product.id} value={product.id}>
-                          {product.name} ({product.sku})
+                          {product.name} ({product.sku}) {product.barcode && `- ${product.barcode}`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -667,7 +796,11 @@ export default function PurchaseOrders() {
       </Dialog>
 
       {/* Receive Order Dialog */}
-      <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
+      <Dialog open={receiveDialogOpen} onOpenChange={(open) => {
+        setReceiveDialogOpen(open);
+        if (open) setScanMode('receive');
+        else setScanMode(null);
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Receber Mercadoria - {selectedOrder?.orderNumber}</DialogTitle>
@@ -675,6 +808,39 @@ export default function PurchaseOrders() {
 
           {selectedOrder && (
             <div className="space-y-4">
+              {/* Barcode Scanner for Receiving */}
+              <div className="border rounded-lg p-4 bg-green-500/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <ScanLine className="w-5 h-5 text-green-600" />
+                    Leitura de Recepção
+                  </h4>
+                  <Badge variant={scanMode === 'receive' ? 'default' : 'outline'} className="bg-green-600">
+                    {scanMode === 'receive' ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                </div>
+                <form onSubmit={handleManualBarcodeSubmit} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Escaneie o código para confirmar recepção..."
+                      value={barcodeInput}
+                      onChange={(e) => setBarcodeInput(e.target.value)}
+                      onFocus={() => setScanMode('receive')}
+                      className="pl-10"
+                      autoComplete="off"
+                      autoFocus
+                    />
+                  </div>
+                  <Button type="submit" variant="secondary">
+                    <CheckCircle className="w-4 h-4" />
+                  </Button>
+                </form>
+                <p className="text-xs text-muted-foreground">
+                  Escaneie cada produto para incrementar a quantidade recebida automaticamente.
+                </p>
+              </div>
+
               <p className="text-sm text-muted-foreground">
                 Confirme as quantidades recebidas. O stock será actualizado automaticamente.
               </p>
@@ -685,33 +851,51 @@ export default function PurchaseOrders() {
                     <TableHead>Produto</TableHead>
                     <TableHead className="text-right">Encomendado</TableHead>
                     <TableHead className="text-right">Recebido</TableHead>
+                    <TableHead className="text-center">Progresso</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedOrder.items.map((item) => (
-                    <TableRow key={item.productId}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{item.productName}</p>
-                          <p className="text-xs text-muted-foreground">{item.sku}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          max={item.quantity}
-                          className="w-24 ml-auto"
-                          value={receivedQuantities[item.productId] || 0}
-                          onChange={(e) => setReceivedQuantities({
-                            ...receivedQuantities,
-                            [item.productId]: parseInt(e.target.value) || 0,
-                          })}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {selectedOrder.items.map((item) => {
+                    const received = receivedQuantities[item.productId] || 0;
+                    const progress = (received / item.quantity) * 100;
+                    return (
+                      <TableRow key={item.productId}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{item.productName}</p>
+                            <p className="text-xs text-muted-foreground">{item.sku}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            min="0"
+                            max={item.quantity}
+                            className="w-24 ml-auto"
+                            value={received}
+                            onChange={(e) => setReceivedQuantities({
+                              ...receivedQuantities,
+                              [item.productId]: parseInt(e.target.value) || 0,
+                            })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full transition-all ${progress >= 100 ? 'bg-green-500' : 'bg-primary'}`}
+                                style={{ width: `${Math.min(progress, 100)}%` }}
+                              />
+                            </div>
+                            <span className={`text-xs ${progress >= 100 ? 'text-green-500' : ''}`}>
+                              {progress.toFixed(0)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
