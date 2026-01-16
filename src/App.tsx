@@ -17,6 +17,7 @@ import DataSync from "./pages/DataSync";
 import Suppliers from "./pages/Suppliers";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import Categories from "./pages/Categories";
+import FiscalDocuments from "./pages/FiscalDocuments";
 import Placeholder from "./pages/Placeholder";
 import NotFound from "./pages/NotFound";
 
@@ -64,6 +65,7 @@ function AppRoutes() {
         <Route path="/clients" element={<Clients />} />
         <Route path="/stock-transfer" element={<StockTransfer />} />
         <Route path="/data-sync" element={<DataSync />} />
+        <Route path="/fiscal-documents" element={<FiscalDocuments />} />
         <Route path="/accounting" element={<Placeholder />} />
         <Route path="/customers" element={<Placeholder />} />
         <Route path="/branches" element={<Placeholder />} />
