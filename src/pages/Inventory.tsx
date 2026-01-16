@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   FileText, 
   Plus, 
@@ -16,7 +17,8 @@ import {
   Eye, 
   FileSpreadsheet,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
@@ -27,6 +29,9 @@ export default function Inventory() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
+
+  // Check if current branch is a filial (not main office)
+  const isFilial = currentBranch && !currentBranch.isMain;
 
   const handleOpenDialog = (product?: Product) => {
     setSelectedProduct(product || null);
@@ -54,6 +59,17 @@ export default function Inventory() {
 
   return (
     <div className="flex flex-col h-full bg-background">
+      {/* Filial Notice - Stock hidden for branches */}
+      {isFilial && (
+        <Alert className="mx-2 mt-2 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800 dark:text-amber-200">
+            <strong>Modo Filial:</strong> Informações de stock não disponíveis. Apenas preços e códigos de produtos são exibidos.
+            Receba atualizações de preços da sede via sincronização.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 border-b">
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => handleOpenDialog()}>
@@ -197,6 +213,7 @@ export default function Inventory() {
             products={products}
             onSelectProduct={handleSelectProduct}
             selectedProductId={selectedProduct?.id}
+            hideStock={isFilial}
           />
         </TabsContent>
 

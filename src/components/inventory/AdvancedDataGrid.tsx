@@ -21,9 +21,11 @@ interface AdvancedDataGridProps {
   products: Product[];
   onSelectProduct: (product: Product) => void;
   selectedProductId?: string;
+  hideStock?: boolean; // Hide stock column for filials
 }
 
-const COLUMNS = [
+// Base columns definition
+const BASE_COLUMNS = [
   { key: 'sku', label: 'Produto', width: 'w-24' },
   { key: 'name', label: 'Descrição', width: 'w-48' },
   { key: 'price', label: 'Preço', width: 'w-20', type: 'number' },
@@ -31,7 +33,7 @@ const COLUMNS = [
   { key: 'lastCost', label: 'Últ. Custo', width: 'w-24', type: 'number' },
   { key: 'avgCost', label: 'Custo Médio', width: 'w-24', type: 'number' },
   { key: 'profitMargin', label: 'Lucro %', width: 'w-20', type: 'number', computed: true },
-  { key: 'stock', label: 'Qty', width: 'w-16', type: 'number' },
+  { key: 'stock', label: 'Qty', width: 'w-16', type: 'number', hiddenForFilial: true },
   { key: 'taxRate', label: 'IVA %', width: 'w-16', type: 'number' },
   { key: 'unit', label: 'Unidade', width: 'w-16' },
   { key: 'category', label: 'Categoria', width: 'w-28' },
@@ -39,17 +41,28 @@ const COLUMNS = [
   { key: 'branchId', label: 'Filial', width: 'w-20' },
 ] as const;
 
-type ColumnKey = typeof COLUMNS[number]['key'];
+type ColumnKey = typeof BASE_COLUMNS[number]['key'];
 
-export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId }: AdvancedDataGridProps) {
+// Helper to get columns based on visibility
+const getVisibleColumns = (hideStock: boolean) => {
+  if (hideStock) {
+    return BASE_COLUMNS.filter(col => !('hiddenForFilial' in col && col.hiddenForFilial));
+  }
+  return [...BASE_COLUMNS];
+};
+
+export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId, hideStock = false }: AdvancedDataGridProps) {
   const [columnFilters, setColumnFilters] = useState<Record<ColumnKey, ColumnFilter>>({} as Record<ColumnKey, ColumnFilter>);
   const [columnSearches, setColumnSearches] = useState<Record<ColumnKey, string>>({} as Record<ColumnKey, string>);
   const [sortColumn, setSortColumn] = useState<ColumnKey>('sku');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+  // Get visible columns based on hideStock prop
+  const COLUMNS = useMemo(() => getVisibleColumns(hideStock), [hideStock]);
+
   // Get unique values for each column
   const uniqueValues = useMemo(() => {
-    const values: Record<ColumnKey, Set<string>> = {} as Record<ColumnKey, Set<string>>;
+    const values: Record<string, Set<string>> = {};
     COLUMNS.forEach(col => {
       values[col.key] = new Set();
       products.forEach(p => {
@@ -58,7 +71,7 @@ export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId 
       });
     });
     return values;
-  }, [products]);
+  }, [products, COLUMNS]);
 
   // Filter and sort products
   const filteredProducts = useMemo(() => {
@@ -241,7 +254,7 @@ export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId 
                       (Não em branco)
                     </DropdownMenuItem>
                     
-                    {uniqueValues[col.key].size > 0 && (
+                    {uniqueValues[col.key]?.size > 0 && (
                       <>
                         <DropdownMenuSeparator />
                         <div className="max-h-48 overflow-y-auto">

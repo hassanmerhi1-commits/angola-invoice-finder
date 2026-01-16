@@ -629,6 +629,16 @@ export function useDataSync() {
     return storage.importSyncPackage(syncPackage);
   }, []);
 
+  // NEW: Export price updates from main office to filials (no stock info)
+  const exportPriceUpdates = useCallback((): storage.PriceUpdatePackage => {
+    return storage.createPriceUpdatePackage();
+  }, []);
+
+  // NEW: Import price updates at filial (preserves local stock)
+  const importPriceUpdates = useCallback((pkg: storage.PriceUpdatePackage): storage.PriceUpdateResult => {
+    return storage.importPriceUpdatePackage(pkg);
+  }, []);
+
   const downloadSyncPackage = useCallback((syncPackage: SyncPackage) => {
     const dataStr = JSON.stringify(syncPackage, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -636,6 +646,20 @@ export function useDataSync() {
     const link = document.createElement('a');
     link.href = url;
     link.download = `kwanza_sync_${syncPackage.branchCode}_${syncPackage.dateRange.from}_${syncPackage.dateRange.to}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  // NEW: Download price update package
+  const downloadPriceUpdatePackage = useCallback((pkg: storage.PriceUpdatePackage) => {
+    const dataStr = JSON.stringify(pkg, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `kwanza_price_update_${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -661,7 +685,15 @@ export function useDataSync() {
     URL.revokeObjectURL(url);
   }, []);
 
-  return { exportData, importData, downloadSyncPackage, sendSyncPackageByEmail };
+  return { 
+    exportData, 
+    importData, 
+    exportPriceUpdates,
+    importPriceUpdates,
+    downloadSyncPackage, 
+    downloadPriceUpdatePackage,
+    sendSyncPackageByEmail 
+  };
 }
 
 // ============================================
