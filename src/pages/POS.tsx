@@ -140,7 +140,7 @@ export default function POS() {
 
   useKeyboardShortcuts({ shortcuts, enabled: !checkoutOpen && !receiptOpen });
 
-  const handleCompleteSale = (
+  const handleCompleteSale = async (
     paymentMethod: Sale['paymentMethod'],
     amountPaid: number,
     customerNif?: string,
@@ -148,21 +148,25 @@ export default function POS() {
   ) => {
     if (!currentBranch || !user) return;
 
-    const sale = completeSale(
-      cart.items,
-      currentBranch.code,
-      currentBranch.id,
-      user.id,
-      paymentMethod,
-      amountPaid,
-      customerNif,
-      customerName,
-    );
+    try {
+      const sale = await completeSale(
+        cart.items,
+        currentBranch.code,
+        currentBranch.id,
+        user.id,
+        paymentMethod,
+        amountPaid,
+        customerNif,
+        customerName,
+      );
 
-    setLastSale(sale);
-    setCheckoutOpen(false);
-    setReceiptOpen(true);
-    refreshProducts();
+      setLastSale(sale);
+      setCheckoutOpen(false);
+      setReceiptOpen(true);
+      refreshProducts();
+    } catch (error) {
+      console.error('Failed to complete sale:', error);
+    }
   };
 
   const handleNewSale = () => {
