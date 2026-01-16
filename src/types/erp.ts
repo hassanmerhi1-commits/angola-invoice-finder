@@ -48,6 +48,7 @@ export interface Sale {
   invoiceNumber: string;
   branchId: string;
   cashierId: string;
+  cashierName?: string;
   items: SaleItem[];
   subtotal: number;
   taxAmount: number;
@@ -60,6 +61,9 @@ export interface Sale {
   customerName?: string;
   status: 'completed' | 'voided' | 'pending';
   saftHash?: string; // For AGT compliance
+  agtStatus?: 'pending' | 'validated' | 'rejected';
+  agtCode?: string;
+  agtValidatedAt?: string;
   createdAt: string;
   syncedAt?: string;
   syncedToMain?: boolean;
@@ -350,6 +354,7 @@ export interface CompanyInfo {
   nif: string;
   address: string;
   city: string;
+  province: string;
   postalCode: string;
   country: string;
   phone: string;
