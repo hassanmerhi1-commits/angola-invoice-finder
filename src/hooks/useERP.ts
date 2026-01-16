@@ -1,14 +1,39 @@
 // ERP Hooks - Core business logic
+// Supports both: Local Network (API + WebSocket) and Demo Mode (localStorage)
+
 import { useState, useEffect, useCallback } from 'react';
 import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, PurchaseOrderItem, Category } from '@/types/erp';
+import { api, setAuthToken } from '@/lib/api/client';
+import { isLocalNetworkMode } from '@/lib/api/config';
+import { onTableSync } from '@/lib/realtime/socket';
 import * as storage from '@/lib/storage';
 
+// ============================================
+// BRANCHES
+// ============================================
 export function useBranches() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [currentBranch, setCurrentBranchState] = useState<Branch | null>(null);
 
   useEffect(() => {
-    setBranches(storage.getBranches());
+    if (isLocalNetworkMode()) {
+      // Real-time mode: subscribe to WebSocket updates
+      const unsubscribe = onTableSync('branches', (data) => {
+        const mapped = data.map(mapBranchFromDb);
+        setBranches(mapped);
+      });
+      
+      // Also fetch initial data
+      api.branches.list().then(res => {
+        if (res.data) setBranches(res.data.map(mapBranchFromDb));
+      });
+      
+      return unsubscribe;
+    } else {
+      // Demo mode: use localStorage
+      setBranches(storage.getBranches());
+    }
+    
     const current = storage.getCurrentBranch();
     if (current) {
       setCurrentBranchState(current);
@@ -29,37 +54,77 @@ export function useBranches() {
   return { branches, currentBranch, setCurrentBranch };
 }
 
+// ============================================
+// PRODUCTS
+// ============================================
 export function useProducts(branchId?: string) {
   const [products, setProducts] = useState<Product[]>([]);
 
-  const refreshProducts = useCallback(() => {
-    setProducts(storage.getProducts(branchId));
+  const refreshProducts = useCallback(async () => {
+    if (isLocalNetworkMode()) {
+      const res = await api.products.list(branchId);
+      if (res.data) setProducts(res.data.map(mapProductFromDb));
+    } else {
+      setProducts(storage.getProducts(branchId));
+    }
   }, [branchId]);
 
   useEffect(() => {
-    refreshProducts();
+    if (isLocalNetworkMode()) {
+      // Subscribe to real-time updates
+      const unsubscribe = onTableSync('products', (data) => {
+        let mapped = data.map(mapProductFromDb);
+        if (branchId) {
+          mapped = mapped.filter(p => p.branchId === branchId || p.branchId === 'all');
+        }
+        setProducts(mapped);
+      });
+      
+      // Initial fetch
+      refreshProducts();
+      
+      return unsubscribe;
+    } else {
+      refreshProducts();
+    }
+  }, [refreshProducts, branchId]);
+
+  const addProduct = useCallback(async (product: Product) => {
+    if (isLocalNetworkMode()) {
+      await api.products.create(mapProductToDb(product));
+      // Real-time will update the list
+    } else {
+      storage.saveProduct(product);
+      refreshProducts();
+    }
   }, [refreshProducts]);
 
-  const addProduct = useCallback((product: Product) => {
-    storage.saveProduct(product);
-    refreshProducts();
+  const updateProduct = useCallback(async (product: Product) => {
+    if (isLocalNetworkMode()) {
+      await api.products.update(product.id, mapProductToDb(product));
+    } else {
+      storage.saveProduct(product);
+      refreshProducts();
+    }
   }, [refreshProducts]);
 
-  const updateProduct = useCallback((product: Product) => {
-    storage.saveProduct(product);
-    refreshProducts();
-  }, [refreshProducts]);
-
-  const deleteProduct = useCallback((productId: string) => {
-    const allProducts = storage.getAllProducts();
-    const filtered = allProducts.filter(p => p.id !== productId);
-    localStorage.setItem('kwanza_products', JSON.stringify(filtered));
-    refreshProducts();
+  const deleteProduct = useCallback(async (productId: string) => {
+    if (isLocalNetworkMode()) {
+      await api.products.delete(productId);
+    } else {
+      const allProducts = storage.getAllProducts();
+      const filtered = allProducts.filter(p => p.id !== productId);
+      localStorage.setItem('kwanza_products', JSON.stringify(filtered));
+      refreshProducts();
+    }
   }, [refreshProducts]);
 
   return { products, refreshProducts, addProduct, updateProduct, deleteProduct };
 }
 
+// ============================================
+// CART (Always local - per session)
+// ============================================
 export function useCart() {
   const [items, setItems] = useState<CartItem[]>([]);
 
@@ -146,18 +211,39 @@ export function useCart() {
   };
 }
 
+// ============================================
+// SALES
+// ============================================
 export function useSales(branchId?: string) {
   const [sales, setSales] = useState<Sale[]>([]);
 
-  const refreshSales = useCallback(() => {
-    setSales(storage.getSales(branchId));
+  const refreshSales = useCallback(async () => {
+    if (isLocalNetworkMode()) {
+      const res = await api.sales.list(branchId);
+      if (res.data) setSales(res.data.map(mapSaleFromDb));
+    } else {
+      setSales(storage.getSales(branchId));
+    }
   }, [branchId]);
 
   useEffect(() => {
-    refreshSales();
-  }, [refreshSales]);
+    if (isLocalNetworkMode()) {
+      const unsubscribe = onTableSync('sales', (data) => {
+        let mapped = data.map(mapSaleFromDb);
+        if (branchId) {
+          mapped = mapped.filter(s => s.branchId === branchId);
+        }
+        setSales(mapped);
+      });
+      
+      refreshSales();
+      return unsubscribe;
+    } else {
+      refreshSales();
+    }
+  }, [refreshSales, branchId]);
 
-  const completeSale = useCallback((
+  const completeSale = useCallback(async (
     cartItems: CartItem[],
     branchCode: string,
     branchId: string,
@@ -166,7 +252,7 @@ export function useSales(branchId?: string) {
     amountPaid: number,
     customerNif?: string,
     customerName?: string,
-  ): Sale => {
+  ): Promise<Sale> => {
     const saleItems: SaleItem[] = cartItems.map(item => ({
       productId: item.product.id,
       productName: item.product.name,
@@ -183,33 +269,64 @@ export function useSales(branchId?: string) {
     const taxAmount = saleItems.reduce((sum, item) => sum + item.taxAmount, 0);
     const total = subtotal + taxAmount;
 
-    const sale: Sale = {
-      id: crypto.randomUUID(),
-      invoiceNumber: storage.generateInvoiceNumber(branchCode),
-      branchId,
-      cashierId,
-      items: saleItems,
-      subtotal,
-      taxAmount,
-      discount: 0,
-      total,
-      paymentMethod,
-      amountPaid,
-      change: amountPaid - total,
-      customerNif,
-      customerName,
-      status: 'completed',
-      createdAt: new Date().toISOString(),
-    };
+    if (isLocalNetworkMode()) {
+      // Get invoice number from server
+      const invoiceRes = await api.sales.generateInvoiceNumber(branchCode);
+      const invoiceNumber = invoiceRes.data?.invoiceNumber || storage.generateInvoiceNumber(branchCode);
+      
+      const saleData = {
+        invoiceNumber,
+        branchId,
+        cashierId,
+        items: saleItems,
+        subtotal,
+        taxAmount,
+        discount: 0,
+        total,
+        paymentMethod,
+        amountPaid,
+        change: amountPaid - total,
+        customerNif,
+        customerName,
+      };
+      
+      const res = await api.sales.create(saleData);
+      if (res.data) {
+        return mapSaleFromDb(res.data);
+      }
+      throw new Error(res.error || 'Failed to create sale');
+    } else {
+      const sale: Sale = {
+        id: crypto.randomUUID(),
+        invoiceNumber: storage.generateInvoiceNumber(branchCode),
+        branchId,
+        cashierId,
+        items: saleItems,
+        subtotal,
+        taxAmount,
+        discount: 0,
+        total,
+        paymentMethod,
+        amountPaid,
+        change: amountPaid - total,
+        customerNif,
+        customerName,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+      };
 
-    storage.saveSale(sale);
-    refreshSales();
-    return sale;
+      storage.saveSale(sale);
+      refreshSales();
+      return sale;
+    }
   }, [refreshSales]);
 
   return { sales, completeSale, refreshSales };
 }
 
+// ============================================
+// AUTH
+// ============================================
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -220,19 +337,32 @@ export function useAuth() {
     setIsLoading(false);
   }, []);
 
-  const login = useCallback((email: string, _password: string): boolean => {
-    // Simple demo login - will be replaced with Supabase auth
-    const users = storage.getUsers();
-    const foundUser = users.find(u => u.email === email && u.isActive);
-    if (foundUser) {
-      storage.setCurrentUser(foundUser);
-      setUser(foundUser);
-      return true;
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+    if (isLocalNetworkMode()) {
+      const res = await api.auth.login(email, password);
+      if (res.data) {
+        setAuthToken(res.data.token);
+        const user = mapUserFromDb(res.data.user);
+        storage.setCurrentUser(user);
+        setUser(user);
+        return true;
+      }
+      return false;
+    } else {
+      // Demo mode
+      const users = storage.getUsers();
+      const foundUser = users.find(u => u.email === email && u.isActive);
+      if (foundUser) {
+        storage.setCurrentUser(foundUser);
+        setUser(foundUser);
+        return true;
+      }
+      return false;
     }
-    return false;
   }, []);
 
   const logout = useCallback(() => {
+    setAuthToken(null);
     storage.setCurrentUser(null);
     setUser(null);
   }, []);
@@ -240,36 +370,66 @@ export function useAuth() {
   return { user, isLoading, login, logout };
 }
 
-// Daily Reports management
+// ============================================
+// DAILY REPORTS
+// ============================================
 export function useDailyReports(branchId?: string) {
   const [reports, setReports] = useState<DailySummary[]>([]);
 
-  const refreshReports = useCallback(() => {
-    setReports(storage.getDailyReports(branchId));
+  const refreshReports = useCallback(async () => {
+    if (isLocalNetworkMode()) {
+      const res = await api.dailyReports.list(branchId);
+      if (res.data) setReports(res.data.map(mapDailyReportFromDb));
+    } else {
+      setReports(storage.getDailyReports(branchId));
+    }
   }, [branchId]);
 
   useEffect(() => {
-    refreshReports();
-  }, [refreshReports]);
+    if (isLocalNetworkMode()) {
+      const unsubscribe = onTableSync('daily_reports', (data) => {
+        let mapped = data.map(mapDailyReportFromDb);
+        if (branchId) {
+          mapped = mapped.filter(r => r.branchId === branchId);
+        }
+        setReports(mapped);
+      });
+      
+      refreshReports();
+      return unsubscribe;
+    } else {
+      refreshReports();
+    }
+  }, [refreshReports, branchId]);
 
-  const generateReport = useCallback((branchId: string, date: string): DailySummary => {
-    const report = storage.generateDailyReport(branchId, date);
-    storage.saveDailyReport(report);
-    refreshReports();
-    return report;
-  }, [refreshReports]);
-
-  const closeDay = useCallback((reportId: string, closingBalance: number, notes: string, userId: string) => {
-    const allReports = storage.getDailyReports();
-    const report = allReports.find(r => r.id === reportId);
-    if (report) {
-      report.status = 'closed';
-      report.closingBalance = closingBalance;
-      report.notes = notes;
-      report.closedBy = userId;
-      report.closedAt = new Date().toISOString();
+  const generateReport = useCallback(async (branchId: string, date: string): Promise<DailySummary> => {
+    if (isLocalNetworkMode()) {
+      const res = await api.dailyReports.generate(branchId, date);
+      if (res.data) return mapDailyReportFromDb(res.data);
+      throw new Error(res.error || 'Failed to generate report');
+    } else {
+      const report = storage.generateDailyReport(branchId, date);
       storage.saveDailyReport(report);
       refreshReports();
+      return report;
+    }
+  }, [refreshReports]);
+
+  const closeDay = useCallback(async (reportId: string, closingBalance: number, notes: string, userId: string) => {
+    if (isLocalNetworkMode()) {
+      await api.dailyReports.close(reportId, { closingBalance, notes, closedBy: userId });
+    } else {
+      const allReports = storage.getDailyReports();
+      const report = allReports.find(r => r.id === reportId);
+      if (report) {
+        report.status = 'closed';
+        report.closingBalance = closingBalance;
+        report.notes = notes;
+        report.closedBy = userId;
+        report.closedAt = new Date().toISOString();
+        storage.saveDailyReport(report);
+        refreshReports();
+      }
     }
   }, [refreshReports]);
 
@@ -280,112 +440,186 @@ export function useDailyReports(branchId?: string) {
   return { reports, generateReport, closeDay, getTodayReport, refreshReports };
 }
 
-// Client management
+// ============================================
+// CLIENTS
+// ============================================
 export function useClients() {
   const [clients, setClients] = useState<Client[]>([]);
 
-  const refreshClients = useCallback(() => {
-    setClients(storage.getClients());
+  const refreshClients = useCallback(async () => {
+    if (isLocalNetworkMode()) {
+      const res = await api.clients.list();
+      if (res.data) setClients(res.data.map(mapClientFromDb));
+    } else {
+      setClients(storage.getClients());
+    }
   }, []);
 
   useEffect(() => {
-    refreshClients();
+    if (isLocalNetworkMode()) {
+      const unsubscribe = onTableSync('clients', (data) => {
+        setClients(data.map(mapClientFromDb));
+      });
+      refreshClients();
+      return unsubscribe;
+    } else {
+      refreshClients();
+    }
   }, [refreshClients]);
 
-  const saveClient = useCallback((client: Client) => {
-    storage.saveClient(client);
-    refreshClients();
+  const saveClient = useCallback(async (client: Client) => {
+    if (isLocalNetworkMode()) {
+      if (client.id.startsWith('client_')) {
+        await api.clients.create(mapClientToDb(client));
+      } else {
+        await api.clients.update(client.id, mapClientToDb(client));
+      }
+    } else {
+      storage.saveClient(client);
+      refreshClients();
+    }
   }, [refreshClients]);
 
-  const deleteClient = useCallback((clientId: string) => {
-    storage.deleteClient(clientId);
-    refreshClients();
+  const deleteClient = useCallback(async (clientId: string) => {
+    if (isLocalNetworkMode()) {
+      await api.clients.delete(clientId);
+    } else {
+      storage.deleteClient(clientId);
+      refreshClients();
+    }
   }, [refreshClients]);
 
-  const createClient = useCallback((data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Client => {
-    const client: Client = {
-      ...data,
-      id: `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    storage.saveClient(client);
-    refreshClients();
-    return client;
+  const createClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
+    if (isLocalNetworkMode()) {
+      const res = await api.clients.create(mapClientToDb(data as Client));
+      if (res.data) return mapClientFromDb(res.data);
+      throw new Error(res.error || 'Failed to create client');
+    } else {
+      const client: Client = {
+        ...data,
+        id: `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      storage.saveClient(client);
+      refreshClients();
+      return client;
+    }
   }, [refreshClients]);
 
   return { clients, saveClient, deleteClient, createClient, refreshClients };
 }
 
-// Stock Transfer management
+// ============================================
+// STOCK TRANSFERS
+// ============================================
 export function useStockTransfers(branchId?: string) {
   const [transfers, setTransfers] = useState<StockTransfer[]>([]);
 
-  const refreshTransfers = useCallback(() => {
-    setTransfers(storage.getStockTransfers(branchId));
+  const refreshTransfers = useCallback(async () => {
+    if (isLocalNetworkMode()) {
+      const res = await api.stockTransfers.list(branchId);
+      if (res.data) setTransfers(res.data.map(mapStockTransferFromDb));
+    } else {
+      setTransfers(storage.getStockTransfers(branchId));
+    }
   }, [branchId]);
 
   useEffect(() => {
-    refreshTransfers();
-  }, [refreshTransfers]);
+    if (isLocalNetworkMode()) {
+      const unsubscribe = onTableSync('stock_transfers', (data) => {
+        let mapped = data.map(mapStockTransferFromDb);
+        if (branchId) {
+          mapped = mapped.filter(t => t.fromBranchId === branchId || t.toBranchId === branchId);
+        }
+        setTransfers(mapped);
+      });
+      refreshTransfers();
+      return unsubscribe;
+    } else {
+      refreshTransfers();
+    }
+  }, [refreshTransfers, branchId]);
 
-  const createTransfer = useCallback((
+  const createTransfer = useCallback(async (
     fromBranchId: string,
     toBranchId: string,
     items: { productId: string; productName: string; sku: string; quantity: number }[],
     requestedBy: string,
     notes?: string
-  ): StockTransfer => {
-    const branches = storage.getBranches();
-    const fromBranch = branches.find(b => b.id === fromBranchId);
-    const toBranch = branches.find(b => b.id === toBranchId);
+  ): Promise<StockTransfer> => {
+    if (isLocalNetworkMode()) {
+      const res = await api.stockTransfers.create({ fromBranchId, toBranchId, items, requestedBy, notes });
+      if (res.data) return mapStockTransferFromDb(res.data);
+      throw new Error(res.error || 'Failed to create transfer');
+    } else {
+      const branches = storage.getBranches();
+      const fromBranch = branches.find(b => b.id === fromBranchId);
+      const toBranch = branches.find(b => b.id === toBranchId);
 
-    const transfer: StockTransfer = {
-      id: `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      transferNumber: storage.generateTransferNumber(),
-      fromBranchId,
-      fromBranchName: fromBranch?.name || '',
-      toBranchId,
-      toBranchName: toBranch?.name || '',
-      items,
-      status: 'pending',
-      requestedBy,
-      requestedAt: new Date().toISOString(),
-      notes,
-    };
+      const transfer: StockTransfer = {
+        id: `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        transferNumber: storage.generateTransferNumber(),
+        fromBranchId,
+        fromBranchName: fromBranch?.name || '',
+        toBranchId,
+        toBranchName: toBranch?.name || '',
+        items,
+        status: 'pending',
+        requestedBy,
+        requestedAt: new Date().toISOString(),
+        notes,
+      };
 
-    storage.saveStockTransfer(transfer);
-    refreshTransfers();
-    return transfer;
-  }, [refreshTransfers]);
-
-  const approveTransfer = useCallback((transferId: string, userId: string) => {
-    storage.processStockTransfer(transferId, 'approve', userId);
-    refreshTransfers();
-  }, [refreshTransfers]);
-
-  const receiveTransfer = useCallback((transferId: string, userId: string, receivedQuantities?: Record<string, number>) => {
-    const allTransfers = storage.getStockTransfers();
-    const transfer = allTransfers.find(t => t.id === transferId);
-    if (transfer && receivedQuantities) {
-      transfer.items.forEach(item => {
-        item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
-      });
       storage.saveStockTransfer(transfer);
+      refreshTransfers();
+      return transfer;
     }
-    storage.processStockTransfer(transferId, 'receive', userId);
-    refreshTransfers();
   }, [refreshTransfers]);
 
-  const cancelTransfer = useCallback((transferId: string, userId: string) => {
-    storage.processStockTransfer(transferId, 'cancel', userId);
-    refreshTransfers();
+  const approveTransfer = useCallback(async (transferId: string, userId: string) => {
+    if (isLocalNetworkMode()) {
+      await api.stockTransfers.approve(transferId, userId);
+    } else {
+      storage.processStockTransfer(transferId, 'approve', userId);
+      refreshTransfers();
+    }
+  }, [refreshTransfers]);
+
+  const receiveTransfer = useCallback(async (transferId: string, userId: string, receivedQuantities?: Record<string, number>) => {
+    if (isLocalNetworkMode()) {
+      await api.stockTransfers.receive(transferId, userId, receivedQuantities);
+    } else {
+      const allTransfers = storage.getStockTransfers();
+      const transfer = allTransfers.find(t => t.id === transferId);
+      if (transfer && receivedQuantities) {
+        transfer.items.forEach(item => {
+          item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
+        });
+        storage.saveStockTransfer(transfer);
+      }
+      storage.processStockTransfer(transferId, 'receive', userId);
+      refreshTransfers();
+    }
+  }, [refreshTransfers]);
+
+  const cancelTransfer = useCallback(async (transferId: string, userId: string) => {
+    if (isLocalNetworkMode()) {
+      // API doesn't have cancel endpoint yet, fall back to local
+      storage.processStockTransfer(transferId, 'cancel', userId);
+      refreshTransfers();
+    } else {
+      storage.processStockTransfer(transferId, 'cancel', userId);
+      refreshTransfers();
+    }
   }, [refreshTransfers]);
 
   return { transfers, createTransfer, approveTransfer, receiveTransfer, cancelTransfer, refreshTransfers };
 }
 
-// Data Sync management
+// ============================================
+// DATA SYNC (Keep for offline scenarios)
+// ============================================
 export function useDataSync() {
   const exportData = useCallback((branchId: string, dateFrom: string, dateTo: string): SyncPackage => {
     return storage.createSyncPackage(branchId, dateFrom, dateTo);
@@ -430,157 +664,514 @@ export function useDataSync() {
   return { exportData, importData, downloadSyncPackage, sendSyncPackageByEmail };
 }
 
-// Supplier management
+// ============================================
+// SUPPLIERS
+// ============================================
 export function useSuppliers() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
-  const refreshSuppliers = useCallback(() => {
-    setSuppliers(storage.getSuppliers());
+  const refreshSuppliers = useCallback(async () => {
+    if (isLocalNetworkMode()) {
+      const res = await api.suppliers.list();
+      if (res.data) setSuppliers(res.data.map(mapSupplierFromDb));
+    } else {
+      setSuppliers(storage.getSuppliers());
+    }
   }, []);
 
   useEffect(() => {
-    refreshSuppliers();
+    if (isLocalNetworkMode()) {
+      const unsubscribe = onTableSync('suppliers', (data) => {
+        setSuppliers(data.map(mapSupplierFromDb));
+      });
+      refreshSuppliers();
+      return unsubscribe;
+    } else {
+      refreshSuppliers();
+    }
   }, [refreshSuppliers]);
 
-  const saveSupplier = useCallback((supplier: Supplier) => {
-    storage.saveSupplier(supplier);
-    refreshSuppliers();
+  const saveSupplier = useCallback(async (supplier: Supplier) => {
+    if (isLocalNetworkMode()) {
+      if (supplier.id.startsWith('supplier_')) {
+        await api.suppliers.create(mapSupplierToDb(supplier));
+      } else {
+        await api.suppliers.update(supplier.id, mapSupplierToDb(supplier));
+      }
+    } else {
+      storage.saveSupplier(supplier);
+      refreshSuppliers();
+    }
   }, [refreshSuppliers]);
 
-  const deleteSupplier = useCallback((supplierId: string) => {
-    storage.deleteSupplier(supplierId);
-    refreshSuppliers();
+  const deleteSupplier = useCallback(async (supplierId: string) => {
+    if (isLocalNetworkMode()) {
+      await api.suppliers.delete(supplierId);
+    } else {
+      storage.deleteSupplier(supplierId);
+      refreshSuppliers();
+    }
   }, [refreshSuppliers]);
 
-  const createSupplier = useCallback((data: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Supplier => {
-    const supplier: Supplier = {
-      ...data,
-      id: `supplier_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    storage.saveSupplier(supplier);
-    refreshSuppliers();
-    return supplier;
+  const createSupplier = useCallback(async (data: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier> => {
+    if (isLocalNetworkMode()) {
+      const res = await api.suppliers.create(mapSupplierToDb(data as Supplier));
+      if (res.data) return mapSupplierFromDb(res.data);
+      throw new Error(res.error || 'Failed to create supplier');
+    } else {
+      const supplier: Supplier = {
+        ...data,
+        id: `supplier_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      storage.saveSupplier(supplier);
+      refreshSuppliers();
+      return supplier;
+    }
   }, [refreshSuppliers]);
 
   return { suppliers, saveSupplier, deleteSupplier, createSupplier, refreshSuppliers };
 }
 
-// Purchase Order management
+// ============================================
+// PURCHASE ORDERS
+// ============================================
 export function usePurchaseOrders(branchId?: string) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
 
-  const refreshOrders = useCallback(() => {
-    setOrders(storage.getPurchaseOrders(branchId));
+  const refreshOrders = useCallback(async () => {
+    if (isLocalNetworkMode()) {
+      const res = await api.purchaseOrders.list(branchId);
+      if (res.data) setOrders(res.data.map(mapPurchaseOrderFromDb));
+    } else {
+      setOrders(storage.getPurchaseOrders(branchId));
+    }
   }, [branchId]);
 
   useEffect(() => {
-    refreshOrders();
-  }, [refreshOrders]);
+    if (isLocalNetworkMode()) {
+      const unsubscribe = onTableSync('purchase_orders', (data) => {
+        let mapped = data.map(mapPurchaseOrderFromDb);
+        if (branchId) {
+          mapped = mapped.filter(o => o.branchId === branchId);
+        }
+        setOrders(mapped);
+      });
+      refreshOrders();
+      return unsubscribe;
+    } else {
+      refreshOrders();
+    }
+  }, [refreshOrders, branchId]);
 
-  const createOrder = useCallback((
+  const createOrder = useCallback(async (
     supplierId: string,
     branchId: string,
     items: PurchaseOrderItem[],
     createdBy: string,
     notes?: string,
     expectedDeliveryDate?: string
-  ): PurchaseOrder => {
-    const suppliers = storage.getSuppliers();
-    const branches = storage.getBranches();
-    const supplier = suppliers.find(s => s.id === supplierId);
-    const branch = branches.find(b => b.id === branchId);
+  ): Promise<PurchaseOrder> => {
+    if (isLocalNetworkMode()) {
+      const res = await api.purchaseOrders.create({
+        supplierId, branchId, items, createdBy, notes, expectedDeliveryDate
+      });
+      if (res.data) return mapPurchaseOrderFromDb(res.data);
+      throw new Error(res.error || 'Failed to create order');
+    } else {
+      const suppliers = storage.getSuppliers();
+      const branches = storage.getBranches();
+      const supplier = suppliers.find(s => s.id === supplierId);
+      const branch = branches.find(b => b.id === branchId);
 
-    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-    const taxAmount = items.reduce((sum, item) => sum + (item.subtotal * item.taxRate / 100), 0);
+      const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+      const taxAmount = items.reduce((sum, item) => sum + (item.subtotal * item.taxRate / 100), 0);
 
-    const order: PurchaseOrder = {
-      id: `po_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      orderNumber: storage.generatePurchaseOrderNumber(),
-      supplierId,
-      supplierName: supplier?.name || '',
-      branchId,
-      branchName: branch?.name || '',
-      items,
-      subtotal,
-      taxAmount,
-      total: subtotal + taxAmount,
-      status: 'pending',
-      notes,
-      createdBy,
-      createdAt: new Date().toISOString(),
-      expectedDeliveryDate,
-    };
+      const order: PurchaseOrder = {
+        id: `po_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        orderNumber: storage.generatePurchaseOrderNumber(),
+        supplierId,
+        supplierName: supplier?.name || '',
+        branchId,
+        branchName: branch?.name || '',
+        items,
+        subtotal,
+        taxAmount,
+        total: subtotal + taxAmount,
+        status: 'pending',
+        notes,
+        createdBy,
+        createdAt: new Date().toISOString(),
+        expectedDeliveryDate,
+      };
 
-    storage.savePurchaseOrder(order);
-    refreshOrders();
-    return order;
+      storage.savePurchaseOrder(order);
+      refreshOrders();
+      return order;
+    }
   }, [refreshOrders]);
 
-  const approveOrder = useCallback((orderId: string, userId: string) => {
-    const allOrders = storage.getPurchaseOrders();
-    const order = allOrders.find(o => o.id === orderId);
-    if (order) {
-      order.status = 'approved';
-      order.approvedBy = userId;
-      order.approvedAt = new Date().toISOString();
-      storage.savePurchaseOrder(order);
+  const approveOrder = useCallback(async (orderId: string, userId: string) => {
+    if (isLocalNetworkMode()) {
+      await api.purchaseOrders.approve(orderId, userId);
+    } else {
+      const allOrders = storage.getPurchaseOrders();
+      const order = allOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = 'approved';
+        order.approvedBy = userId;
+        order.approvedAt = new Date().toISOString();
+        storage.savePurchaseOrder(order);
+        refreshOrders();
+      }
+    }
+  }, [refreshOrders]);
+
+  const receiveOrder = useCallback(async (orderId: string, userId: string, receivedQuantities: Record<string, number>) => {
+    if (isLocalNetworkMode()) {
+      await api.purchaseOrders.receive(orderId, userId, receivedQuantities);
+    } else {
+      storage.processPurchaseOrderReceive(orderId, receivedQuantities, userId);
       refreshOrders();
     }
   }, [refreshOrders]);
 
-  const receiveOrder = useCallback((orderId: string, userId: string, receivedQuantities: Record<string, number>) => {
-    storage.processPurchaseOrderReceive(orderId, receivedQuantities, userId);
-    refreshOrders();
-  }, [refreshOrders]);
-
-  const cancelOrder = useCallback((orderId: string) => {
-    const allOrders = storage.getPurchaseOrders();
-    const order = allOrders.find(o => o.id === orderId);
-    if (order) {
-      order.status = 'cancelled';
-      storage.savePurchaseOrder(order);
-      refreshOrders();
+  const cancelOrder = useCallback(async (orderId: string) => {
+    if (isLocalNetworkMode()) {
+      // No API endpoint for cancel, handle locally
+      const allOrders = storage.getPurchaseOrders();
+      const order = allOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = 'cancelled';
+        storage.savePurchaseOrder(order);
+        refreshOrders();
+      }
+    } else {
+      const allOrders = storage.getPurchaseOrders();
+      const order = allOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = 'cancelled';
+        storage.savePurchaseOrder(order);
+        refreshOrders();
+      }
     }
   }, [refreshOrders]);
 
   return { orders, createOrder, approveOrder, receiveOrder, cancelOrder, refreshOrders };
 }
 
-// Category management
+// ============================================
+// CATEGORIES
+// ============================================
 export function useCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const refreshCategories = useCallback(() => {
-    setCategories(storage.getCategories());
+  const refreshCategories = useCallback(async () => {
+    if (isLocalNetworkMode()) {
+      const res = await api.categories.list();
+      if (res.data) setCategories(res.data.map(mapCategoryFromDb));
+    } else {
+      setCategories(storage.getCategories());
+    }
   }, []);
 
   useEffect(() => {
-    refreshCategories();
+    if (isLocalNetworkMode()) {
+      const unsubscribe = onTableSync('categories', (data) => {
+        setCategories(data.map(mapCategoryFromDb));
+      });
+      refreshCategories();
+      return unsubscribe;
+    } else {
+      refreshCategories();
+    }
   }, [refreshCategories]);
 
-  const saveCategory = useCallback((category: Category) => {
-    storage.saveCategory(category);
-    refreshCategories();
+  const saveCategory = useCallback(async (category: Category) => {
+    if (isLocalNetworkMode()) {
+      if (category.id.startsWith('cat_')) {
+        await api.categories.create(mapCategoryToDb(category));
+      } else {
+        await api.categories.update(category.id, mapCategoryToDb(category));
+      }
+    } else {
+      storage.saveCategory(category);
+      refreshCategories();
+    }
   }, [refreshCategories]);
 
-  const deleteCategory = useCallback((categoryId: string) => {
-    storage.deleteCategory(categoryId);
-    refreshCategories();
+  const deleteCategory = useCallback(async (categoryId: string) => {
+    if (isLocalNetworkMode()) {
+      await api.categories.delete(categoryId);
+    } else {
+      storage.deleteCategory(categoryId);
+      refreshCategories();
+    }
   }, [refreshCategories]);
 
-  const createCategory = useCallback((data: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Category => {
-    const category: Category = {
-      ...data,
-      id: `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    storage.saveCategory(category);
-    refreshCategories();
-    return category;
+  const createCategory = useCallback(async (data: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Promise<Category> => {
+    if (isLocalNetworkMode()) {
+      const res = await api.categories.create(mapCategoryToDb(data as Category));
+      if (res.data) return mapCategoryFromDb(res.data);
+      throw new Error(res.error || 'Failed to create category');
+    } else {
+      const category: Category = {
+        ...data,
+        id: `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      storage.saveCategory(category);
+      refreshCategories();
+      return category;
+    }
   }, [refreshCategories]);
 
   return { categories, saveCategory, deleteCategory, createCategory, refreshCategories };
+}
+
+// ============================================
+// DB MAPPING FUNCTIONS (snake_case <-> camelCase)
+// ============================================
+
+function mapBranchFromDb(row: any): Branch {
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    address: row.address,
+    phone: row.phone,
+    isMain: row.is_main ?? row.isMain,
+    createdAt: row.created_at ?? row.createdAt,
+  };
+}
+
+function mapProductFromDb(row: any): Product {
+  return {
+    id: row.id,
+    name: row.name,
+    sku: row.sku,
+    barcode: row.barcode,
+    category: row.category,
+    price: Number(row.price),
+    cost: Number(row.cost),
+    stock: Number(row.stock),
+    unit: row.unit,
+    taxRate: Number(row.tax_rate ?? row.taxRate ?? 14),
+    branchId: row.branch_id ?? row.branchId,
+    isActive: row.is_active ?? row.isActive ?? true,
+    createdAt: row.created_at ?? row.createdAt,
+  };
+}
+
+function mapProductToDb(product: Product): any {
+  return {
+    name: product.name,
+    sku: product.sku,
+    barcode: product.barcode,
+    category: product.category,
+    price: product.price,
+    cost: product.cost,
+    stock: product.stock,
+    unit: product.unit,
+    taxRate: product.taxRate,
+    branchId: product.branchId,
+    isActive: product.isActive,
+  };
+}
+
+function mapSaleFromDb(row: any): Sale {
+  return {
+    id: row.id,
+    invoiceNumber: row.invoice_number ?? row.invoiceNumber,
+    branchId: row.branch_id ?? row.branchId,
+    cashierId: row.cashier_id ?? row.cashierId,
+    cashierName: row.cashier_name ?? row.cashierName,
+    items: row.items || [],
+    subtotal: Number(row.subtotal),
+    taxAmount: Number(row.tax_amount ?? row.taxAmount),
+    discount: Number(row.discount ?? 0),
+    total: Number(row.total),
+    paymentMethod: row.payment_method ?? row.paymentMethod,
+    amountPaid: Number(row.amount_paid ?? row.amountPaid),
+    change: Number(row.change ?? 0),
+    customerNif: row.customer_nif ?? row.customerNif,
+    customerName: row.customer_name ?? row.customerName,
+    status: row.status,
+    saftHash: row.saft_hash ?? row.saftHash,
+    agtStatus: row.agt_status ?? row.agtStatus,
+    agtCode: row.agt_code ?? row.agtCode,
+    agtValidatedAt: row.agt_validated_at ?? row.agtValidatedAt,
+    createdAt: row.created_at ?? row.createdAt,
+    syncedAt: row.synced_at ?? row.syncedAt,
+    syncedToMain: row.synced_to_main ?? row.syncedToMain,
+  };
+}
+
+function mapUserFromDb(row: any): User {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    branchId: row.branch_id ?? row.branchId,
+    isActive: row.is_active ?? row.isActive ?? true,
+    createdAt: row.created_at ?? row.createdAt,
+  };
+}
+
+function mapDailyReportFromDb(row: any): DailySummary {
+  return {
+    id: row.id,
+    date: row.date,
+    branchId: row.branch_id ?? row.branchId,
+    branchName: row.branch_name ?? row.branchName,
+    totalSales: Number(row.total_sales ?? row.totalSales ?? 0),
+    totalTransactions: Number(row.total_transactions ?? row.totalTransactions ?? 0),
+    cashTotal: Number(row.cash_total ?? row.cashTotal ?? 0),
+    cardTotal: Number(row.card_total ?? row.cardTotal ?? 0),
+    transferTotal: Number(row.transfer_total ?? row.transferTotal ?? 0),
+    taxCollected: Number(row.tax_collected ?? row.taxCollected ?? 0),
+    openingBalance: Number(row.opening_balance ?? row.openingBalance ?? 0),
+    closingBalance: Number(row.closing_balance ?? row.closingBalance ?? 0),
+    status: row.status ?? 'open',
+    closedBy: row.closed_by ?? row.closedBy,
+    closedAt: row.closed_at ?? row.closedAt,
+    notes: row.notes,
+    createdAt: row.created_at ?? row.createdAt,
+  };
+}
+
+function mapClientFromDb(row: any): Client {
+  return {
+    id: row.id,
+    name: row.name,
+    nif: row.nif,
+    email: row.email,
+    phone: row.phone,
+    address: row.address,
+    city: row.city,
+    country: row.country ?? 'Angola',
+    creditLimit: Number(row.credit_limit ?? row.creditLimit ?? 0),
+    currentBalance: Number(row.current_balance ?? row.currentBalance ?? 0),
+    isActive: row.is_active ?? row.isActive ?? true,
+    createdAt: row.created_at ?? row.createdAt,
+    updatedAt: row.updated_at ?? row.updatedAt,
+  };
+}
+
+function mapClientToDb(client: Client): any {
+  return {
+    name: client.name,
+    nif: client.nif,
+    email: client.email,
+    phone: client.phone,
+    address: client.address,
+    city: client.city,
+    country: client.country,
+    creditLimit: client.creditLimit,
+    currentBalance: client.currentBalance,
+    isActive: client.isActive,
+  };
+}
+
+function mapSupplierFromDb(row: any): Supplier {
+  return {
+    id: row.id,
+    name: row.name,
+    nif: row.nif,
+    email: row.email,
+    phone: row.phone,
+    address: row.address,
+    city: row.city,
+    country: row.country ?? 'Angola',
+    contactPerson: row.contact_person ?? row.contactPerson,
+    paymentTerms: row.payment_terms ?? row.paymentTerms ?? '30_days',
+    isActive: row.is_active ?? row.isActive ?? true,
+    notes: row.notes,
+    createdAt: row.created_at ?? row.createdAt,
+    updatedAt: row.updated_at ?? row.updatedAt,
+  };
+}
+
+function mapSupplierToDb(supplier: Supplier): any {
+  return {
+    name: supplier.name,
+    nif: supplier.nif,
+    email: supplier.email,
+    phone: supplier.phone,
+    address: supplier.address,
+    city: supplier.city,
+    country: supplier.country,
+    contactPerson: supplier.contactPerson,
+    paymentTerms: supplier.paymentTerms,
+    isActive: supplier.isActive,
+    notes: supplier.notes,
+  };
+}
+
+function mapStockTransferFromDb(row: any): StockTransfer {
+  return {
+    id: row.id,
+    transferNumber: row.transfer_number ?? row.transferNumber,
+    fromBranchId: row.from_branch_id ?? row.fromBranchId,
+    fromBranchName: row.from_branch_name ?? row.fromBranchName,
+    toBranchId: row.to_branch_id ?? row.toBranchId,
+    toBranchName: row.to_branch_name ?? row.toBranchName,
+    items: row.items || [],
+    status: row.status,
+    requestedBy: row.requested_by ?? row.requestedBy,
+    requestedAt: row.requested_at ?? row.requestedAt,
+    approvedBy: row.approved_by ?? row.approvedBy,
+    approvedAt: row.approved_at ?? row.approvedAt,
+    receivedBy: row.received_by ?? row.receivedBy,
+    receivedAt: row.received_at ?? row.receivedAt,
+    notes: row.notes,
+  };
+}
+
+function mapPurchaseOrderFromDb(row: any): PurchaseOrder {
+  return {
+    id: row.id,
+    orderNumber: row.order_number ?? row.orderNumber,
+    supplierId: row.supplier_id ?? row.supplierId,
+    supplierName: row.supplier_name ?? row.supplierName,
+    branchId: row.branch_id ?? row.branchId,
+    branchName: row.branch_name ?? row.branchName,
+    items: row.items || [],
+    subtotal: Number(row.subtotal ?? 0),
+    taxAmount: Number(row.tax_amount ?? row.taxAmount ?? 0),
+    total: Number(row.total ?? 0),
+    status: row.status ?? 'draft',
+    notes: row.notes,
+    createdBy: row.created_by ?? row.createdBy,
+    createdAt: row.created_at ?? row.createdAt,
+    approvedBy: row.approved_by ?? row.approvedBy,
+    approvedAt: row.approved_at ?? row.approvedAt,
+    receivedBy: row.received_by ?? row.receivedBy,
+    receivedAt: row.received_at ?? row.receivedAt,
+    expectedDeliveryDate: row.expected_delivery_date ?? row.expectedDeliveryDate,
+  };
+}
+
+function mapCategoryFromDb(row: any): Category {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    color: row.color,
+    isActive: row.is_active ?? row.isActive ?? true,
+    createdAt: row.created_at ?? row.createdAt,
+    updatedAt: row.updated_at ?? row.updatedAt,
+  };
+}
+
+function mapCategoryToDb(category: Category): any {
+  return {
+    name: category.name,
+    description: category.description,
+    color: category.color,
+    isActive: category.isActive,
+  };
 }
