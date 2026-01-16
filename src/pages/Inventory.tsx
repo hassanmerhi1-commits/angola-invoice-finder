@@ -2,36 +2,31 @@ import { useState } from 'react';
 import { useBranches, useProducts } from '@/hooks/useERP';
 import { Product } from '@/types/erp';
 import { saveProduct } from '@/lib/storage';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Search, Package, Plus, Edit, AlertTriangle } from 'lucide-react';
-import { ProductFormDialog } from '@/components/inventory/ProductFormDialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { 
+  FileText, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Filter, 
+  BarChart3, 
+  Eye, 
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
+import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
+import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 
 export default function Inventory() {
   const { currentBranch } = useBranches();
-  const { products, refreshProducts } = useProducts(currentBranch?.id);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const { products, refreshProducts, updateProduct, addProduct, deleteProduct } = useProducts(currentBranch?.id);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.barcode?.includes(searchTerm)
-  );
-
-  const totalValue = products.reduce((sum, p) => sum + (p.cost * p.stock), 0);
-  const lowStockCount = products.filter(p => p.stock <= 10 && p.isActive).length;
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('lista');
 
   const handleOpenDialog = (product?: Product) => {
     setSelectedProduct(product || null);
@@ -39,139 +34,303 @@ export default function Inventory() {
   };
 
   const handleSaveProduct = (product: Product) => {
-    saveProduct(product);
+    if (selectedProduct) {
+      updateProduct(product);
+    } else {
+      addProduct(product);
+    }
     refreshProducts();
   };
 
+  const handleSelectProduct = (product: Product) => {
+    setSelectedProduct(product);
+  };
+
+  const handleDoubleClickProduct = () => {
+    if (selectedProduct) {
+      setDialogOpen(true);
+    }
+  };
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Inventário</h1>
-          <p className="text-muted-foreground">
-            Gestão de produtos e stock
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Produto
+    <div className="flex flex-col h-full bg-background">
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 border-b">
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => handleOpenDialog()}>
+          <Plus className="w-3 h-3" />
+          Novo
         </Button>
-      </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1" 
+          disabled={!selectedProduct}
+          onClick={() => selectedProduct && handleOpenDialog(selectedProduct)}
+        >
+          <Edit className="w-3 h-3" />
+          Editar
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1 text-destructive" 
+          disabled={!selectedProduct}
+          onClick={() => {
+            if (selectedProduct && confirm('Eliminar este produto?')) {
+              deleteProduct(selectedProduct.id);
+              setSelectedProduct(null);
+            }
+          }}
+        >
+          <Trash2 className="w-3 h-3" />
+          Eliminar
+        </Button>
+        <div className="w-px h-5 bg-border mx-1" />
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+          <Filter className="w-3 h-3" />
+          Filtro
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+          Ajustar Entrada
+        </Button>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <Package className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Produtos</p>
-                <p className="text-2xl font-bold">{products.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-orange-500/10 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-orange-500" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Stock Baixo</p>
-                <p className="text-2xl font-bold">{lowStockCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-500/10 rounded-lg">
-                <Package className="w-6 h-6 text-green-500" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Valor em Stock</p>
-                <p className="text-2xl font-bold">{totalValue.toLocaleString('pt-AO')} Kz</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <div className="flex-1" />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Produtos</CardTitle>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+        {/* Quick navigation */}
+        <div className="flex items-center gap-1 border rounded px-2 py-1 bg-background">
+          <Input 
+            value={selectedProduct?.sku || ''} 
+            readOnly
+            className="h-5 w-24 text-xs border-0 p-0 focus-visible:ring-0"
+            placeholder="Código"
+          />
+          <span className="text-xs text-muted-foreground">{selectedProduct?.name || ''}</span>
+          <div className="flex gap-0.5 ml-2">
+            <Button variant="ghost" size="icon" className="h-5 w-5">
+              <ChevronLeft className="w-3 h-3" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-5 w-5">
+              <ChevronRight className="w-3 h-3" />
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead className="text-right">Custo</TableHead>
-                <TableHead className="text-right">Preço</TableHead>
-                <TableHead className="text-right">Stock</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acções</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProducts.map(product => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{product.name}</p>
-                      {product.barcode && (
-                        <p className="text-xs text-muted-foreground">{product.barcode}</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{product.category}</TableCell>
-                  <TableCell className="text-right">
-                    {product.cost.toLocaleString('pt-AO')} Kz
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {product.price.toLocaleString('pt-AO')} Kz
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant={product.stock > 10 ? 'secondary' : 'destructive'}>
-                      {product.stock} {product.unit}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={product.isActive ? 'default' : 'outline'}>
-                      {product.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(product)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <ProductFormDialog
+      {/* Sub-tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="w-full justify-start rounded-none border-b bg-muted/30 h-auto p-0">
+          <TabsTrigger value="lista" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Lista
+          </TabsTrigger>
+          <TabsTrigger value="extracto" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Extracto
+          </TabsTrigger>
+          <TabsTrigger value="mes" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Mês
+          </TabsTrigger>
+          <TabsTrigger value="qtd-detalhada" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Qtd Detalhada
+          </TabsTrigger>
+          <TabsTrigger value="transferencia" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Transferência Pendente
+          </TabsTrigger>
+          <TabsTrigger value="grafico" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Gráfico
+          </TabsTrigger>
+          <TabsTrigger value="preco-compra" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Preço de Compra
+          </TabsTrigger>
+          <TabsTrigger value="no-serie" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            No. de Serie
+          </TabsTrigger>
+          <TabsTrigger value="info-produto" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Informações de Produto
+          </TabsTrigger>
+          <TabsTrigger value="cost-history" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Cost History
+          </TabsTrigger>
+          <TabsTrigger value="pedidos" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Pedidos
+          </TabsTrigger>
+          <TabsTrigger value="barcode-qty" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Barcode Qty
+          </TabsTrigger>
+          <TabsTrigger value="vendas-mensais" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Vendas Mensais
+          </TabsTrigger>
+          <TabsTrigger value="auditoria" className="text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            Auditoria
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Action buttons row */}
+        <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 border-b">
+          <div className="flex-1" />
+          <Button variant="outline" size="sm" className="h-6 text-xs gap-1">
+            <FileText className="w-3 h-3" />
+            Nota
+          </Button>
+          <Button variant="secondary" size="sm" className="h-6 text-xs">
+            Todos
+          </Button>
+          <Button variant="outline" size="sm" className="h-6 text-xs text-green-600">
+            Qty &gt;0
+          </Button>
+          <Button variant="outline" size="sm" className="h-6 text-xs text-red-600">
+            Qty &lt;0
+          </Button>
+          <Button variant="outline" size="sm" className="h-6 text-xs">
+            &lt;Cost
+          </Button>
+          <Button variant="outline" size="sm" className="h-6 text-xs gap-1">
+            <BarChart3 className="w-3 h-3" />
+            Gráfico
+          </Button>
+          <Button variant="outline" size="sm" className="h-6 text-xs gap-1">
+            <Eye className="w-3 h-3" />
+            Visualização
+          </Button>
+        </div>
+
+        <TabsContent value="lista" className="flex-1 m-0 p-2" onDoubleClick={handleDoubleClickProduct}>
+          <AdvancedDataGrid 
+            products={products}
+            onSelectProduct={handleSelectProduct}
+            selectedProductId={selectedProduct?.id}
+          />
+        </TabsContent>
+
+        <TabsContent value="extracto" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Extracto do produto selecionado</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="mes" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Movimentos mensais</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="qtd-detalhada" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Quantidade detalhada por filial</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="transferencia" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Transferências pendentes</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="grafico" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Gráficos de movimentação</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="preco-compra" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Histórico de preços de compra</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="no-serie" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Números de série</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="info-produto" className="flex-1 m-0 p-4">
+          {selectedProduct ? (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><strong>SKU:</strong> {selectedProduct.sku}</div>
+                  <div><strong>Nome:</strong> {selectedProduct.name}</div>
+                  <div><strong>Categoria:</strong> {selectedProduct.category}</div>
+                  <div><strong>Preço:</strong> {selectedProduct.price.toLocaleString('pt-AO')} Kz</div>
+                  <div><strong>Custo:</strong> {selectedProduct.cost.toLocaleString('pt-AO')} Kz</div>
+                  <div><strong>Stock:</strong> {selectedProduct.stock} {selectedProduct.unit}</div>
+                  <div><strong>IVA:</strong> {selectedProduct.taxRate}%</div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-muted-foreground text-center">Selecione um produto para ver informações</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="cost-history" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Histórico de custos</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pedidos" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Pedidos relacionados</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="barcode-qty" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Quantidades por código de barras</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="vendas-mensais" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Vendas mensais do produto</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="auditoria" className="flex-1 m-0 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Histórico de auditoria</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Status bar */}
+      <div className="flex items-center justify-between px-3 py-1 bg-muted/50 border-t text-xs text-muted-foreground">
+        <div className="flex items-center gap-4">
+          <span className="text-red-600">Qtd &lt; 0</span>
+          <span className="bg-yellow-200 text-yellow-800 px-2 rounded">Qtd Minima</span>
+        </div>
+        <span>{products.length} produtos</span>
+      </div>
+
+      <ProductDetailDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         product={selectedProduct}
