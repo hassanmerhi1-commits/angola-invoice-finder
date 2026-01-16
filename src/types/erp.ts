@@ -229,3 +229,152 @@ export interface PurchaseOrderItem {
   taxRate: number;
   subtotal: number;
 }
+
+// ==================== FISCAL DOCUMENTS (AGT Compliance) ====================
+
+// Credit Note - Nota de Crédito
+export interface CreditNote {
+  id: string;
+  documentNumber: string; // NC BRANCH/DATE/SEQUENCE
+  branchId: string;
+  branchName: string;
+  originalInvoiceId: string;
+  originalInvoiceNumber: string;
+  reason: 'return' | 'discount' | 'error' | 'other';
+  reasonDescription: string;
+  items: CreditNoteItem[];
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  customerNif?: string;
+  customerName?: string;
+  status: 'draft' | 'issued' | 'cancelled';
+  issuedBy: string;
+  issuedAt: string;
+  saftHash?: string;
+  createdAt: string;
+}
+
+export interface CreditNoteItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  taxAmount: number;
+  subtotal: number;
+}
+
+// Debit Note - Nota de Débito
+export interface DebitNote {
+  id: string;
+  documentNumber: string; // ND BRANCH/DATE/SEQUENCE
+  branchId: string;
+  branchName: string;
+  originalInvoiceId?: string;
+  originalInvoiceNumber?: string;
+  reason: 'price_adjustment' | 'additional_charge' | 'interest' | 'other';
+  reasonDescription: string;
+  items: DebitNoteItem[];
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  customerNif?: string;
+  customerName?: string;
+  status: 'draft' | 'issued' | 'cancelled';
+  issuedBy: string;
+  issuedAt: string;
+  saftHash?: string;
+  createdAt: string;
+}
+
+export interface DebitNoteItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  taxAmount: number;
+  subtotal: number;
+}
+
+// Transport Document - Guia de Transporte
+export interface TransportDocument {
+  id: string;
+  documentNumber: string; // GT BRANCH/DATE/SEQUENCE
+  branchId: string;
+  branchName: string;
+  type: 'delivery' | 'transfer' | 'return' | 'consignment';
+  // Origin
+  originAddress: string;
+  originCity: string;
+  // Destination
+  destinationAddress: string;
+  destinationCity: string;
+  destinationNif?: string;
+  destinationName?: string;
+  // Transport
+  transporterName?: string;
+  transporterNif?: string;
+  vehiclePlate?: string;
+  loadingDate: string;
+  loadingTime: string;
+  // Items
+  items: TransportDocumentItem[];
+  totalWeight?: number;
+  totalVolume?: number;
+  // Status
+  status: 'draft' | 'issued' | 'in_transit' | 'delivered' | 'cancelled';
+  relatedInvoiceId?: string;
+  relatedInvoiceNumber?: string;
+  notes?: string;
+  issuedBy: string;
+  issuedAt: string;
+  deliveredAt?: string;
+  saftHash?: string;
+  createdAt: string;
+}
+
+export interface TransportDocumentItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unit: string;
+  weight?: number;
+}
+
+// Company/Taxpayer Info for SAF-T
+export interface CompanyInfo {
+  name: string;
+  nif: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone: string;
+  email: string;
+  activityCode: string; // CAE code
+  fiscalYear: string;
+}
+
+// SAF-T Export Package
+export interface SAFTExport {
+  id: string;
+  branchId: string;
+  branchName: string;
+  periodStart: string;
+  periodEnd: string;
+  exportType: 'monthly' | 'annual' | 'custom';
+  company: CompanyInfo;
+  invoices: Sale[];
+  creditNotes: CreditNote[];
+  debitNotes: DebitNote[];
+  transportDocs: TransportDocument[];
+  products: Product[];
+  clients: Client[];
+  exportedBy: string;
+  exportedAt: string;
+  fileName: string;
+  xmlContent?: string;
+}
