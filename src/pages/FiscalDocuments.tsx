@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBranches, useSales, useAuth, useProducts } from '@/hooks/useERP';
+import { useBranches, useSales, useAuth, useProducts, usePurchaseOrders } from '@/hooks/useERP';
 import { 
   useCreditNotes, 
   useDebitNotes, 
@@ -7,7 +7,9 @@ import {
   useCompanyInfo,
   useSAFTExport 
 } from '@/hooks/useFiscalDocuments';
-import { Sale, CreditNoteItem, DebitNoteItem, TransportDocumentItem, Product } from '@/types/erp';
+import { useSupplierReturns } from '@/hooks/useSupplierReturns';
+import { SupplierReturnItem } from '@/lib/supplierReturns';
+import { Sale, CreditNoteItem, DebitNoteItem, TransportDocumentItem, Product, PurchaseOrder } from '@/types/erp';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   FileText, 
   FileMinus, 
@@ -28,7 +31,11 @@ import {
   Search,
   Calendar,
   Building2,
-  AlertCircle
+  AlertCircle,
+  RotateCcw,
+  Package,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -39,9 +46,11 @@ export default function FiscalDocuments() {
   const { currentBranch } = useBranches();
   const { sales } = useSales(currentBranch?.id);
   const { products } = useProducts(currentBranch?.id);
+  const { orders } = usePurchaseOrders();
   const { creditNotes, createCreditNote } = useCreditNotes(currentBranch?.id);
   const { debitNotes, createDebitNote } = useDebitNotes(currentBranch?.id);
   const { transportDocs, createTransportDocument, updateTransportStatus } = useTransportDocuments(currentBranch?.id);
+  const { supplierReturns, createSupplierReturn, approveReturn, markAsShipped, completeReturn, cancelReturn } = useSupplierReturns(currentBranch?.id);
   const { companyInfo, saveCompanyInfo } = useCompanyInfo();
   const { generateSAFT } = useSAFTExport();
   const { toast } = useToast();
@@ -50,6 +59,7 @@ export default function FiscalDocuments() {
   const [creditNoteDialog, setCreditNoteDialog] = useState(false);
   const [debitNoteDialog, setDebitNoteDialog] = useState(false);
   const [transportDocDialog, setTransportDocDialog] = useState(false);
+  const [supplierReturnDialog, setSupplierReturnDialog] = useState(false);
   const [saftDialog, setSaftDialog] = useState(false);
   const [companyDialog, setCompanyDialog] = useState(false);
 
@@ -80,11 +90,22 @@ export default function FiscalDocuments() {
   const [transportItems, setTransportItems] = useState<TransportDocumentItem[]>([]);
   const [transportNotes, setTransportNotes] = useState('');
 
+  // Supplier Return form states
+  const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
+  const [returnReason, setReturnReason] = useState<'damaged' | 'wrong_item' | 'quality' | 'overstock' | 'other'>('damaged');
+  const [returnDescription, setReturnDescription] = useState('');
+  const [returnItems, setReturnItems] = useState<SupplierReturnItem[]>([]);
+  const [returnNotes, setReturnNotes] = useState('');
+  const [deductStock, setDeductStock] = useState(true);
+
   const [saftStartDate, setSaftStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [saftEndDate, setSaftEndDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [editCompanyInfo, setEditCompanyInfo] = useState(companyInfo);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Received POs for supplier returns
+  const receivedOrders = orders.filter(o => o.status === 'received' || o.status === 'partial');
 
   // Handlers
   const handleSelectSaleForCredit = (sale: Sale) => {
@@ -247,6 +268,86 @@ export default function FiscalDocuments() {
     setTransportNotes('');
   };
 
+  // Supplier Return handlers
+  const handleSelectPOForReturn = (po: PurchaseOrder) => {
+    setSelectedPO(po);
+    setReturnItems(po.items.map(item => ({
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.sku,
+      quantity: 0,
+      unitCost: item.unitCost,
+      taxRate: item.taxRate,
+      taxAmount: 0,
+      subtotal: 0,
+    })));
+  };
+
+  const updateReturnItemQuantity = (productId: string, quantity: number) => {
+    setReturnItems(prev => prev.map(item => {
+      if (item.productId === productId) {
+        const subtotal = quantity * item.unitCost;
+        const taxAmount = subtotal * (item.taxRate / 100);
+        return { ...item, quantity, subtotal, taxAmount };
+      }
+      return item;
+    }));
+  };
+
+  const handleCreateSupplierReturn = () => {
+    if (!selectedPO || !currentBranch || !user) return;
+    
+    const itemsToReturn = returnItems.filter(i => i.quantity > 0);
+    if (itemsToReturn.length === 0) {
+      toast({
+        title: 'Erro',
+        description: 'Seleccione pelo menos um item para devolver',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    createSupplierReturn(
+      currentBranch.id,
+      currentBranch.code,
+      selectedPO,
+      returnReason,
+      returnDescription,
+      itemsToReturn,
+      user.id,
+      returnNotes,
+      deductStock
+    );
+
+    toast({
+      title: 'Devolução criada',
+      description: 'O documento de devolução foi criado com sucesso',
+    });
+
+    setSupplierReturnDialog(false);
+    resetSupplierReturnForm();
+  };
+
+  const resetSupplierReturnForm = () => {
+    setSelectedPO(null);
+    setReturnReason('damaged');
+    setReturnDescription('');
+    setReturnItems([]);
+    setReturnNotes('');
+    setDeductStock(true);
+  };
+
+  const getReturnStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending': return <Badge variant="secondary">Pendente</Badge>;
+      case 'approved': return <Badge variant="default">Aprovada</Badge>;
+      case 'shipped': return <Badge className="bg-blue-500">Enviada</Badge>;
+      case 'completed': return <Badge className="bg-green-500">Concluída</Badge>;
+      case 'cancelled': return <Badge variant="destructive">Cancelada</Badge>;
+      default: return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
   const updateDebitItem = (index: number, field: keyof DebitNoteItem, value: string | number) => {
     const updated = [...debitItems];
     (updated[index] as any)[field] = value;
@@ -336,6 +437,19 @@ export default function FiscalDocuments() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Devoluções Fornecedor</CardTitle>
+            <RotateCcw className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{supplierReturns.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {supplierReturns.reduce((sum, r) => sum + r.total, 0).toLocaleString('pt-AO')} Kz total
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Facturas</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -350,7 +464,7 @@ export default function FiscalDocuments() {
 
       {/* Tabs */}
       <Tabs defaultValue="credit" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="credit">
             <FileMinus className="w-4 h-4 mr-2" />
             Notas de Crédito
@@ -358,6 +472,10 @@ export default function FiscalDocuments() {
           <TabsTrigger value="debit">
             <FilePlus className="w-4 h-4 mr-2" />
             Notas de Débito
+          </TabsTrigger>
+          <TabsTrigger value="supplier-returns">
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Devoluções Fornecedor
           </TabsTrigger>
           <TabsTrigger value="transport">
             <Truck className="w-4 h-4 mr-2" />
@@ -477,6 +595,109 @@ export default function FiscalDocuments() {
                           <Badge variant={note.status === 'issued' ? 'default' : 'destructive'}>
                             {note.status === 'issued' ? 'Emitida' : 'Cancelada'}
                           </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Supplier Returns Tab */}
+        <TabsContent value="supplier-returns" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Devoluções a Fornecedor</CardTitle>
+                <CardDescription>Devolução de mercadorias recebidas</CardDescription>
+              </div>
+              <Button onClick={() => setSupplierReturnDialog(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Devolução
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {supplierReturns.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <RotateCcw className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p>Nenhuma devolução a fornecedor registada</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nº Devolução</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Encomenda Orig.</TableHead>
+                      <TableHead>Fornecedor</TableHead>
+                      <TableHead>Motivo</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Acções</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {supplierReturns.map(ret => (
+                      <TableRow key={ret.id}>
+                        <TableCell className="font-medium">{ret.returnNumber}</TableCell>
+                        <TableCell>{format(new Date(ret.createdAt), 'dd/MM/yyyy', { locale: pt })}</TableCell>
+                        <TableCell>{ret.purchaseOrderNumber}</TableCell>
+                        <TableCell>{ret.supplierName}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {ret.reason === 'damaged' ? 'Danificado' : 
+                             ret.reason === 'wrong_item' ? 'Item Errado' :
+                             ret.reason === 'quality' ? 'Qualidade' :
+                             ret.reason === 'overstock' ? 'Excesso' : 'Outro'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-bold">{ret.total.toLocaleString('pt-AO')} Kz</TableCell>
+                        <TableCell>{getReturnStatusBadge(ret.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {ret.status === 'pending' && (
+                              <>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => approveReturn(ret.id, user?.id || '')}
+                                  title="Aprovar"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => cancelReturn(ret.id, user?.id || '')}
+                                  title="Cancelar"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                            {ret.status === 'approved' && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => markAsShipped(ret.id)}
+                                title="Marcar como Enviado"
+                              >
+                                <Truck className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {ret.status === 'shipped' && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => completeReturn(ret.id)}
+                                title="Concluir"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1153,6 +1374,130 @@ export default function FiscalDocuments() {
             </Button>
             <Button onClick={handleSaveCompanyInfo}>
               Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Supplier Return Dialog */}
+      <Dialog open={supplierReturnDialog} onOpenChange={setSupplierReturnDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nova Devolução a Fornecedor</DialogTitle>
+            <DialogDescription>Seleccione a encomenda e os itens a devolver</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {!selectedPO ? (
+              <div className="space-y-4">
+                <Label>Seleccione uma Encomenda Recebida</Label>
+                {receivedOrders.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Nenhuma encomenda recebida disponível</p>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto space-y-2">
+                    {receivedOrders.map(po => (
+                      <div 
+                        key={po.id}
+                        className="p-3 border rounded-lg cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleSelectPOForReturn(po)}
+                      >
+                        <div className="flex justify-between">
+                          <span className="font-medium">{po.orderNumber}</span>
+                          <span>{po.total.toLocaleString('pt-AO')} Kz</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {po.supplierName} • {format(new Date(po.createdAt), 'dd/MM/yyyy')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <p className="font-medium">{selectedPO.orderNumber} - {selectedPO.supplierName}</p>
+                  <Button variant="link" className="p-0 h-auto" onClick={() => setSelectedPO(null)}>Alterar</Button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Motivo</Label>
+                    <Select value={returnReason} onValueChange={(v: any) => setReturnReason(v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="damaged">Danificado</SelectItem>
+                        <SelectItem value="wrong_item">Item Errado</SelectItem>
+                        <SelectItem value="quality">Problema de Qualidade</SelectItem>
+                        <SelectItem value="overstock">Excesso de Stock</SelectItem>
+                        <SelectItem value="other">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Descrição</Label>
+                    <Input value={returnDescription} onChange={(e) => setReturnDescription(e.target.value)} placeholder="Descreva o motivo..." />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={deductStock} onCheckedChange={(c) => setDeductStock(!!c)} />
+                  <Label>Deduzir stock automaticamente</Label>
+                </div>
+
+                <div>
+                  <Label>Itens a Devolver (introduza a quantidade)</Label>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produto</TableHead>
+                        <TableHead className="text-right">Recebido</TableHead>
+                        <TableHead className="text-right">A Devolver</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {returnItems.map(item => {
+                        const poItem = selectedPO.items.find(i => i.productId === item.productId);
+                        return (
+                          <TableRow key={item.productId}>
+                            <TableCell>{item.productName}</TableCell>
+                            <TableCell className="text-right">{poItem?.receivedQuantity || poItem?.quantity}</TableCell>
+                            <TableCell className="text-right">
+                              <Input
+                                type="number"
+                                min="0"
+                                max={poItem?.receivedQuantity || poItem?.quantity}
+                                className="w-20 ml-auto"
+                                value={item.quantity}
+                                onChange={(e) => updateReturnItemQuantity(item.productId, parseInt(e.target.value) || 0)}
+                              />
+                            </TableCell>
+                            <TableCell className="text-right">{item.subtotal.toLocaleString('pt-AO')} Kz</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div>
+                  <Label>Notas</Label>
+                  <Textarea value={returnNotes} onChange={(e) => setReturnNotes(e.target.value)} rows={2} />
+                </div>
+
+                <div className="text-right text-lg font-bold">
+                  Total: {returnItems.reduce((s, i) => s + i.subtotal + i.taxAmount, 0).toLocaleString('pt-AO')} Kz
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSupplierReturnDialog(false); resetSupplierReturnForm(); }}>Cancelar</Button>
+            <Button onClick={handleCreateSupplierReturn} disabled={!selectedPO || returnItems.every(i => i.quantity === 0)}>
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Criar Devolução
             </Button>
           </DialogFooter>
         </DialogContent>
