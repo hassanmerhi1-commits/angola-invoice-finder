@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Sale, Branch } from '@/types/erp';
 import {
   Dialog,
@@ -7,7 +8,14 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Printer, X, Check } from 'lucide-react';
+import { Printer, Settings, Check } from 'lucide-react';
+import { 
+  printReceipt, 
+  getPrinterConfig, 
+  openCashDrawer 
+} from '@/lib/thermalPrinter';
+import { PrinterSettingsDialog } from './PrinterSettingsDialog';
+import { toast } from 'sonner';
 
 interface ReceiptDialogProps {
   open: boolean;
@@ -24,13 +32,52 @@ export function ReceiptDialog({
   branch,
   onNewSale,
 }: ReceiptDialogProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+
   if (!sale || !branch) return null;
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    setIsPrinting(true);
+    try {
+      const config = getPrinterConfig();
+      const autoOpenDrawer = localStorage.getItem('kwanza_auto_open_drawer') !== 'false';
+      
+      const result = await printReceipt(sale, branch, config, autoOpenDrawer);
+      
+      if (result.success) {
+        toast.success(
+          result.method === 'serial' 
+            ? 'Recibo enviado para impressora térmica' 
+            : 'Janela de impressão aberta'
+        );
+      }
+    } catch (error) {
+      toast.error('Erro ao imprimir: ' + (error as Error).message);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleOpenDrawer = async () => {
+    try {
+      const success = await openCashDrawer();
+      if (success) {
+        toast.success('Gaveta aberta');
+      } else {
+        toast.info('Use o app desktop para abrir a gaveta');
+      }
+    } catch (error) {
+      toast.error('Erro ao abrir gaveta');
+    }
   };
 
   return (
+    <>
+      <PrinterSettingsDialog 
+        open={settingsOpen} 
+        onOpenChange={setSettingsOpen} 
+      />
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
@@ -138,16 +185,35 @@ export function ReceiptDialog({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 print:hidden">
-          <Button variant="outline" className="flex-1" onClick={handlePrint}>
-            <Printer className="w-4 h-4 mr-2" />
-            Imprimir
-          </Button>
-          <Button className="flex-1" onClick={onNewSale}>
-            Nova Venda
-          </Button>
+        <div className="space-y-2 print:hidden">
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              className="flex-1" 
+              onClick={handlePrint}
+              disabled={isPrinting}
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              {isPrinting ? 'Imprimindo...' : 'Imprimir'}
+            </Button>
+            <Button className="flex-1" onClick={onNewSale}>
+              Nova Venda
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="flex-1 text-muted-foreground"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Config. Impressora
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
