@@ -155,6 +155,7 @@ export function getCompanyInfo(): CompanyInfo {
     nif: '5000000000',
     address: 'Rua Principal, 123',
     city: 'Luanda',
+    province: 'Luanda',
     postalCode: '0000',
     country: 'AO',
     phone: '+244 923 456 789',
