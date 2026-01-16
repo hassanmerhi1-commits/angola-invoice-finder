@@ -382,13 +382,13 @@ export default function FiscalDocuments() {
             Gestão de documentos em conformidade com AGT
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setCompanyDialog(true)}>
-            <Building2 className="w-4 h-4 mr-2" />
+        <div className="flex gap-3">
+          <Button variant="modern-outline" size="lg" onClick={() => setCompanyDialog(true)}>
+            <Building2 />
             Dados Empresa
           </Button>
-          <Button onClick={() => setSaftDialog(true)}>
-            <Download className="w-4 h-4 mr-2" />
+          <Button variant="modern" size="lg" onClick={() => setSaftDialog(true)}>
+            <Download />
             Exportar SAF-T
           </Button>
         </div>
@@ -491,8 +491,8 @@ export default function FiscalDocuments() {
                 <CardTitle>Notas de Crédito</CardTitle>
                 <CardDescription>Documentos de devolução e correcção</CardDescription>
               </div>
-              <Button onClick={() => setCreditNoteDialog(true)}>
-                <Plus className="w-4 h-4 mr-2" />
+              <Button variant="modern" size="lg" onClick={() => setCreditNoteDialog(true)}>
+                <Plus />
                 Nova Nota de Crédito
               </Button>
             </CardHeader>
@@ -552,8 +552,8 @@ export default function FiscalDocuments() {
                 <CardTitle>Notas de Débito</CardTitle>
                 <CardDescription>Documentos de cobrança adicional</CardDescription>
               </div>
-              <Button onClick={() => setDebitNoteDialog(true)}>
-                <Plus className="w-4 h-4 mr-2" />
+              <Button variant="modern" size="lg" onClick={() => setDebitNoteDialog(true)}>
+                <Plus />
                 Nova Nota de Débito
               </Button>
             </CardHeader>
@@ -613,8 +613,8 @@ export default function FiscalDocuments() {
                 <CardTitle>Devoluções a Fornecedor</CardTitle>
                 <CardDescription>Devolução de mercadorias recebidas</CardDescription>
               </div>
-              <Button onClick={() => setSupplierReturnDialog(true)}>
-                <Plus className="w-4 h-4 mr-2" />
+              <Button variant="modern" size="lg" onClick={() => setSupplierReturnDialog(true)}>
+                <Plus />
                 Nova Devolução
               </Button>
             </CardHeader>
@@ -716,8 +716,8 @@ export default function FiscalDocuments() {
                 <CardTitle>Guias de Transporte</CardTitle>
                 <CardDescription>Documentos de movimentação de mercadorias</CardDescription>
               </div>
-              <Button onClick={() => setTransportDocDialog(true)}>
-                <Plus className="w-4 h-4 mr-2" />
+              <Button variant="modern" size="lg" onClick={() => setTransportDocDialog(true)}>
+                <Plus />
                 Nova Guia
               </Button>
             </CardHeader>
