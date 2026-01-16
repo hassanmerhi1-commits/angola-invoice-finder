@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useBranches, useSales } from '@/hooks/useERP';
+import { useTranslation } from '@/i18n';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,8 @@ import {
 import { Search, FileText, Download, Eye } from 'lucide-react';
 
 export default function Invoices() {
+  const { t, language } = useTranslation();
+  const locale = language === 'pt' ? 'pt-AO' : 'en-US';
   const { currentBranch } = useBranches();
   const { sales } = useSales(currentBranch?.id);
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,14 +32,14 @@ export default function Invoices() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Facturas</h1>
+          <h1 className="text-2xl font-bold">{t.invoices.title}</h1>
           <p className="text-muted-foreground">
-            Gestão de documentos fiscais
+            {t.invoices.subtitle}
           </p>
         </div>
         <Button>
           <FileText className="w-4 h-4 mr-2" />
-          Exportar SAF-T
+          {t.invoices.exportSaft}
         </Button>
       </div>
 

@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Building2, User as UserIcon, LogOut, Settings, Menu } from 'lucide-react';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useTranslation } from '@/i18n';
 
 interface HeaderProps {
   user: User | null;
@@ -35,6 +37,8 @@ export function Header({
   onLogout,
   onMenuClick,
 }: HeaderProps) {
+  const { t } = useTranslation();
+  
   return (
     <header className="h-16 border-b bg-card px-4 flex items-center justify-between">
       <div className="flex items-center gap-4">
@@ -50,12 +54,14 @@ export function Header({
           </div>
           <div className="hidden sm:block">
             <h1 className="font-bold text-lg leading-none">Kwanza ERP</h1>
-            <p className="text-xs text-muted-foreground">Sistema de Gestão</p>
+            <p className="text-xs text-muted-foreground">Management System</p>
           </div>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Language Switcher */}
+        <LanguageSwitcher />
         {/* Branch Selector */}
         <Select
           value={currentBranch?.id}
@@ -66,7 +72,7 @@ export function Header({
         >
           <SelectTrigger className="w-[180px] hidden sm:flex">
             <Building2 className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Selecionar filial" />
+            <SelectValue placeholder={t.nav.dashboard} />
           </SelectTrigger>
           <SelectContent>
             {branches.map(branch => (
@@ -102,12 +108,12 @@ export function Header({
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <Settings className="w-4 h-4 mr-2" />
-              Configurações
+              {t.nav.settings}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onLogout} className="text-destructive">
               <LogOut className="w-4 h-4 mr-2" />
-              Sair
+              {t.nav.logout}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

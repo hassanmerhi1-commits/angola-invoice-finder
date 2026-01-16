@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/i18n';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -18,30 +19,32 @@ import {
   FileCheck,
 } from 'lucide-react';
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: ShoppingCart, label: 'POS / Caixa', path: '/pos' },
-  { icon: FileText, label: 'Facturas', path: '/invoices' },
-  { icon: FileCheck, label: 'Documentos Fiscais', path: '/fiscal-documents' },
-  { icon: Package, label: 'Inventário', path: '/inventory' },
-  { icon: Tags, label: 'Categorias', path: '/categories' },
-  { icon: Truck, label: 'Fornecedores', path: '/suppliers' },
-  { icon: ClipboardList, label: 'Encomendas', path: '/purchase-orders' },
-  { icon: Calendar, label: 'Relatórios Diários', path: '/daily-reports' },
-  { icon: ArrowRightLeft, label: 'Transferências', path: '/stock-transfer' },
-  { icon: Users, label: 'Clientes', path: '/clients' },
-  { icon: Upload, label: 'Sincronização', path: '/data-sync' },
-  { icon: Building2, label: 'Filiais', path: '/branches' },
-  { icon: BarChart3, label: 'Relatórios', path: '/reports' },
-  { icon: Settings, label: 'Configurações', path: '/settings' },
-];
-
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const { t } = useTranslation();
+
+  const navItems = [
+    { icon: LayoutDashboard, label: t.nav.dashboard, path: '/' },
+    { icon: ShoppingCart, label: t.nav.pos, path: '/pos' },
+    { icon: FileText, label: t.nav.invoices, path: '/invoices' },
+    { icon: FileCheck, label: t.nav.fiscalDocuments, path: '/fiscal-documents' },
+    { icon: Package, label: t.nav.inventory, path: '/inventory' },
+    { icon: Tags, label: t.nav.categories, path: '/categories' },
+    { icon: Truck, label: t.nav.suppliers, path: '/suppliers' },
+    { icon: ClipboardList, label: t.nav.purchaseOrders, path: '/purchase-orders' },
+    { icon: Calendar, label: t.nav.dailyReports, path: '/daily-reports' },
+    { icon: ArrowRightLeft, label: t.stockTransfer.title, path: '/stock-transfer' },
+    { icon: Users, label: t.nav.clients, path: '/clients' },
+    { icon: Upload, label: t.nav.dataSync, path: '/data-sync' },
+    { icon: Building2, label: 'Branches', path: '/branches' },
+    { icon: BarChart3, label: 'Reports', path: '/reports' },
+    { icon: Settings, label: t.nav.settings, path: '/settings' },
+  ];
+
   return (
     <>
       {/* Mobile overlay */}
@@ -65,7 +68,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
             <div>
               <h1 className="font-bold text-lg leading-none">Kwanza ERP</h1>
-              <p className="text-xs text-muted-foreground">Sistema de Gestão</p>
+              <p className="text-xs text-muted-foreground">Management System</p>
             </div>
           </div>
         </div>

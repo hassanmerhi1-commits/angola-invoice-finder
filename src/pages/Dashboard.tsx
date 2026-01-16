@@ -1,4 +1,5 @@
 import { useBranches, useSales, useProducts } from '@/hooks/useERP';
+import { useTranslation } from '@/i18n';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DollarSign,
@@ -10,9 +11,12 @@ import {
 } from 'lucide-react';
 
 export default function Dashboard() {
+  const { t, language } = useTranslation();
   const { currentBranch } = useBranches();
   const { sales } = useSales(currentBranch?.id);
   const { products } = useProducts(currentBranch?.id);
+
+  const locale = language === 'pt' ? 'pt-AO' : 'en-US';
 
   // Calculate stats
   const today = new Date().toISOString().slice(0, 10);
@@ -30,9 +34,9 @@ export default function Dashboard() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <h1 className="text-2xl font-bold">{t.dashboard.title}</h1>
         <p className="text-muted-foreground">
-          {currentBranch?.name || 'Todas as filiais'}
+          {currentBranch?.name || t.common.all}
         </p>
       </div>
 
@@ -40,12 +44,12 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vendas Hoje</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.dashboard.todayRevenue}</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {todayRevenue.toLocaleString('pt-AO')} Kz
+              {todayRevenue.toLocaleString(locale)} {t.common.currency}
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               {revenueChange >= 0 ? (
@@ -56,14 +60,14 @@ export default function Dashboard() {
               <span className={revenueChange >= 0 ? 'text-green-500' : 'text-red-500'}>
                 {Math.abs(revenueChange)}%
               </span>
-              vs. ontem
+              {t.dashboard.vsYesterday}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Transacções</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.dashboard.todaySales}</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -77,35 +81,35 @@ export default function Dashboard() {
               <span className={transactionChange >= 0 ? 'text-green-500' : 'text-red-500'}>
                 {Math.abs(transactionChange)}%
               </span>
-              vs. ontem
+              {t.dashboard.vsYesterday}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Produtos</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.dashboard.productsInStock}</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalProducts}</div>
             <p className="text-xs text-muted-foreground">
-              {lowStockProducts.length} com stock baixo
+              {lowStockProducts.length} {t.dashboard.lowStock}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">IVA Hoje</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.pos.tax}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {todaySales.reduce((sum, s) => sum + s.taxAmount, 0).toLocaleString('pt-AO')} Kz
+              {todaySales.reduce((sum, s) => sum + s.taxAmount, 0).toLocaleString(locale)} {t.common.currency}
             </div>
             <p className="text-xs text-muted-foreground">
-              14% sobre vendas
+              14% {language === 'pt' ? 'sobre vendas' : 'on sales'}
             </p>
           </CardContent>
         </Card>
@@ -114,12 +118,12 @@ export default function Dashboard() {
       {/* Recent Sales */}
       <Card>
         <CardHeader>
-          <CardTitle>Vendas Recentes</CardTitle>
+          <CardTitle>{t.dashboard.recentSales}</CardTitle>
         </CardHeader>
         <CardContent>
           {todaySales.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
-              Nenhuma venda hoje. Acesse o POS para começar!
+              {t.dashboard.noSalesToday}
             </p>
           ) : (
             <div className="space-y-4">
@@ -128,12 +132,12 @@ export default function Dashboard() {
                   <div>
                     <p className="font-medium">{sale.invoiceNumber}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(sale.createdAt).toLocaleTimeString('pt-AO')} •{' '}
-                      {sale.items.length} itens
+                      {new Date(sale.createdAt).toLocaleTimeString(locale)} •{' '}
+                      {sale.items.length} {language === 'pt' ? 'itens' : 'items'}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold">{sale.total.toLocaleString('pt-AO')} Kz</p>
+                    <p className="font-bold">{sale.total.toLocaleString(locale)} {t.common.currency}</p>
                     <p className="text-xs text-muted-foreground uppercase">{sale.paymentMethod}</p>
                   </div>
                 </div>
@@ -149,7 +153,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="text-orange-500 flex items-center gap-2">
               <Package className="w-5 h-5" />
-              Produtos com Stock Baixo
+              {t.inventory.lowStockAlert}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -160,7 +164,7 @@ export default function Dashboard() {
                     <p className="font-medium text-sm">{product.name}</p>
                     <p className="text-xs text-muted-foreground">{product.sku}</p>
                   </div>
-                  <span className="text-orange-500 font-bold">{product.stock} un</span>
+                  <span className="text-orange-500 font-bold">{product.stock} {language === 'pt' ? 'un' : 'pcs'}</span>
                 </div>
               ))}
             </div>
