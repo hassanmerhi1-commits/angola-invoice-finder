@@ -20,6 +20,7 @@ import PurchaseOrders from "./pages/PurchaseOrders";
 import Categories from "./pages/Categories";
 import FiscalDocuments from "./pages/FiscalDocuments";
 import UserManagement from "./pages/UserManagement";
+import Reports from "./pages/Reports";
 import Placeholder from "./pages/Placeholder";
 import NotFound from "./pages/NotFound";
 
@@ -72,7 +73,7 @@ function AppRoutes() {
         <Route path="/accounting" element={<Placeholder />} />
         <Route path="/customers" element={<Placeholder />} />
         <Route path="/branches" element={<Placeholder />} />
-        <Route path="/reports" element={<Placeholder />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Placeholder />} />
       </Route>
       <Route path="*" element={<NotFound />} />
