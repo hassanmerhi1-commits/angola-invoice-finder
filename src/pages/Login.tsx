@@ -6,35 +6,64 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { LogIn, Building2 } from 'lucide-react';
+import { LogIn } from 'lucide-react';
+import { z } from 'zod';
+
+// Validation schema
+const loginSchema = z.object({
+  username: z.string().min(3, 'Username must be at least 3 characters').max(50, 'Username too long'),
+  password: z.string().min(1, 'Password is required'),
+});
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
   const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
+    // Validate input
+    const result = loginSchema.safeParse({ username, password });
+    if (!result.success) {
+      const fieldErrors: { username?: string; password?: string } = {};
+      result.error.errors.forEach(err => {
+        if (err.path[0] === 'username') fieldErrors.username = err.message;
+        if (err.path[0] === 'password') fieldErrors.password = err.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const success = login(email, password);
-    
-    if (success) {
+    try {
+      // Convert username to email format for backend compatibility
+      // The backend will match against username field in users table
+      const success = await login(username, password);
+      
+      if (success) {
+        toast({
+          title: "Welcome!",
+          description: "Login successful.",
+        });
+        navigate('/');
+      } else {
+        toast({
+          title: "Authentication Error",
+          description: "Invalid username or password.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
       toast({
-        title: "Bem-vindo!",
-        description: "Login realizado com sucesso.",
-      });
-      navigate('/');
-    } else {
-      toast({
-        title: "Erro de autenticação",
-        description: "Email ou senha incorretos.",
+        title: "Error",
+        description: "Failed to connect to server.",
         variant: "destructive",
       });
     }
@@ -51,51 +80,59 @@ export default function Login() {
           </div>
           <div>
             <CardTitle className="text-2xl">Kwanza ERP</CardTitle>
-            <CardDescription>Sistema de Gestão Empresarial</CardDescription>
+            <CardDescription>Enterprise Management System</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                id="username"
+                type="text"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className={errors.username ? 'border-destructive' : ''}
+                autoComplete="username"
               />
+              {errors.username && (
+                <p className="text-xs text-destructive">{errors.username}</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
+                className={errors.password ? 'border-destructive' : ''}
+                autoComplete="current-password"
               />
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password}</p>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
-                "Entrando..."
+                "Signing in..."
               ) : (
                 <>
                   <LogIn className="w-4 h-4 mr-2" />
-                  Entrar
+                  Sign In
                 </>
               )}
             </Button>
           </form>
 
           <div className="mt-6 p-4 bg-muted rounded-lg">
-            <p className="text-xs text-muted-foreground mb-2">Demo - Use estas credenciais:</p>
+            <p className="text-xs text-muted-foreground mb-2">Demo - Use these credentials:</p>
             <div className="space-y-1 text-xs">
-              <p><strong>Admin:</strong> admin@smarterp.ao</p>
-              <p><strong>Caixa:</strong> caixa1@smarterp.ao</p>
-              <p className="text-muted-foreground">(qualquer senha)</p>
+              <p><strong>Admin:</strong> admin</p>
+              <p><strong>Cashier:</strong> caixa1</p>
+              <p className="text-muted-foreground">(any password)</p>
             </div>
           </div>
         </CardContent>
