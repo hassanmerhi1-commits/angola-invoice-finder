@@ -8,10 +8,18 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Download, FileText } from 'lucide-react';
+import { 
+  Printer, 
+  Download, 
+  FileText, 
+  Receipt,
+  FileOutput
+} from 'lucide-react';
 import { AGTQRCode } from './AGTQRCode';
 import { getInvoiceHash } from '@/lib/agtQRCode';
-import { printViaBrowser } from '@/lib/thermalPrinter';
+import { printViaBrowser, getPrinterConfig } from '@/lib/thermalPrinter';
+import { printA4Invoice } from '@/lib/a4Invoice';
+import { getCompanySettings } from '@/lib/companySettings';
 import { toast } from 'sonner';
 
 interface InvoiceViewDialogProps {
@@ -29,14 +37,25 @@ export function InvoiceViewDialog({
 }: InvoiceViewDialogProps) {
   if (!sale || !branch) return null;
 
-  const handlePrint = () => {
-    printViaBrowser(sale, branch, 80);
-    toast.success('Documento enviado para impressão');
+  const company = getCompanySettings();
+
+  const handlePrintThermal = () => {
+    const config = getPrinterConfig();
+    printViaBrowser(sale, branch, config.paperWidth);
+    toast.success('Recibo térmico enviado para impressão');
+  };
+
+  const handlePrintA4 = () => {
+    printA4Invoice(sale, branch, {
+      showBankDetails: true,
+      showNotes: true,
+      documentType: 'FR',
+    });
+    toast.success('Factura A4 enviada para impressão');
   };
 
   const handleDownloadPDF = () => {
-    // For now, trigger print which can save as PDF
-    handlePrint();
+    handlePrintA4();
     toast.info('Use "Guardar como PDF" na janela de impressão');
   };
 
@@ -62,11 +81,24 @@ export function InvoiceViewDialog({
           {/* Header */}
           <div className="p-6 border-b">
             <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-xl font-bold">{branch.name}</h2>
-                <p className="text-sm text-gray-600">{branch.address}</p>
-                <p className="text-sm text-gray-600">Tel: {branch.phone}</p>
-                <p className="text-sm text-gray-600">NIF: 5000000000</p>
+              <div className="flex items-start gap-4">
+                {company.logo && (
+                  <img 
+                    src={company.logo} 
+                    alt="Logo" 
+                    className="h-16 w-auto object-contain"
+                  />
+                )}
+                <div>
+                  <h2 className="text-xl font-bold">{company.name}</h2>
+                  {company.tradeName && (
+                    <p className="text-sm text-gray-500">{company.tradeName}</p>
+                  )}
+                  <p className="text-sm text-gray-600">{company.address}</p>
+                  <p className="text-sm text-gray-600">{company.city}, {company.province}</p>
+                  <p className="text-sm text-gray-600">Tel: {company.phone}</p>
+                  <p className="text-sm font-medium">NIF: {company.nif}</p>
+                </div>
               </div>
               <div className="text-right">
                 <Badge variant={sale.status === 'completed' ? 'default' : 'destructive'}>
@@ -211,14 +243,20 @@ export function InvoiceViewDialog({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 pt-4">
-          <Button variant="outline" onClick={handlePrint} className="flex-1">
-            <Printer className="w-4 h-4 mr-2" />
-            Imprimir
-          </Button>
-          <Button variant="outline" onClick={handleDownloadPDF} className="flex-1">
+        <div className="space-y-2 pt-4">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handlePrintA4} className="flex-1">
+              <FileOutput className="w-4 h-4 mr-2" />
+              Imprimir A4
+            </Button>
+            <Button variant="outline" onClick={handlePrintThermal} className="flex-1">
+              <Receipt className="w-4 h-4 mr-2" />
+              Recibo Térmico
+            </Button>
+          </div>
+          <Button variant="outline" onClick={handleDownloadPDF} className="w-full">
             <Download className="w-4 h-4 mr-2" />
-            Guardar PDF
+            Guardar como PDF
           </Button>
         </div>
       </DialogContent>

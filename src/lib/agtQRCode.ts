@@ -7,6 +7,7 @@
 
 import QRCode from 'qrcode';
 import { Sale, Branch } from '@/types/erp';
+import { getCompanySettings } from './companySettings';
 
 // AGT QR Code Data Structure
 export interface AGTQRCodeData {
@@ -38,12 +39,15 @@ export interface AGTQRCodeData {
   certificadoSoftware?: string; // Certified software number
 }
 
-// Company information (should be configurable)
-const COMPANY_INFO = {
-  nif: '5000000000',          // Replace with actual company NIF
-  nome: 'Kwanza ERP Demo',    // Replace with actual company name
-  softwareCertificado: 'SW001', // Software certification number
-};
+// Get company info from settings
+function getCompanyInfo() {
+  const settings = getCompanySettings();
+  return {
+    nif: settings.nif,
+    nome: settings.name,
+    softwareCertificado: settings.agtCertificateNumber || 'SW001',
+  };
+}
 
 /**
  * Generate a simple hash from invoice data
@@ -108,10 +112,11 @@ export function buildAGTQRCodeString(data: AGTQRCodeData): string {
  */
 export function saleToAGTQRData(sale: Sale, branch?: Branch): AGTQRCodeData {
   const issueDate = new Date(sale.createdAt);
+  const companyInfo = getCompanyInfo();
   
   return {
-    nifEmissor: COMPANY_INFO.nif,
-    nomeEmissor: branch?.name || COMPANY_INFO.nome,
+    nifEmissor: companyInfo.nif,
+    nomeEmissor: branch?.name || companyInfo.nome,
     nifCliente: sale.customerNif,
     nomeCliente: sale.customerName,
     tipoDocumento: 'FR', // Fatura-Recibo (most common for POS)
@@ -124,7 +129,7 @@ export function saleToAGTQRData(sale: Sale, branch?: Branch): AGTQRCodeData {
     hash: sale.saftHash || generateInvoiceHash(sale),
     atcud: generateATCUD(sale),
     cuce: sale.agtCode,
-    certificadoSoftware: COMPANY_INFO.softwareCertificado,
+    certificadoSoftware: companyInfo.softwareCertificado,
   };
 }
 
@@ -272,24 +277,5 @@ export function formatVerificationText(sale: Sale, branch?: Branch): string {
   return lines.join(' | ');
 }
 
-// Export company info getter/setter for configuration
-export function getCompanyInfo() {
-  try {
-    const saved = localStorage.getItem('kwanza_company_info');
-    if (saved) {
-      return { ...COMPANY_INFO, ...JSON.parse(saved) };
-    }
-  } catch (error) {
-    console.error('Error loading company info:', error);
-  }
-  return COMPANY_INFO;
-}
-
-export function setCompanyInfo(info: Partial<typeof COMPANY_INFO>) {
-  try {
-    localStorage.setItem('kwanza_company_info', JSON.stringify(info));
-    Object.assign(COMPANY_INFO, info);
-  } catch (error) {
-    console.error('Error saving company info:', error);
-  }
-}
+// Note: Company info is now managed via companySettings.ts
+// These exports are kept for backwards compatibility but use the new system
