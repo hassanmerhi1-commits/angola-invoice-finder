@@ -15,6 +15,8 @@ import {
   Zap,
   BarChart3,
   PieChart as PieChartIcon,
+  MapPin,
+  Camera,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -35,12 +37,14 @@ import {
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { useDailyWallpaper } from '@/hooks/useDailyWallpaper';
 
 export default function Dashboard() {
   const { t, language } = useTranslation();
   const { currentBranch } = useBranches();
   const { sales } = useSales(currentBranch?.id);
   const { products } = useProducts(currentBranch?.id);
+  const wallpaper = useDailyWallpaper();
 
   const locale = language === 'pt' ? 'pt-AO' : 'en-US';
   const dateLocale = language === 'pt' ? pt : undefined;
@@ -158,28 +162,51 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="p-6 space-y-6 bg-gradient-to-br from-background via-background to-muted/20 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            {t.dashboard.title}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {currentBranch?.name || t.common.all} • {format(new Date(), "EEEE, dd 'de' MMMM", { locale: dateLocale })}
-          </p>
+    <div className="relative min-h-screen">
+      {/* Background Wallpaper */}
+      <div 
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000"
+        style={{ backgroundImage: `url(${wallpaper.image})` }}
+      />
+      <div className="fixed inset-0 bg-gradient-to-b from-background/80 via-background/90 to-background" />
+      
+      {/* Content */}
+      <div className="relative p-6 space-y-6">
+        {/* Wallpaper Info Badge */}
+        <div className="absolute top-4 right-4 z-10">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background/60 backdrop-blur-md border border-border/50 shadow-lg">
+            <Camera className="h-4 w-4 text-primary" />
+            <div className="text-xs">
+              <div className="font-semibold text-foreground">{wallpaper.name}</div>
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <MapPin className="h-3 w-3" />
+                {wallpaper.location}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="modern-outline" size="lg">
-            <BarChart3 />
-            Relatórios
-          </Button>
-          <Button variant="modern" size="lg">
-            <Zap />
-            Acção Rápida
-          </Button>
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              {t.dashboard.title}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {currentBranch?.name || t.common.all} • {format(new Date(), "EEEE, dd 'de' MMMM", { locale: dateLocale })}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="modern-outline" size="lg">
+              <BarChart3 />
+              Relatórios
+            </Button>
+            <Button variant="modern" size="lg">
+              <Zap />
+              Acção Rápida
+            </Button>
+          </div>
         </div>
-      </div>
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -546,6 +573,7 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
