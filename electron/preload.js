@@ -61,6 +61,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       window.addEventListener('electron-update-status', handler);
       return () => window.removeEventListener('electron-update-status', handler);
     }
+  },
+  
+  // ==================== Server Discovery ====================
+  discovery: {
+    // Scan for servers on local network
+    scan: (timeout = 5000) => ipcRenderer.invoke('discovery:scan', { timeout }),
+    
+    // Stop scanning
+    stop: () => ipcRenderer.invoke('discovery:stop'),
+    
+    // Get cached servers from last scan
+    getCached: () => ipcRenderer.invoke('discovery:cached')
   }
 });
 
@@ -68,3 +80,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
 console.log('🖥️ Kwanza ERP running in Electron desktop mode');
 console.log('🔐 AGT cryptographic services available via electronAPI.agt');
 console.log('🔄 Auto-updater available via electronAPI.updater');
+console.log('🔍 Server discovery available via electronAPI.discovery');

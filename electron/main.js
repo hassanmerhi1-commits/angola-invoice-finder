@@ -379,3 +379,42 @@ ipcMain.handle('updater:install', async () => {
 ipcMain.handle('app:version', async () => {
   return { version: app.getVersion() };
 });
+
+// ==================== IPC HANDLERS FOR SERVER DISCOVERY ====================
+
+// Discover servers on local network
+ipcMain.handle('discovery:scan', async (event, { timeout }) => {
+  const services = getAGTServices();
+  if (!services || !services.serverDiscovery) {
+    return { success: false, servers: [], error: 'Discovery service not available' };
+  }
+  
+  try {
+    const servers = await services.serverDiscovery.startDiscovery(timeout || 5000);
+    return { success: true, servers };
+  } catch (error) {
+    return { success: false, servers: [], error: error.message };
+  }
+});
+
+// Stop discovery scan
+ipcMain.handle('discovery:stop', async () => {
+  const services = getAGTServices();
+  if (services && services.serverDiscovery) {
+    services.serverDiscovery.stopDiscovery();
+  }
+  return { success: true };
+});
+
+// Get cached discovered servers
+ipcMain.handle('discovery:cached', async () => {
+  const services = getAGTServices();
+  if (!services || !services.serverDiscovery) {
+    return { success: false, servers: [] };
+  }
+  
+  return { 
+    success: true, 
+    servers: services.serverDiscovery.getCachedServers() 
+  };
+});
