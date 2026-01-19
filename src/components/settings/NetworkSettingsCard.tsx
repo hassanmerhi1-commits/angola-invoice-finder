@@ -23,19 +23,7 @@ import {
 } from 'lucide-react';
 import { getApiUrl, setApiUrl, isLocalNetworkMode, setForceApiMode } from '@/lib/api/config';
 import { toast } from 'sonner';
-
-// Extend window type for Electron API
-declare global {
-  interface Window {
-    electronAPI?: {
-      discovery?: {
-        scan: (timeout?: number) => Promise<{ success: boolean; servers: DiscoveredServer[]; error?: string }>;
-        stop: () => Promise<{ success: boolean }>;
-        getCached: () => Promise<{ success: boolean; servers: DiscoveredServer[] }>;
-      };
-    };
-  }
-}
+import type { DiscoveredServer } from '@/types/electron';
 
 interface ConnectionTestResult {
   success: boolean;
@@ -47,18 +35,6 @@ interface ConnectionTestResult {
     connectedClients?: number;
   };
   error?: string;
-}
-
-interface DiscoveredServer {
-  id: string;
-  ip: string;
-  port: number;
-  name: string;
-  version: string;
-  branch?: string;
-  connectedClients: number;
-  hostname?: string;
-  discoveredAt: string;
 }
 
 export function NetworkSettingsCard() {

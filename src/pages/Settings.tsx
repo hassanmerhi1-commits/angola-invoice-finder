@@ -17,30 +17,7 @@ import {
 } from 'lucide-react';
 import { CompanySettingsDialog } from '@/components/settings/CompanySettingsDialog';
 import { NetworkSettingsCard } from '@/components/settings/NetworkSettingsCard';
-
-// Type for Electron API
-declare global {
-  interface Window {
-    electronAPI?: {
-      platform: string;
-      isElectron: boolean;
-      updater: {
-        checkForUpdates: () => Promise<{ success: boolean; error?: string }>;
-        downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
-        installUpdate: () => Promise<{ success: boolean; error?: string }>;
-        getVersion: () => Promise<string>;
-        onUpdateStatus: (callback: (data: UpdateStatus) => void) => () => void;
-      };
-    };
-  }
-}
-
-interface UpdateStatus {
-  status: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
-  version?: string;
-  progress?: number;
-  error?: string;
-}
+import type { UpdateStatus } from '@/types/electron';
 
 export default function Settings() {
   const { t } = useTranslation();
