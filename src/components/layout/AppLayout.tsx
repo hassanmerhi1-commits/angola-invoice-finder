@@ -8,7 +8,7 @@ export function AppLayout() {
   const { user, logout } = useAuth();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <TopNav
         user={user}
         branches={branches}
@@ -16,9 +16,14 @@ export function AppLayout() {
         onBranchChange={setCurrentBranch}
         onLogout={logout}
       />
-      <main className="min-h-[calc(100vh-6rem)]">
+      <main className="flex-1">
         <Outlet />
       </main>
+      <footer className="border-t bg-muted/30 py-3 px-4">
+        <div className="container mx-auto flex items-center justify-center text-sm text-muted-foreground">
+          <span>© {new Date().getFullYear()} Kwanza ERP. Developed by Hassan Merhi. All rights reserved.</span>
+        </div>
+      </footer>
     </div>
   );
 }
