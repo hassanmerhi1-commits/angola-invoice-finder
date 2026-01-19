@@ -6,10 +6,20 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const os = require('os');
 const db = require('./db');
+const { DiscoveryBroadcaster } = require('./discovery');
 
 const app = express();
 const server = http.createServer(app);
+
+// Server discovery broadcaster
+const PORT = process.env.PORT || 3000;
+const discoveryBroadcaster = new DiscoveryBroadcaster(PORT, {
+  name: process.env.SERVER_NAME || 'Kwanza ERP Server',
+  version: '1.0.0',
+  branch: process.env.BRANCH_NAME || null
+});
 
 // Socket.io for real-time sync
 const io = new Server(server, {
@@ -41,6 +51,7 @@ async function broadcastTable(tableName) {
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log(`[CONNECTED] Client: ${socket.id}`);
+  discoveryBroadcaster.setConnectedClients(io.sockets.sockets.size);
   
   // Send current state of all tables when client connects
   socket.on('request_sync', async () => {
@@ -59,6 +70,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`[DISCONNECTED] Client: ${socket.id}`);
+    discoveryBroadcaster.setConnectedClients(io.sockets.sockets.size);
   });
 });
 
@@ -94,28 +106,59 @@ app.use('/api/stock-transfers', stockTransferRoutes(broadcastTable));
 app.use('/api/purchase-orders', purchaseOrderRoutes(broadcastTable));
 app.use('/api/chart-of-accounts', chartOfAccountsRoutes(broadcastTable));
 
-// Health check
+// Health check with extended info
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    serverName: process.env.SERVER_NAME || 'Kwanza ERP Server',
+    version: '1.0.0',
+    connectedClients: io.sockets.sockets.size
+  });
+});
+
+// Server info endpoint for discovery verification
+app.get('/api/server-info', (req, res) => {
+  const localIPs = discoveryBroadcaster.getLocalIPs();
+  res.json({
+    name: process.env.SERVER_NAME || 'Kwanza ERP Server',
+    version: '1.0.0',
+    port: PORT,
+    hostname: os.hostname(),
+    platform: os.platform(),
+    connectedClients: io.sockets.sockets.size,
+    localIPs,
+    uptime: process.uptime()
+  });
 });
 
 // ============================================
 // START SERVER
 // ============================================
 
-const PORT = process.env.PORT || 3000;
-
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
+  const localIPs = discoveryBroadcaster.getLocalIPs();
+  
   console.log('');
   console.log('╔═══════════════════════════════════════════════════════════════╗');
   console.log('║           KWANZA ERP SERVER - THE HEART 💓                    ║');
   console.log('╠═══════════════════════════════════════════════════════════════╣');
   console.log(`║  Server running on port ${PORT}                                  ║`);
   console.log('║                                                               ║');
-  console.log('║  Other computers can connect to:                              ║');
-  console.log(`║  http://YOUR_LOCAL_IP:${PORT}                                    ║`);
+  console.log('║  Local IP addresses:                                          ║');
+  localIPs.forEach(ip => {
+    const line = `║    ${ip.name}: http://${ip.address}:${PORT}`;
+    console.log(line.padEnd(64) + '║');
+  });
   console.log('║                                                               ║');
-  console.log('║  To find your IP, run: ipconfig (Windows) or ifconfig (Linux) ║');
+  console.log('║  Auto-discovery: ENABLED (clients will find this server)      ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝');
   console.log('');
+  
+  // Start discovery broadcaster
+  try {
+    await discoveryBroadcaster.start();
+  } catch (error) {
+    console.error('[Discovery] Failed to start broadcaster:', error.message);
+  }
 });

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Network, 
   Wifi, 
@@ -15,10 +16,26 @@ import {
   Loader2,
   Server,
   Globe,
-  RefreshCw
+  RefreshCw,
+  Search,
+  Radio,
+  Users
 } from 'lucide-react';
 import { getApiUrl, setApiUrl, isLocalNetworkMode, setForceApiMode } from '@/lib/api/config';
 import { toast } from 'sonner';
+
+// Extend window type for Electron API
+declare global {
+  interface Window {
+    electronAPI?: {
+      discovery?: {
+        scan: (timeout?: number) => Promise<{ success: boolean; servers: DiscoveredServer[]; error?: string }>;
+        stop: () => Promise<{ success: boolean }>;
+        getCached: () => Promise<{ success: boolean; servers: DiscoveredServer[] }>;
+      };
+    };
+  }
+}
 
 interface ConnectionTestResult {
   success: boolean;
@@ -26,8 +43,22 @@ interface ConnectionTestResult {
   serverInfo?: {
     status: string;
     timestamp: string;
+    serverName?: string;
+    connectedClients?: number;
   };
   error?: string;
+}
+
+interface DiscoveredServer {
+  id: string;
+  ip: string;
+  port: number;
+  name: string;
+  version: string;
+  branch?: string;
+  connectedClients: number;
+  hostname?: string;
+  discoveredAt: string;
 }
 
 export function NetworkSettingsCard() {
@@ -36,11 +67,17 @@ export function NetworkSettingsCard() {
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [isNetworkMode, setIsNetworkMode] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  
+  // Server discovery state
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveredServers, setDiscoveredServers] = useState<DiscoveredServer[]>([]);
+  const [isElectron, setIsElectron] = useState(false);
 
   useEffect(() => {
     const currentUrl = getApiUrl();
     setServerUrl(currentUrl);
     setIsNetworkMode(isLocalNetworkMode());
+    setIsElectron(!!window.electronAPI?.discovery);
   }, []);
 
   const handleUrlChange = (value: string) => {
@@ -143,6 +180,44 @@ export function NetworkSettingsCard() {
     toast.info('Endereço resetado para padrão. Teste a conexão e salve.');
   };
 
+  // Discover servers on local network (Electron only)
+  const discoverServers = async () => {
+    if (!window.electronAPI?.discovery) {
+      toast.error('Descoberta automática só disponível no aplicativo desktop');
+      return;
+    }
+
+    setIsDiscovering(true);
+    setDiscoveredServers([]);
+    toast.info('Procurando servidores na rede local...');
+
+    try {
+      const result = await window.electronAPI.discovery.scan(5000);
+      
+      if (result.success && result.servers.length > 0) {
+        setDiscoveredServers(result.servers);
+        toast.success(`Encontrado(s) ${result.servers.length} servidor(es)`);
+      } else if (result.servers.length === 0) {
+        toast.info('Nenhum servidor encontrado na rede');
+      } else {
+        toast.error(result.error || 'Erro na descoberta de servidores');
+      }
+    } catch (error: any) {
+      toast.error('Falha na descoberta: ' + error.message);
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+  // Select a discovered server
+  const selectServer = (server: DiscoveredServer) => {
+    const url = `http://${server.ip}:${server.port}`;
+    setServerUrl(url);
+    setHasChanges(true);
+    setTestResult(null);
+    toast.success(`Servidor selecionado: ${server.name}`);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -186,6 +261,88 @@ export function NetworkSettingsCard() {
 
         <Separator />
 
+        {/* Auto-Discovery Section (Electron only) */}
+        {isElectron && (
+          <>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Radio className="w-4 h-4" />
+                  Descoberta Automática
+                </Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={discoverServers}
+                  disabled={isDiscovering}
+                  className="gap-2"
+                >
+                  {isDiscovering ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Procurando...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4" />
+                      Procurar Servidores
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              {/* Discovered Servers List */}
+              {discoveredServers.length > 0 && (
+                <ScrollArea className="h-[160px] rounded-lg border">
+                  <div className="p-2 space-y-2">
+                    {discoveredServers.map((server) => (
+                      <div
+                        key={server.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
+                        onClick={() => selectServer(server)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Server className="w-4 h-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{server.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {server.ip}:{server.port}
+                              {server.hostname && ` (${server.hostname})`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <Users className="w-3 h-3" />
+                            {server.connectedClients}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            v{server.version}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+              
+              {isDiscovering && (
+                <div className="flex items-center justify-center p-6 rounded-lg border border-dashed">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      Procurando servidores Kwanza ERP na rede...
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <Separator />
+          </>
+        )}
+
         {/* Server URL Input */}
         <div className="space-y-3">
           <Label htmlFor="server-url">Endereço do Servidor</Label>
@@ -207,7 +364,10 @@ export function NetworkSettingsCard() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Insira o IP do servidor principal (ex: http://192.168.1.50:3000)
+            {isElectron 
+              ? 'Use a descoberta automática ou insira o IP manualmente'
+              : 'Insira o IP do servidor principal (ex: http://192.168.1.50:3000)'
+            }
           </p>
         </div>
 
@@ -253,8 +413,11 @@ export function NetworkSettingsCard() {
                 {testResult.success ? (
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>Latência: {testResult.latency}ms</p>
-                    {testResult.serverInfo && (
-                      <p>Servidor: {testResult.serverInfo.status}</p>
+                    {testResult.serverInfo?.serverName && (
+                      <p>Servidor: {testResult.serverInfo.serverName}</p>
+                    )}
+                    {testResult.serverInfo?.connectedClients !== undefined && (
+                      <p>Clientes conectados: {testResult.serverInfo.connectedClients}</p>
                     )}
                   </div>
                 ) : (
