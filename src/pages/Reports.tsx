@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { 
   BarChart3, Users, Truck, TrendingUp, Calendar, 
   FileText, Download, Printer, DollarSign, Clock,
-  Package, PieChart, ArrowUpRight
+  Package, PieChart, ArrowUpRight, Scale, ArrowRightLeft
 } from 'lucide-react';
 import ClientStatementReport from '@/components/reports/ClientStatementReport';
 import SupplierStatementReport from '@/components/reports/SupplierStatementReport';
@@ -13,6 +13,11 @@ import SalesAnalysisReport from '@/components/reports/SalesAnalysisReport';
 import AccountsReceivableReport from '@/components/reports/AccountsReceivableReport';
 import AccountsPayableReport from '@/components/reports/AccountsPayableReport';
 import ProfitabilityReport from '@/components/reports/ProfitabilityReport';
+import TrialBalanceReport from '@/components/reports/TrialBalanceReport';
+import IncomeStatementReport from '@/components/reports/IncomeStatementReport';
+import BalanceSheetReport from '@/components/reports/BalanceSheetReport';
+import StockValuationReport from '@/components/reports/StockValuationReport';
+import StockMovementReport from '@/components/reports/StockMovementReport';
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -76,51 +81,42 @@ export default function Reports() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col px-6">
         <TabsList className="w-full justify-start rounded-none border-b bg-muted/30 h-auto p-0 flex-wrap">
-          <TabsTrigger 
-            value="overview" 
-            className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-          >
+          <TabsTrigger value="overview" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
             Visão Geral
           </TabsTrigger>
-          <TabsTrigger 
-            value="sales" 
-            className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-          >
+          <TabsTrigger value="sales" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
             <TrendingUp className="w-4 h-4 mr-2" />
             Vendas
           </TabsTrigger>
-          <TabsTrigger 
-            value="client-statement" 
-            className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-          >
-            <Users className="w-4 h-4 mr-2" />
-            Extracto Cliente
+          <TabsTrigger value="trial-balance" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            <Scale className="w-4 h-4 mr-2" />
+            Balancete
           </TabsTrigger>
-          <TabsTrigger 
-            value="accounts-receivable" 
-            className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-          >
-            <Clock className="w-4 h-4 mr-2" />
-            Contas a Receber
+          <TabsTrigger value="income-statement" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            <DollarSign className="w-4 h-4 mr-2" />
+            Lucros/Perdas
           </TabsTrigger>
-          <TabsTrigger 
-            value="supplier-statement" 
-            className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-          >
-            <Truck className="w-4 h-4 mr-2" />
-            Extracto Fornecedor
-          </TabsTrigger>
-          <TabsTrigger 
-            value="accounts-payable" 
-            className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-          >
+          <TabsTrigger value="balance-sheet" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
             <FileText className="w-4 h-4 mr-2" />
-            Contas a Pagar
+            Balanço
           </TabsTrigger>
-          <TabsTrigger 
-            value="profitability" 
-            className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-          >
+          <TabsTrigger value="stock-valuation" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            <Package className="w-4 h-4 mr-2" />
+            Stock
+          </TabsTrigger>
+          <TabsTrigger value="stock-movements" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            <ArrowRightLeft className="w-4 h-4 mr-2" />
+            Movimentos
+          </TabsTrigger>
+          <TabsTrigger value="client-statement" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            <Users className="w-4 h-4 mr-2" />
+            Clientes
+          </TabsTrigger>
+          <TabsTrigger value="supplier-statement" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            <Truck className="w-4 h-4 mr-2" />
+            Fornecedores
+          </TabsTrigger>
+          <TabsTrigger value="profitability" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
             <PieChart className="w-4 h-4 mr-2" />
             Rentabilidade
           </TabsTrigger>
@@ -190,20 +186,32 @@ export default function Reports() {
             <SalesAnalysisReport />
           </TabsContent>
 
+          <TabsContent value="trial-balance" className="mt-0">
+            <TrialBalanceReport />
+          </TabsContent>
+
+          <TabsContent value="income-statement" className="mt-0">
+            <IncomeStatementReport />
+          </TabsContent>
+
+          <TabsContent value="balance-sheet" className="mt-0">
+            <BalanceSheetReport />
+          </TabsContent>
+
+          <TabsContent value="stock-valuation" className="mt-0">
+            <StockValuationReport />
+          </TabsContent>
+
+          <TabsContent value="stock-movements" className="mt-0">
+            <StockMovementReport />
+          </TabsContent>
+
           <TabsContent value="client-statement" className="mt-0">
             <ClientStatementReport />
           </TabsContent>
 
-          <TabsContent value="accounts-receivable" className="mt-0">
-            <AccountsReceivableReport />
-          </TabsContent>
-
           <TabsContent value="supplier-statement" className="mt-0">
             <SupplierStatementReport />
-          </TabsContent>
-
-          <TabsContent value="accounts-payable" className="mt-0">
-            <AccountsPayableReport />
           </TabsContent>
 
           <TabsContent value="profitability" className="mt-0">

@@ -45,19 +45,25 @@ export function InvoiceViewDialog({
     toast.success('Recibo térmico enviado para impressão');
   };
 
-  const handlePrintA4 = () => {
-    printA4Invoice(sale, branch, {
-      showBankDetails: true,
-      showNotes: true,
-      documentType: 'FR',
-    });
-    toast.success('Factura A4 enviada para impressão');
+  const handlePrintA4 = async () => {
+    try {
+      await printA4Invoice(sale, branch, {
+        showBankDetails: true,
+        showNotes: true,
+        documentType: 'FR',
+      });
+      toast.success('Factura A4 enviada para impressão');
+    } catch (error) {
+      toast.error('Erro ao imprimir factura');
+      console.error('Print error:', error);
+    }
   };
 
-  const handleDownloadPDF = () => {
-    handlePrintA4();
+  const handleDownloadPDF = async () => {
+    await handlePrintA4();
     toast.info('Use "Guardar como PDF" na janela de impressão');
   };
+
 
   const paymentMethodLabels: Record<string, string> = {
     cash: 'Dinheiro',
