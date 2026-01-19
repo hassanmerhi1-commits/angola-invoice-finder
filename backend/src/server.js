@@ -78,6 +78,7 @@ const supplierRoutes = require('./routes/suppliers');
 const dailyReportRoutes = require('./routes/dailyReports');
 const stockTransferRoutes = require('./routes/stockTransfers');
 const purchaseOrderRoutes = require('./routes/purchaseOrders');
+const chartOfAccountsRoutes = require('./routes/chartOfAccounts');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -91,6 +92,7 @@ app.use('/api/suppliers', supplierRoutes(broadcastTable));
 app.use('/api/daily-reports', dailyReportRoutes(broadcastTable));
 app.use('/api/stock-transfers', stockTransferRoutes(broadcastTable));
 app.use('/api/purchase-orders', purchaseOrderRoutes(broadcastTable));
+app.use('/api/chart-of-accounts', chartOfAccountsRoutes(broadcastTable));
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -57,6 +57,7 @@ export const pt: TranslationKeys = {
     stockTransfer: "Transferência de Stock",
     dataSync: "Sincronização de Dados",
     accounting: "Contabilidade",
+    chartOfAccounts: "Plano de Contas",
     settings: "Definições",
     logout: "Sair",
   },
