@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useERP";
 import { LanguageProvider } from "@/i18n";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -84,18 +84,28 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <LanguageProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
-    </LanguageProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  const isElectron =
+    typeof window !== "undefined" && !!window.electronAPI?.isElectron;
+
+  // BrowserRouter breaks under file:// URLs (Electron packaged apps) because
+  // window.location.pathname becomes something like /C:/.../dist/index.html.
+  // HashRouter avoids that by using the URL hash for routing.
+  const Router = isElectron ? HashRouter : BrowserRouter;
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <Router>
+            <AppRoutes />
+          </Router>
+        </TooltipProvider>
+      </LanguageProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
