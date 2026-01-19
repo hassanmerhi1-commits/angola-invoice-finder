@@ -29,7 +29,7 @@ if not exist "package.json" (
     exit /b 1
 )
 
-echo [1/4] Installing dependencies...
+echo [1/5] Installing dependencies...
 call npm install
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to install dependencies
@@ -38,7 +38,16 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [2/4] Building web application...
+echo [2/5] Installing Electron (dev dependencies)...
+call npm install --save-dev electron electron-builder electron-squirrel-startup
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to install Electron
+    pause
+    exit /b 1
+)
+
+echo.
+echo [3/5] Building web application...
 call npm run build
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to build web app
@@ -47,7 +56,7 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [3/4] Building Windows installer...
+echo [4/5] Building Windows installer...
 call npx electron-builder --win
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to build installer
