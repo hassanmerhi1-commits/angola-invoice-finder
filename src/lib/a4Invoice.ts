@@ -22,20 +22,20 @@ const documentTypeNames: Record<string, string> = {
   OR: 'ORÇAMENTO',
 };
 
-export function generateA4InvoiceHTML(
+export async function generateA4InvoiceHTML(
   sale: Sale,
   branch: Branch,
-  options: A4InvoiceOptions = {}
-): string {
+  options: A4InvoiceOptions & { qrCodeDataURL?: string } = {}
+): Promise<string> {
   const company = getCompanySettings();
   const {
     showBankDetails = true,
     showNotes = true,
     documentType = 'FR',
+    qrCodeDataURL,
   } = options;
 
   const qrData = saleToAGTQRData(sale, branch);
-  const qrString = buildAGTQRCodeString(qrData);
   const hash = getInvoiceHash(sale);
   
   const formatMoney = (value: number) => {
@@ -486,7 +486,9 @@ export function generateA4InvoiceHTML(
 
     <!-- QR Code Section -->
     <div class="qr-section">
-      <div class="qr-code" id="qrcode"></div>
+      <div class="qr-code">
+        ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" alt="AGT QR Code" style="width: 100px; height: 100px;">` : '<div style="width:100px;height:100px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:10px;color:#888;">QR Code</div>'}
+      </div>
       <div class="qr-info">
         <p><strong>Informação Fiscal (AGT)</strong></p>
         <p class="hash">Hash: ${hash}</p>
@@ -528,27 +530,21 @@ export function generateA4InvoiceHTML(
       </div>
     </div>
   </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  <script>
-    const qrData = "${qrString.replace(/"/g, '\\"')}";
-    QRCode.toCanvas(document.createElement('canvas'), qrData, { width: 100, margin: 1 }, function(err, canvas) {
-      if (!err) {
-        document.getElementById('qrcode').appendChild(canvas);
-      }
-    });
-  </script>
 </body>
 </html>
   `;
 }
 
-export function printA4Invoice(
+export async function printA4Invoice(
   sale: Sale,
   branch: Branch,
   options: A4InvoiceOptions = {}
-): void {
-  const html = generateA4InvoiceHTML(sale, branch, options);
+): Promise<void> {
+  // Pre-generate QR code as data URL before opening print window
+  const { generateAGTQRCodeDataURL } = await import('./agtQRCode');
+  const qrCodeDataURL = await generateAGTQRCodeDataURL(sale, branch, { size: 100, margin: 1 });
+  
+  const html = await generateA4InvoiceHTML(sale, branch, { ...options, qrCodeDataURL });
   const printWindow = window.open('', '_blank', 'width=800,height=1000');
   
   if (!printWindow) {
@@ -563,15 +559,15 @@ export function printA4Invoice(
     printWindow.focus();
     setTimeout(() => {
       printWindow.print();
-    }, 500); // Wait for QR code to render
+    }, 300);
   };
 }
 
-export function downloadA4InvoicePDF(
+export async function downloadA4InvoicePDF(
   sale: Sale,
   branch: Branch,
   options: A4InvoiceOptions = {}
-): void {
+): Promise<void> {
   // Open print dialog with PDF save option
-  printA4Invoice(sale, branch, options);
+  await printA4Invoice(sale, branch, options);
 }
