@@ -38,8 +38,7 @@
       }
     ],
     "icon": "public/favicon.ico",
-    "artifactName": "KwanzaERP-${version}-${arch}.${ext}",
-    "publisherName": "Kwanza ERP"
+    "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
   },
   "nsis": {
     "oneClick": false,
