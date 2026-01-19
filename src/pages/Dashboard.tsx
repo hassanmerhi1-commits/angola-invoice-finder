@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useBranches } from '@/hooks/useERP';
 import { useTranslation } from '@/i18n';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,6 @@ import {
   Camera,
   BarChart3,
   Truck,
-  Calculator,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -18,71 +18,73 @@ import { useDailyWallpaper } from '@/hooks/useDailyWallpaper';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
-  const { t, language } = useTranslation();
+  const { language } = useTranslation();
   const { currentBranch } = useBranches();
   const wallpaper = useDailyWallpaper();
   const navigate = useNavigate();
 
+  const [now, setNow] = useState(() => new Date());
   const dateLocale = language === 'pt' ? pt : undefined;
-  const now = new Date();
 
-  const quickActions = [
-    { 
-      icon: ShoppingCart, 
-      label: language === 'pt' ? 'Ponto de Venda' : 'Point of Sale',
-      path: '/pos',
-      gradient: 'from-emerald-500 to-green-600'
-    },
-    { 
-      icon: FileText, 
-      label: language === 'pt' ? 'Facturas' : 'Invoices',
-      path: '/invoices',
-      gradient: 'from-blue-500 to-indigo-600'
-    },
-    { 
-      icon: Package, 
-      label: language === 'pt' ? 'Inventário' : 'Inventory',
-      path: '/inventory',
-      gradient: 'from-orange-500 to-amber-600'
-    },
-    { 
-      icon: Users, 
-      label: language === 'pt' ? 'Clientes' : 'Clients',
-      path: '/clients',
-      gradient: 'from-purple-500 to-violet-600'
-    },
-    { 
-      icon: Truck, 
-      label: language === 'pt' ? 'Fornecedores' : 'Suppliers',
-      path: '/suppliers',
-      gradient: 'from-rose-500 to-pink-600'
-    },
-    { 
-      icon: BarChart3, 
-      label: language === 'pt' ? 'Relatórios' : 'Reports',
-      path: '/reports',
-      gradient: 'from-cyan-500 to-teal-600'
-    },
-  ];
+  useEffect(() => {
+    console.log('[Dashboard] minimal-home mounted');
+    const id = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const quickActions = useMemo(
+    () => [
+      {
+        icon: ShoppingCart,
+        label: language === 'pt' ? 'Ponto de Venda' : 'Point of Sale',
+        path: '/pos',
+      },
+      {
+        icon: FileText,
+        label: language === 'pt' ? 'Facturas' : 'Invoices',
+        path: '/invoices',
+      },
+      {
+        icon: Package,
+        label: language === 'pt' ? 'Inventário' : 'Inventory',
+        path: '/inventory',
+      },
+      {
+        icon: Users,
+        label: language === 'pt' ? 'Clientes' : 'Clients',
+        path: '/clients',
+      },
+      {
+        icon: Truck,
+        label: language === 'pt' ? 'Fornecedores' : 'Suppliers',
+        path: '/suppliers',
+      },
+      {
+        icon: BarChart3,
+        label: language === 'pt' ? 'Relatórios' : 'Reports',
+        path: '/reports',
+      },
+    ],
+    [language]
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* Background Wallpaper - Full visibility */}
-      <div 
+      {/* Background Wallpaper */}
+      <div
         className="fixed inset-0 bg-cover bg-center bg-no-repeat transition-all duration-1000 scale-105"
         style={{ backgroundImage: `url(${wallpaper.image})` }}
       />
-      
-      {/* Subtle gradient overlay - less opacity to show wallpaper */}
+
+      {/* Overlay for readability (keeps wallpaper visible) */}
       <div className="fixed inset-0 bg-gradient-to-t from-background/70 via-transparent to-background/30" />
-      
+
       {/* Content */}
       <div className="relative flex flex-col min-h-screen p-6">
-        
-        {/* Top Section - Date & Branch */}
-        <div className="flex items-start justify-between">
+        {/* Top row */}
+        <div className="flex items-start justify-between gap-4">
           {/* Date & Time */}
-          <div className="backdrop-blur-md bg-background/40 rounded-2xl px-6 py-4 border border-white/10 shadow-2xl">
+          <div className="backdrop-blur-md bg-card/35 rounded-2xl px-6 py-4 border border-border/40 shadow-2xl">
             <div className="text-5xl font-bold text-foreground tracking-tight">
               {format(now, 'HH:mm')}
             </div>
@@ -97,10 +99,10 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Wallpaper Info Badge */}
-          <div className="backdrop-blur-md bg-background/40 rounded-2xl px-4 py-3 border border-white/10 shadow-2xl">
+          {/* Wallpaper Info */}
+          <div className="backdrop-blur-md bg-card/35 rounded-2xl px-4 py-3 border border-border/40 shadow-2xl">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-primary/20">
+              <div className="p-2 rounded-xl bg-primary/15">
                 <Camera className="h-5 w-5 text-primary" />
               </div>
               <div>
@@ -114,11 +116,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Spacer to push quick actions to bottom */}
         <div className="flex-1" />
 
-        {/* Bottom Section - Quick Actions */}
-        <div className="backdrop-blur-md bg-background/40 rounded-3xl p-6 border border-white/10 shadow-2xl">
+        {/* Quick Actions */}
+        <div className="backdrop-blur-md bg-card/35 rounded-3xl p-6 border border-border/40 shadow-2xl">
           <div className="text-sm font-medium text-foreground/60 mb-4 uppercase tracking-wider">
             {language === 'pt' ? 'Acesso Rápido' : 'Quick Access'}
           </div>
@@ -127,11 +128,11 @@ export default function Dashboard() {
               <Button
                 key={action.path}
                 variant="ghost"
-                className="h-auto flex-col gap-3 py-5 px-4 rounded-2xl bg-background/50 hover:bg-background/80 border border-white/5 hover:border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-xl group"
+                className="h-auto flex-col gap-3 py-5 px-4 rounded-2xl bg-card/45 hover:bg-card/70 border border-border/30 hover:border-border/60 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl group"
                 onClick={() => navigate(action.path)}
               >
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${action.gradient} shadow-lg group-hover:shadow-xl transition-shadow`}>
-                  <action.icon className="h-6 w-6 text-white" />
+                <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-lg group-hover:shadow-xl transition-shadow">
+                  <action.icon className="h-6 w-6 text-primary-foreground" />
                 </div>
                 <span className="text-xs font-medium text-foreground/80 group-hover:text-foreground text-center leading-tight">
                   {action.label}
@@ -141,10 +142,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Wallpaper description - subtle at the very bottom */}
-        <div className="text-center mt-4 text-xs text-foreground/40">
-          {wallpaper.description}
-        </div>
+        {/* Description */}
+        <div className="text-center mt-4 text-xs text-foreground/40">{wallpaper.description}</div>
       </div>
     </div>
   );
