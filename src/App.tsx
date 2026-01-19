@@ -23,6 +23,7 @@ import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import Placeholder from "./pages/Placeholder";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -76,7 +77,7 @@ function AppRoutes() {
         <Route path="/customers" element={<Placeholder />} />
         <Route path="/branches" element={<Placeholder />} />
         <Route path="/reports" element={<Reports />} />
-        <Route path="/settings" element={<Placeholder />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
