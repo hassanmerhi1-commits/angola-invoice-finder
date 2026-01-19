@@ -3,8 +3,13 @@ const path = require('path');
 const crypto = require('crypto');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
-if (require('electron-squirrel-startup')) {
-  app.quit();
+// This module is optional - only used when installed via Squirrel installer
+try {
+  if (require('electron-squirrel-startup')) {
+    app.quit();
+  }
+} catch (e) {
+  // electron-squirrel-startup not installed, skip
 }
 
 // AGT Services (lazy loaded)
