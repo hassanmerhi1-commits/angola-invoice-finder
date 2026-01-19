@@ -4,12 +4,24 @@ const crypto = require('crypto');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 // This module is optional - only used when installed via Squirrel installer
-try {
-  if (require('electron-squirrel-startup')) {
-    app.quit();
+// Note: electron-squirrel-startup is NOT needed for NSIS installers (which we use)
+// It's only for Squirrel.Windows installers. We safely skip this check.
+const handleSquirrelStartup = () => {
+  try {
+    // Check if module exists before requiring
+    const modulePath = require.resolve('electron-squirrel-startup');
+    if (modulePath && require('electron-squirrel-startup')) {
+      return true;
+    }
+  } catch (e) {
+    // Module not available - this is expected for NSIS installers
+    // Silently continue without error
   }
-} catch (e) {
-  // electron-squirrel-startup not installed, skip
+  return false;
+};
+
+if (handleSquirrelStartup()) {
+  app.quit();
 }
 
 // Auto-updater (only in production)
