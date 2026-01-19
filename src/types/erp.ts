@@ -92,10 +92,12 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'manager' | 'cashier';
+  username?: string;
+  role: 'admin' | 'manager' | 'cashier' | 'viewer';
   branchId: string;
   isActive: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface DailySummary {

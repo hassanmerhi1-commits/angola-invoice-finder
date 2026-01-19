@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth, useBranches } from '@/hooks/useERP';
+import { useUsers } from '@/hooks/useUsers';
 import { useUserRoles, usePermissions } from '@/hooks/usePermissions';
 import { useTranslation } from '@/i18n';
+import { User } from '@/types/erp';
 import { 
   UserRole, 
   PERMISSIONS, 
@@ -32,6 +34,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -43,52 +55,61 @@ import {
   Users, 
   Shield, 
   UserPlus,
-  Settings,
   Search,
   Edit,
   Trash2,
   Check,
-  X
+  X,
+  Power,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Mock users for demo (in real app, these would come from database)
-const DEMO_USERS = [
-  { id: 'user-1', name: 'Admin User', email: 'admin@kwanza.ao', username: 'admin' },
-  { id: 'user-2', name: 'Manager Silva', email: 'manager@kwanza.ao', username: 'manager' },
-  { id: 'user-3', name: 'Caixa João', email: 'joao@kwanza.ao', username: 'joao' },
-  { id: 'user-4', name: 'Caixa Maria', email: 'maria@kwanza.ao', username: 'maria' },
-];
-
 export default function UserManagement() {
-  const { t, language } = useTranslation();
-  const { user } = useAuth();
-  const { isAdmin } = usePermissions(user?.id);
-  const { userRoles, assignRole, removeRole, setCustomPermissions } = useUserRoles();
+  const { t } = useTranslation();
+  const { user: currentUser } = useAuth();
+  const { branches } = useBranches();
+  const { isAdmin } = usePermissions(currentUser?.id);
+  const { users, isLoading, createUser, updateUser, deleteUser, toggleUserActive } = useUsers();
+  const { userRoles, assignRole, setCustomPermissions } = useUserRoles();
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<typeof DEMO_USERS[0] | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  
+  // Form states
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    username: '',
+    role: 'cashier' as UserRole,
+    branchId: '',
+    password: '',
+  });
   const [selectedRole, setSelectedRole] = useState<UserRole>('viewer');
   const [customPerms, setCustomPerms] = useState<string[]>([]);
   const [useCustomPerms, setUseCustomPerms] = useState(false);
 
-  const filteredUsers = DEMO_USERS.filter(u =>
+  const filteredUsers = users.filter(u =>
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   );
 
-  const getUserRoleDisplay = (userId: string) => {
+  const getUserRoleDisplay = (userId: string, defaultRole: UserRole): UserRole => {
     const assignment = userRoles.find(ur => ur.userId === userId);
-    return assignment?.role || 'viewer';
+    return assignment?.role || defaultRole;
   };
 
-  const handleEditUser = (demoUser: typeof DEMO_USERS[0]) => {
-    setSelectedUser(demoUser);
-    const currentRole = getUserRoleDisplay(demoUser.id);
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    const currentRole = getUserRoleDisplay(user.id, user.role);
     setSelectedRole(currentRole);
     
-    const assignment = userRoles.find(ur => ur.userId === demoUser.id);
+    const assignment = userRoles.find(ur => ur.userId === user.id);
     if (assignment?.customPermissions) {
       setUseCustomPerms(true);
       setCustomPerms(assignment.customPermissions);
@@ -101,9 +122,40 @@ export default function UserManagement() {
     setEditDialogOpen(true);
   };
 
-  const handleSaveRole = () => {
+  const handleCreateUser = async () => {
+    if (!formData.name || !formData.email || !formData.branchId) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      const newUser = await createUser({
+        name: formData.name,
+        email: formData.email,
+        username: formData.username || formData.email.split('@')[0],
+        role: formData.role,
+        branchId: formData.branchId,
+        password: formData.password,
+      });
+      
+      // Assign role to permissions system
+      assignRole(newUser.id, formData.role);
+      
+      toast.success(`User "${formData.name}" created successfully`);
+      setCreateDialogOpen(false);
+      setFormData({ name: '', email: '', username: '', role: 'cashier', branchId: '', password: '' });
+    } catch (error) {
+      toast.error('Failed to create user');
+    }
+  };
+
+  const handleSaveRole = async () => {
     if (!selectedUser) return;
     
+    // Update user role in storage
+    await updateUser({ ...selectedUser, role: selectedRole });
+    
+    // Update in permissions system
     assignRole(selectedUser.id, selectedRole);
     
     if (useCustomPerms) {
@@ -112,6 +164,34 @@ export default function UserManagement() {
     
     toast.success(`Role updated for ${selectedUser.name}`);
     setEditDialogOpen(false);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    
+    if (userToDelete.id === currentUser?.id) {
+      toast.error('You cannot delete your own account');
+      return;
+    }
+    
+    try {
+      await deleteUser(userToDelete.id);
+      toast.success(`User "${userToDelete.name}" deleted`);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+    } catch (error) {
+      toast.error('Failed to delete user');
+    }
+  };
+
+  const handleToggleActive = async (user: User) => {
+    if (user.id === currentUser?.id) {
+      toast.error('You cannot deactivate your own account');
+      return;
+    }
+    
+    await toggleUserActive(user.id);
+    toast.success(`User "${user.name}" ${user.isActive ? 'deactivated' : 'activated'}`);
   };
 
   const handleRoleChange = (role: UserRole) => {
@@ -161,10 +241,10 @@ export default function UserManagement() {
             User Management
           </h1>
           <p className="text-muted-foreground">
-            Manage user roles and permissions
+            Manage user accounts, roles and permissions
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setCreateDialogOpen(true)}>
           <UserPlus className="w-4 h-4 mr-2" />
           Add User
         </Button>
@@ -186,7 +266,7 @@ export default function UserManagement() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>All Users</CardTitle>
+                <CardTitle>All Users ({users.length})</CardTitle>
                 <div className="relative w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -199,67 +279,114 @@ export default function UserManagement() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Permissions</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map(demoUser => {
-                    const role = getUserRoleDisplay(demoUser.id);
-                    const assignment = userRoles.find(ur => ur.userId === demoUser.id);
-                    const hasCustom = !!assignment?.customPermissions;
-                    
-                    return (
-                      <TableRow key={demoUser.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                              <span className="font-bold text-primary">
-                                {demoUser.name.charAt(0)}
-                              </span>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Branch</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map(user => {
+                      const role = getUserRoleDisplay(user.id, user.role);
+                      const assignment = userRoles.find(ur => ur.userId === user.id);
+                      const hasCustom = !!assignment?.customPermissions;
+                      const branch = branches.find(b => b.id === user.branchId);
+                      
+                      return (
+                        <TableRow key={user.id} className={!user.isActive ? 'opacity-50' : ''}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                <span className="font-bold text-primary">
+                                  {user.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium">{user.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  @{user.username || user.email.split('@')[0]}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium">{demoUser.name}</p>
-                              <p className="text-xs text-muted-foreground">@{demoUser.username}</p>
+                          </TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <span className="text-sm">{branch?.name || 'N/A'}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge className={ROLE_COLORS[role]}>
+                                {ROLE_NAMES[role]}
+                              </Badge>
+                              {hasCustom && (
+                                <Badge variant="outline" className="text-orange-500 border-orange-500 text-xs">
+                                  Custom
+                                </Badge>
+                              )}
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{demoUser.email}</TableCell>
-                        <TableCell>
-                          <Badge className={ROLE_COLORS[role]}>
-                            {ROLE_NAMES[role]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {hasCustom ? (
-                            <Badge variant="outline" className="text-orange-500 border-orange-500">
-                              Custom
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                              {user.isActive ? 'Active' : 'Inactive'}
                             </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">Default</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditUser(demoUser)}
-                          >
-                            <Edit className="w-4 h-4 mr-1" />
-                            Edit
-                          </Button>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleEditUser(user)}
+                                title="Edit user"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleToggleActive(user)}
+                                title={user.isActive ? 'Deactivate' : 'Activate'}
+                                disabled={user.id === currentUser?.id}
+                              >
+                                <Power className={`w-4 h-4 ${user.isActive ? 'text-green-500' : 'text-red-500'}`} />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => {
+                                  setUserToDelete(user);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                title="Delete user"
+                                disabled={user.id === currentUser?.id}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {filteredUsers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                          No users found
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -268,7 +395,7 @@ export default function UserManagement() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {(Object.keys(ROLE_NAMES) as UserRole[]).map(role => {
               const rolePerms = DEFAULT_ROLE_PERMISSIONS.find(rp => rp.role === role);
-              const usersWithRole = userRoles.filter(ur => ur.role === role).length;
+              const usersWithRole = users.filter(u => getUserRoleDisplay(u.id, u.role) === role).length;
               
               return (
                 <Card key={role}>
@@ -375,6 +502,112 @@ export default function UserManagement() {
         </TabsContent>
       </Tabs>
 
+      {/* Create User Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+            <DialogDescription>
+              Add a new user to the system
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="João Silva"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="joao@company.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                value={formData.username}
+                onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                placeholder="joaosilva"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                placeholder="••••••••"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Role *</Label>
+              <Select 
+                value={formData.role} 
+                onValueChange={(v) => setFormData(prev => ({ ...prev, role: v as UserRole }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(ROLE_NAMES) as UserRole[]).map(role => (
+                    <SelectItem key={role} value={role}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${ROLE_COLORS[role]}`} />
+                        {ROLE_NAMES[role]}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Branch *</Label>
+              <Select 
+                value={formData.branchId} 
+                onValueChange={(v) => setFormData(prev => ({ ...prev, branchId: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map(branch => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateUser}>
+              Create User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -451,6 +684,24 @@ export default function UserManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{userToDelete?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
