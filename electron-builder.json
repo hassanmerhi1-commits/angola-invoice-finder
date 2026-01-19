@@ -37,7 +37,7 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/favicon.ico",
+    "icon": "public/icon.png",
     "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
   },
   "nsis": {
@@ -46,22 +46,23 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "Kwanza ERP",
-    "installerIcon": "public/favicon.ico",
-    "uninstallerIcon": "public/favicon.ico",
-    "installerHeaderIcon": "public/favicon.ico"
+    "installerIcon": "public/icon.png",
+    "uninstallerIcon": "public/icon.png",
+    "installerHeaderIcon": "public/icon.png",
+    "installerSidebar": "public/splash.png"
   },
   "portable": {
     "artifactName": "KwanzaERP-Portable-${version}.${ext}"
   },
   "mac": {
     "target": ["dmg", "zip"],
-    "icon": "public/favicon.ico",
+    "icon": "public/icon.png",
     "category": "public.app-category.business",
     "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
   },
   "linux": {
     "target": ["AppImage", "deb"],
-    "icon": "public/favicon.ico",
+    "icon": "public/icon.png",
     "category": "Office",
     "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
   }
