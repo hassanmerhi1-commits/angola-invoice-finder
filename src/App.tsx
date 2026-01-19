@@ -21,6 +21,7 @@ import Categories from "./pages/Categories";
 import FiscalDocuments from "./pages/FiscalDocuments";
 import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
+import ChartOfAccounts from "./pages/ChartOfAccounts";
 import Placeholder from "./pages/Placeholder";
 import NotFound from "./pages/NotFound";
 
@@ -70,6 +71,7 @@ function AppRoutes() {
         <Route path="/data-sync" element={<DataSync />} />
         <Route path="/fiscal-documents" element={<FiscalDocuments />} />
         <Route path="/users" element={<UserManagement />} />
+        <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
         <Route path="/accounting" element={<Placeholder />} />
         <Route path="/customers" element={<Placeholder />} />
         <Route path="/branches" element={<Placeholder />} />

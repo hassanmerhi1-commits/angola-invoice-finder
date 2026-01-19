@@ -55,6 +55,7 @@ export const en = {
     stockTransfer: "Stock Transfer",
     dataSync: "Data Sync",
     accounting: "Accounting",
+    chartOfAccounts: "Chart of Accounts",
     settings: "Settings",
     logout: "Logout",
   },

@@ -182,10 +182,36 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ approvedBy }),
       }),
-    receive: (id: string, receivedBy: string, receivedQuantities: Record<string, number>) =>
+      receive: (id: string, receivedBy: string, receivedQuantities: Record<string, number>) =>
       apiFetch<any>(`/purchase-orders/${id}/receive`, {
         method: 'POST',
         body: JSON.stringify({ receivedBy, receivedQuantities }),
       }),
+  },
+  
+  // Chart of Accounts
+  chartOfAccounts: {
+    list: () => apiFetch<any[]>('/chart-of-accounts'),
+    get: (id: string) => apiFetch<any>(`/chart-of-accounts/${id}`),
+    getByType: (type: string) => apiFetch<any[]>(`/chart-of-accounts/type/${type}`),
+    getChildren: (id: string) => apiFetch<any[]>(`/chart-of-accounts/${id}/children`),
+    getBalance: (id: string, startDate?: string, endDate?: string) => {
+      const params = new URLSearchParams();
+      if (startDate) params.append('start_date', startDate);
+      if (endDate) params.append('end_date', endDate);
+      return apiFetch<any>(`/chart-of-accounts/${id}/balance?${params}`);
+    },
+    getTrialBalance: (startDate?: string, endDate?: string) => {
+      const params = new URLSearchParams();
+      if (startDate) params.append('start_date', startDate);
+      if (endDate) params.append('end_date', endDate);
+      return apiFetch<any[]>(`/chart-of-accounts/reports/trial-balance?${params}`);
+    },
+    create: (data: any) =>
+      apiFetch<any>('/chart-of-accounts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) =>
+      apiFetch<any>(`/chart-of-accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      apiFetch<any>(`/chart-of-accounts/${id}`, { method: 'DELETE' }),
   },
 };
