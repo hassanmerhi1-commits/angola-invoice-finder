@@ -160,6 +160,11 @@ export default function Settings() {
             </div>
             <Separator />
             <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Developer</span>
+              <span className="font-medium">Hassan Merhi</span>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Version</span>
               <Badge variant="outline">{appVersion || 'Web Version'}</Badge>
             </div>
