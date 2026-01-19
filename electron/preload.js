@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Auto-updater events
+ipcRenderer.on('update-status', (event, data) => {
+  window.dispatchEvent(new CustomEvent('electron-update-status', { detail: data }));
+});
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -34,9 +39,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     // Calculate SHA-256 hash
     calculateHash: (data) => ipcRenderer.invoke('agt:calculate-hash', { data })
+  },
+  
+  // ==================== Auto-Updater ====================
+  updater: {
+    // Check for updates
+    checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+    
+    // Download available update
+    downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+    
+    // Install update and restart
+    installUpdate: () => ipcRenderer.invoke('updater:install'),
+    
+    // Get current app version
+    getVersion: () => ipcRenderer.invoke('app:version'),
+    
+    // Listen for update status changes
+    onUpdateStatus: (callback) => {
+      const handler = (event) => callback(event.detail);
+      window.addEventListener('electron-update-status', handler);
+      return () => window.removeEventListener('electron-update-status', handler);
+    }
   }
 });
 
 // Log that we're running in Electron
 console.log('🖥️ Kwanza ERP running in Electron desktop mode');
 console.log('🔐 AGT cryptographic services available via electronAPI.agt');
+console.log('🔄 Auto-updater available via electronAPI.updater');

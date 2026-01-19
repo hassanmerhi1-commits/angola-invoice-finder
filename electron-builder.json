@@ -20,6 +20,12 @@
       "filter": ["**/*", "!node_modules/**/*"]
     }
   ],
+  "publish": {
+    "provider": "github",
+    "owner": "your-github-username",
+    "repo": "kwanza-erp",
+    "releaseType": "release"
+  },
   "win": {
     "target": [
       {
@@ -32,7 +38,8 @@
       }
     ],
     "icon": "public/favicon.ico",
-    "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
+    "artifactName": "KwanzaERP-${version}-${arch}.${ext}",
+    "publisherName": "Kwanza ERP"
   },
   "nsis": {
     "oneClick": false,

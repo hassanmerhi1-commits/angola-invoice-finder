@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 
@@ -10,6 +10,26 @@ try {
   }
 } catch (e) {
   // electron-squirrel-startup not installed, skip
+}
+
+// Auto-updater (only in production)
+let autoUpdater = null;
+const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
+
+if (!isDev) {
+  try {
+    autoUpdater = require('electron-updater').autoUpdater;
+    
+    // Configure auto-updater
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+    
+    // Logging
+    autoUpdater.logger = require('electron-log');
+    autoUpdater.logger.transports.file.level = 'info';
+  } catch (e) {
+    console.log('[AutoUpdater] Not available:', e.message);
+  }
 }
 
 // AGT Services (lazy loaded)
@@ -117,7 +137,18 @@ function createWindow() {
 }
 
 // App ready
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  
+  // Check for updates after window is ready (production only)
+  if (autoUpdater) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(err => {
+        console.log('[AutoUpdater] Update check failed:', err.message);
+      });
+    }, 3000); // Wait 3 seconds before checking
+  }
+});
 
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
@@ -210,4 +241,141 @@ ipcMain.handle('agt:calculate-hash', async (event, { data }) => {
   return { 
     hash: crypto.createHash('sha256').update(data).digest('hex')
   };
+});
+
+// ==================== AUTO-UPDATER EVENTS ====================
+
+if (autoUpdater) {
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[AutoUpdater] Checking for updates...');
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', { status: 'checking' });
+    }
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Update available:', info.version);
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', { 
+        status: 'available', 
+        version: info.version,
+        releaseNotes: info.releaseNotes
+      });
+    }
+    
+    // Show dialog to user
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Atualização Disponível',
+      message: `Uma nova versão (${info.version}) está disponível.`,
+      detail: 'Deseja baixar a atualização agora?',
+      buttons: ['Baixar', 'Mais tarde'],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        autoUpdater.downloadUpdate();
+      }
+    });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[AutoUpdater] No updates available');
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', { status: 'not-available' });
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`[AutoUpdater] Download progress: ${progress.percent.toFixed(1)}%`);
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', { 
+        status: 'downloading', 
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total
+      });
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version);
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', { 
+        status: 'downloaded', 
+        version: info.version 
+      });
+    }
+    
+    // Show dialog to restart
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Atualização Pronta',
+      message: 'A atualização foi baixada.',
+      detail: 'Reinicie o aplicativo para aplicar a atualização.',
+      buttons: ['Reiniciar Agora', 'Mais tarde'],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
+  });
+
+  autoUpdater.on('error', (error) => {
+    console.error('[AutoUpdater] Error:', error.message);
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', { 
+        status: 'error', 
+        message: error.message 
+      });
+    }
+  });
+}
+
+// ==================== IPC HANDLERS FOR AUTO-UPDATE ====================
+
+// Check for updates manually
+ipcMain.handle('updater:check', async () => {
+  if (!autoUpdater) {
+    return { success: false, error: 'Auto-updater not available in development' };
+  }
+  
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { success: true, updateInfo: result?.updateInfo };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Download update
+ipcMain.handle('updater:download', async () => {
+  if (!autoUpdater) {
+    return { success: false, error: 'Auto-updater not available' };
+  }
+  
+  try {
+    await autoUpdater.downloadUpdate();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Install update and restart
+ipcMain.handle('updater:install', async () => {
+  if (!autoUpdater) {
+    return { success: false, error: 'Auto-updater not available' };
+  }
+  
+  autoUpdater.quitAndInstall(false, true);
+  return { success: true };
+});
+
+// Get current app version
+ipcMain.handle('app:version', async () => {
+  return { version: app.getVersion() };
 });
