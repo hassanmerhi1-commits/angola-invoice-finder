@@ -337,9 +337,14 @@ export function useAuth() {
     setIsLoading(false);
   }, []);
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
+    const normalized = identifier.trim();
+    const maybeEmail = normalized.includes('@') ? normalized : `${normalized}@kwanzaerp.ao`;
+
     if (isLocalNetworkMode()) {
-      const res = await api.auth.login(email, password);
+      // Network mode expects an email. We allow typing a username and
+      // automatically expand it to our default domain.
+      const res = await api.auth.login(maybeEmail, password);
       if (res.data) {
         setAuthToken(res.data.token);
         const user = mapUserFromDb(res.data.user);
@@ -349,9 +354,14 @@ export function useAuth() {
       }
       return false;
     } else {
-      // Demo mode
+      // Demo mode: allow login by username or email (password is ignored).
       const users = storage.getUsers();
-      const foundUser = users.find(u => u.email === email && u.isActive);
+      const foundUser = users.find(
+        (u) =>
+          u.isActive &&
+          (u.username === normalized || u.email === normalized || u.email === maybeEmail)
+      );
+
       if (foundUser) {
         storage.setCurrentUser(foundUser);
         setUser(foundUser);

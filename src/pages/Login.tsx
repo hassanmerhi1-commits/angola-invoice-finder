@@ -43,8 +43,8 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      // Convert username to email format for backend compatibility
-      // The backend will match against username field in users table
+      // Login accepts username OR email.
+      // In network mode, usernames are expanded to "@kwanzaerp.ao" automatically.
       const success = await login(username, password);
       
       if (success) {
