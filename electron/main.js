@@ -133,7 +133,29 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // Production: load built files
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // In packaged app, __dirname is inside app.asar, so we need to check multiple paths
+    const possiblePaths = [
+      path.join(__dirname, '../dist/index.html'),           // Development build
+      path.join(process.resourcesPath, 'app/dist/index.html'),  // Packaged (asar)
+      path.join(app.getAppPath(), 'dist/index.html'),       // Alternative packaged path
+    ];
+    
+    const fs = require('fs');
+    let indexPath = possiblePaths[0]; // Default
+    
+    for (const p of possiblePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          indexPath = p;
+          console.log('[Electron] Loading from:', p);
+          break;
+        }
+      } catch (e) {
+        // Continue to next path
+      }
+    }
+    
+    mainWindow.loadFile(indexPath);
   }
 
   // Show window when ready
