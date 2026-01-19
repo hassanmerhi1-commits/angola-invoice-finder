@@ -16,6 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { CompanySettingsDialog } from '@/components/settings/CompanySettingsDialog';
+import { NetworkSettingsCard } from '@/components/settings/NetworkSettingsCard';
 
 // Type for Electron API
 declare global {
@@ -297,6 +298,9 @@ export default function Settings() {
             />
           </CardContent>
         </Card>
+
+        {/* Network Settings Card */}
+        <NetworkSettingsCard />
       </div>
     </div>
   );
