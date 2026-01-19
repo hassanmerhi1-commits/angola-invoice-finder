@@ -680,6 +680,57 @@ export function getUsers(): User[] {
   return getItem<User[]>(STORAGE_KEYS.users, getDefaultUsers());
 }
 
+export function getUserById(userId: string): User | null {
+  const users = getUsers();
+  return users.find(u => u.id === userId) || null;
+}
+
+export function saveUser(user: User): void {
+  const users = getUsers();
+  const index = users.findIndex(u => u.id === user.id);
+  if (index >= 0) {
+    users[index] = { ...user, updatedAt: new Date().toISOString() };
+  } else {
+    users.push(user);
+  }
+  setItem(STORAGE_KEYS.users, users);
+}
+
+export function deleteUser(userId: string): void {
+  const users = getUsers().filter(u => u.id !== userId);
+  setItem(STORAGE_KEYS.users, users);
+}
+
+export function createUser(data: Omit<User, 'id' | 'createdAt'>): User {
+  const user: User = {
+    ...data,
+    id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    createdAt: new Date().toISOString(),
+  };
+  saveUser(user);
+  return user;
+}
+
+export function updateUserRole(userId: string, role: User['role']): void {
+  const users = getUsers();
+  const index = users.findIndex(u => u.id === userId);
+  if (index >= 0) {
+    users[index].role = role;
+    users[index].updatedAt = new Date().toISOString();
+    setItem(STORAGE_KEYS.users, users);
+  }
+}
+
+export function toggleUserActive(userId: string): void {
+  const users = getUsers();
+  const index = users.findIndex(u => u.id === userId);
+  if (index >= 0) {
+    users[index].isActive = !users[index].isActive;
+    users[index].updatedAt = new Date().toISOString();
+    setItem(STORAGE_KEYS.users, users);
+  }
+}
+
 export function getCurrentUser(): User | null {
   return getItem<User | null>(STORAGE_KEYS.currentUser, null);
 }
@@ -838,7 +889,8 @@ function getDefaultUsers(): User[] {
   return [
     {
       id: 'user-001',
-      email: 'admin',
+      email: 'admin@kwanzaerp.ao',
+      username: 'admin',
       name: 'Administrador',
       role: 'admin',
       branchId: 'branch-001',
@@ -847,7 +899,8 @@ function getDefaultUsers(): User[] {
     },
     {
       id: 'user-002',
-      email: 'caixa1',
+      email: 'caixa1@kwanzaerp.ao',
+      username: 'caixa1',
       name: 'João Silva',
       role: 'cashier',
       branchId: 'branch-001',
@@ -856,7 +909,8 @@ function getDefaultUsers(): User[] {
     },
     {
       id: 'user-003',
-      email: 'gerente',
+      email: 'gerente@kwanzaerp.ao',
+      username: 'gerente',
       name: 'Maria Santos',
       role: 'manager',
       branchId: 'branch-001',
@@ -865,6 +919,7 @@ function getDefaultUsers(): User[] {
     },
   ];
 }
+
 
 // Supplier functions
 export function getSuppliers(): Supplier[] {
