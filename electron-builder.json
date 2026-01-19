@@ -18,6 +18,14 @@
       "from": "backend",
       "to": "backend",
       "filter": ["**/*", "!node_modules/**/*"]
+    },
+    {
+      "from": "public/splash.png",
+      "to": "splash.png"
+    },
+    {
+      "from": "electron/splash.html",
+      "to": "splash.html"
     }
   ],
   "publish": {
@@ -37,7 +45,7 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/icon.png",
+    "icon": "build/icon.ico",
     "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
   },
   "nsis": {
@@ -45,24 +53,20 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Kwanza ERP",
-    "installerIcon": "public/icon.png",
-    "uninstallerIcon": "public/icon.png",
-    "installerHeaderIcon": "public/icon.png",
-    "installerSidebar": "public/splash.png"
+    "shortcutName": "Kwanza ERP"
   },
   "portable": {
     "artifactName": "KwanzaERP-Portable-${version}.${ext}"
   },
   "mac": {
     "target": ["dmg", "zip"],
-    "icon": "public/icon.png",
+    "icon": "build/icon.icns",
     "category": "public.app-category.business",
     "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
   },
   "linux": {
     "target": ["AppImage", "deb"],
-    "icon": "public/icon.png",
+    "icon": "build/icon.png",
     "category": "Office",
     "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
   }
