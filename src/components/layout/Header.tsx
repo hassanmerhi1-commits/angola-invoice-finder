@@ -16,9 +16,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Building2, User as UserIcon, LogOut, Settings, Menu } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Building2, User as UserIcon, LogOut, Settings, Menu, Wifi, WifiOff, Database } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/i18n';
+import { useRealtimeStatus } from '@/lib/realtime/store';
 
 interface HeaderProps {
   user: User | null;
@@ -38,6 +40,7 @@ export function Header({
   onMenuClick,
 }: HeaderProps) {
   const { t } = useTranslation();
+  const { isConnected, mode } = useRealtimeStatus();
   
   return (
     <header className="h-16 border-b bg-card px-4 flex items-center justify-between">
@@ -60,6 +63,55 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Connection Status Indicator */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors ${
+                mode === 'realtime' && isConnected
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                  : mode === 'realtime' && !isConnected
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                  : 'bg-muted border-border text-muted-foreground'
+              }`}>
+                {mode === 'realtime' ? (
+                  isConnected ? (
+                    <Wifi className="w-4 h-4" />
+                  ) : (
+                    <WifiOff className="w-4 h-4 animate-pulse" />
+                  )
+                ) : (
+                  <Database className="w-4 h-4" />
+                )}
+                <span className="text-xs font-medium hidden md:inline">
+                  {mode === 'realtime' 
+                    ? (isConnected ? 'Conectado' : 'Reconectando...')
+                    : 'Modo Local'
+                  }
+                </span>
+                <span className={`w-2 h-2 rounded-full ${
+                  mode === 'realtime' && isConnected
+                    ? 'bg-emerald-500 animate-pulse'
+                    : mode === 'realtime' && !isConnected
+                    ? 'bg-amber-500 animate-ping'
+                    : 'bg-muted-foreground'
+                }`} />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              {mode === 'realtime' ? (
+                isConnected ? (
+                  <p>Conectado ao servidor em tempo real. Todas as alterações são sincronizadas instantaneamente.</p>
+                ) : (
+                  <p>Tentando reconectar ao servidor... As alterações serão sincronizadas quando a conexão for restabelecida.</p>
+                )
+              ) : (
+                <p>Modo local ativo. Configure o IP do servidor nas Configurações para habilitar sincronização em rede.</p>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
         {/* Language Switcher */}
         <LanguageSwitcher />
         {/* Branch Selector */}
