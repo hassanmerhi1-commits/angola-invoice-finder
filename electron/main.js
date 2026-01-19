@@ -58,6 +58,27 @@ function getAGTServices() {
 }
 
 let mainWindow;
+let splashWindow;
+
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 500,
+    height: 350,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    icon: path.join(__dirname, '../public/icon.png'),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+  splashWindow.center();
+}
 
 function createWindow() {
   // Create the browser window
@@ -66,7 +87,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 768,
-    icon: path.join(__dirname, '../public/favicon.ico'),
+    icon: path.join(__dirname, '../public/icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -160,8 +181,15 @@ function createWindow() {
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    mainWindow.focus();
+    // Add a small delay for polish, then close splash and show main window
+    setTimeout(() => {
+      if (splashWindow) {
+        splashWindow.close();
+        splashWindow = null;
+      }
+      mainWindow.show();
+      mainWindow.focus();
+    }, 1500);
   });
 
   // Handle window closed
@@ -172,6 +200,10 @@ function createWindow() {
 
 // App ready
 app.whenReady().then(() => {
+  // Show splash screen first
+  createSplashWindow();
+  
+  // Then create main window
   createWindow();
   
   // Check for updates after window is ready (production only)
