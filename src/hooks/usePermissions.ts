@@ -44,8 +44,8 @@ export function useUserRoles() {
       return assignment.role;
     }
     
-    // Fall back to user's stored role
-    const storedUsers = localStorage.getItem('kwanza_users');
+  // Fall back to user's stored role
+    const storedUsers = localStorage.getItem('kwanzaerp_users');
     if (storedUsers) {
       try {
         const users = JSON.parse(storedUsers);
@@ -88,7 +88,7 @@ export function usePermissions(userId: string | undefined) {
   // Helper to get user role from storage
   const getStoredUserRole = (id: string): UserRole => {
     // Check current user first
-    const currentUserStr = localStorage.getItem('kwanza_current_user');
+    const currentUserStr = localStorage.getItem('kwanzaerp_current_user');
     if (currentUserStr) {
       try {
         const currentUser = JSON.parse(currentUserStr);
@@ -101,7 +101,7 @@ export function usePermissions(userId: string | undefined) {
     }
     
     // Check users list
-    const storedUsers = localStorage.getItem('kwanza_users');
+    const storedUsers = localStorage.getItem('kwanzaerp_users');
     if (storedUsers) {
       try {
         const users = JSON.parse(storedUsers);
@@ -162,7 +162,7 @@ export function usePermissions(userId: string | undefined) {
     
     // Fall back to stored user's role (check current user first, then users list)
     // Check current user first
-    const currentUserStr = localStorage.getItem('kwanza_current_user');
+    const currentUserStr = localStorage.getItem('kwanzaerp_current_user');
     if (currentUserStr) {
       try {
         const currentUser = JSON.parse(currentUserStr);
@@ -175,7 +175,7 @@ export function usePermissions(userId: string | undefined) {
     }
     
     // Check users list
-    const storedUsers = localStorage.getItem('kwanza_users');
+    const storedUsers = localStorage.getItem('kwanzaerp_users');
     if (storedUsers) {
       try {
         const users = JSON.parse(storedUsers);
@@ -222,7 +222,7 @@ export function usePermissionCheck() {
     if (assignment?.role) {
       role = assignment.role;
     } else {
-      const storedUsers = localStorage.getItem('kwanza_users');
+      const storedUsers = localStorage.getItem('kwanzaerp_users');
       if (storedUsers) {
         try {
           const users = JSON.parse(storedUsers);
