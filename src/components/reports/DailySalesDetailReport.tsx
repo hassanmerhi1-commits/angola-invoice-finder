@@ -287,10 +287,14 @@ export function DailySalesDetailReport({
           <div className="header text-center mb-6">
             <h1 className="text-xl font-bold">RELATÓRIO DETALHADO DE VENDAS</h1>
             <p className="text-muted-foreground">
-              {isDateRange ? (
-                <>Período: {format(new Date(startDate), "dd/MM/yyyy", { locale: pt })} - {format(new Date(endDate), "dd/MM/yyyy", { locale: pt })}</>
+              {startDate && endDate ? (
+                isDateRange ? (
+                  <>Período: {format(new Date(startDate), "dd/MM/yyyy", { locale: pt })} - {format(new Date(endDate), "dd/MM/yyyy", { locale: pt })}</>
+                ) : (
+                  <>Data: {format(new Date(startDate), "dd 'de' MMMM 'de' yyyy", { locale: pt })}</>
+                )
               ) : (
-                <>Data: {format(new Date(startDate), "dd 'de' MMMM 'de' yyyy", { locale: pt })}</>
+                <>Selecione um período</>
               )}
             </p>
             <p className="text-muted-foreground">
