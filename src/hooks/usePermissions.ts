@@ -85,6 +85,38 @@ export function useUserRoles() {
 export function usePermissions(userId: string | undefined) {
   const { getUserRole, userRoles } = useUserRoles();
 
+  // Helper to get user role from storage
+  const getStoredUserRole = (id: string): UserRole => {
+    // Check current user first
+    const currentUserStr = localStorage.getItem('kwanza_current_user');
+    if (currentUserStr) {
+      try {
+        const currentUser = JSON.parse(currentUserStr);
+        if (currentUser?.id === id && currentUser?.role) {
+          return currentUser.role as UserRole;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    
+    // Check users list
+    const storedUsers = localStorage.getItem('kwanza_users');
+    if (storedUsers) {
+      try {
+        const users = JSON.parse(storedUsers);
+        const user = users.find((u: any) => u.id === id);
+        if (user?.role) {
+          return user.role as UserRole;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    
+    return 'viewer';
+  };
+
   const userPermissions = useMemo(() => {
     if (!userId) return [];
     
@@ -100,19 +132,7 @@ export function usePermissions(userId: string | undefined) {
     if (assignment?.role) {
       role = assignment.role;
     } else {
-      // Fall back to stored user's role
-      const storedUsers = localStorage.getItem('kwanza_users');
-      if (storedUsers) {
-        try {
-          const users = JSON.parse(storedUsers);
-          const user = users.find((u: any) => u.id === userId);
-          role = (user?.role as UserRole) || 'viewer';
-        } catch {
-          role = 'viewer';
-        }
-      } else {
-        role = 'viewer';
-      }
+      role = getStoredUserRole(userId);
     }
     
     const rolePerms = DEFAULT_ROLE_PERMISSIONS.find(rp => rp.role === role);
@@ -140,7 +160,21 @@ export function usePermissions(userId: string | undefined) {
       return assignment.role;
     }
     
-    // Fall back to user's stored role
+    // Fall back to stored user's role (check current user first, then users list)
+    // Check current user first
+    const currentUserStr = localStorage.getItem('kwanza_current_user');
+    if (currentUserStr) {
+      try {
+        const currentUser = JSON.parse(currentUserStr);
+        if (currentUser?.id === userId && currentUser?.role) {
+          return currentUser.role as UserRole;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    
+    // Check users list
     const storedUsers = localStorage.getItem('kwanza_users');
     if (storedUsers) {
       try {
