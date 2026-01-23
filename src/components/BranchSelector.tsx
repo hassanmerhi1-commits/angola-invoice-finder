@@ -1,5 +1,4 @@
-import { useBranches } from '@/hooks/useERP';
-import { Branch } from '@/types/erp';
+import { useBranchContext } from '@/contexts/BranchContext';
 import {
   Select,
   SelectContent,
@@ -16,7 +15,7 @@ interface BranchSelectorProps {
 }
 
 export function BranchSelector({ compact = false, className = '' }: BranchSelectorProps) {
-  const { branches, currentBranch, setCurrentBranch } = useBranches();
+  const { branches, currentBranch, setCurrentBranch } = useBranchContext();
 
   const handleBranchChange = (branchId: string) => {
     const branch = branches.find(b => b.id === branchId);

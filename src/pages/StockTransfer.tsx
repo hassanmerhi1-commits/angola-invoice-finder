@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useBranches, useProducts, useStockTransfers, useAuth } from '@/hooks/useERP';
+import { useProducts, useStockTransfers, useAuth } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { Product, StockTransfer as StockTransferType } from '@/types/erp';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,7 @@ interface TransferItem {
 
 export default function StockTransfer() {
   const { user } = useAuth();
-  const { branches, currentBranch } = useBranches();
+  const { branches, currentBranch } = useBranchContext();
   const { products } = useProducts(currentBranch?.id);
   const { transfers, createTransfer, approveTransfer, receiveTransfer, cancelTransfer } = useStockTransfers(currentBranch?.id);
   const { toast } = useToast();

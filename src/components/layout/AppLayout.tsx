@@ -1,10 +1,11 @@
 // App Layout with Top Navigation (no sidebar)
 import { Outlet } from 'react-router-dom';
 import { TopNav } from './TopNav';
-import { useBranches, useAuth } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
+import { useAuth } from '@/hooks/useERP';
 
 export function AppLayout() {
-  const { branches, currentBranch, setCurrentBranch } = useBranches();
+  const { branches, currentBranch, setCurrentBranch } = useBranchContext();
   const { user, logout } = useAuth();
 
   return (

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { useBranches, useProducts, useCart, useSales, useAuth } from '@/hooks/useERP';
+import { useProducts, useCart, useSales, useAuth } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { useKeyboardShortcuts, KeyboardShortcut } from '@/hooks/useKeyboardShortcuts';
 import { Sale, Product } from '@/types/erp';
@@ -16,7 +17,7 @@ import { Search, ScanBarcode, Keyboard } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function POS() {
-  const { currentBranch } = useBranches();
+  const { currentBranch } = useBranchContext();
   const { products, refreshProducts } = useProducts(currentBranch?.id);
   const { user } = useAuth();
   const cart = useCart();

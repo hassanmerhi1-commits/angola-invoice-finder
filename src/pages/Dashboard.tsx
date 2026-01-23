@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useBranches } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { useTranslation } from '@/i18n';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const { language } = useTranslation();
-  const { currentBranch } = useBranches();
+  const { currentBranch } = useBranchContext();
   const wallpaper = useDailyWallpaper();
   const navigate = useNavigate();
 

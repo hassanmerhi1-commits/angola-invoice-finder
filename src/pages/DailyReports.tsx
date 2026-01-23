@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useBranches, useDailyReports, useAuth } from '@/hooks/useERP';
+import { useDailyReports, useAuth } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,7 @@ import { pt } from 'date-fns/locale';
 
 export default function DailyReports() {
   const { user } = useAuth();
-  const { branches, currentBranch } = useBranches();
+  const { branches, currentBranch } = useBranchContext();
   const { reports, generateReport, closeDay, refreshReports } = useDailyReports(currentBranch?.id);
   
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);

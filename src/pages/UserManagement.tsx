@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth, useBranches } from '@/hooks/useERP';
+import { useAuth } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { useUsers } from '@/hooks/useUsers';
 import { useUserRoles, usePermissions } from '@/hooks/usePermissions';
 import { useTranslation } from '@/i18n';
@@ -68,7 +69,7 @@ import { toast } from 'sonner';
 export default function UserManagement() {
   const { t } = useTranslation();
   const { user: currentUser } = useAuth();
-  const { branches } = useBranches();
+  const { branches } = useBranchContext();
   const { isAdmin } = usePermissions(currentUser?.id);
   const { users, isLoading, createUser, updateUser, deleteUser, toggleUserActive } = useUsers();
   const { userRoles, assignRole, setCustomPermissions } = useUserRoles();
