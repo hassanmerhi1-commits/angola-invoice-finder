@@ -33,7 +33,12 @@ export default function Settings() {
   useEffect(() => {
     // Get app version on mount
     if (isElectron) {
-      window.electronAPI?.updater.getVersion().then(setAppVersion);
+      // In Electron, IPC returns { version: string } from app:version.
+      // Defensive parsing avoids crashing React by rendering an object.
+      window.electronAPI?.updater.getVersion().then((v: any) => {
+        const version = typeof v === 'string' ? v : v?.version;
+        setAppVersion(typeof version === 'string' ? version : '');
+      });
       
       // Listen for update status changes
       const unsubscribe = window.electronAPI?.updater.onUpdateStatus((data) => {
