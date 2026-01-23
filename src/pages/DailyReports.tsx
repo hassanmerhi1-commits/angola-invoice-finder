@@ -3,24 +3,31 @@ import { useDailyReports, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar, FileText, Lock, RefreshCw, TrendingUp, DollarSign, CreditCard, Banknote, Eye } from 'lucide-react';
+import { Calendar as CalendarIcon, FileText, Lock, RefreshCw, TrendingUp, DollarSign, CreditCard, Banknote, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { DailySalesDetailReport } from '@/components/reports/DailySalesDetailReport';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { DateRange } from 'react-day-picker';
 
 export default function DailyReports() {
   const { user } = useAuth();
   const { branches, currentBranch } = useBranchContext();
   const { reports, generateReport, closeDay, refreshReports } = useDailyReports(currentBranch?.id);
   
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: new Date(),
+  });
   const [selectedBranch, setSelectedBranch] = useState<string>(currentBranch?.id || '');
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
@@ -29,17 +36,26 @@ export default function DailyReports() {
   
   // Detail report dialog
   const [detailReportOpen, setDetailReportOpen] = useState(false);
-  const [detailReportDate, setDetailReportDate] = useState('');
+  const [detailReportStartDate, setDetailReportStartDate] = useState('');
+  const [detailReportEndDate, setDetailReportEndDate] = useState('');
   const [detailReportBranchId, setDetailReportBranchId] = useState<string | undefined>();
   const [detailReportBranchName, setDetailReportBranchName] = useState<string | undefined>();
 
   const isMainOffice = currentBranch?.isMain;
-  const filteredReports = isMainOffice && selectedBranch 
-    ? reports.filter(r => r.branchId === selectedBranch)
-    : reports;
+  
+  // Filter reports by date range
+  const filteredReports = reports.filter(r => {
+    const reportDate = new Date(r.date);
+    const matchesBranch = !isMainOffice || !selectedBranch || r.branchId === selectedBranch;
+    const matchesDateRange = dateRange?.from && dateRange?.to 
+      ? reportDate >= dateRange.from && reportDate <= dateRange.to
+      : true;
+    return matchesBranch && matchesDateRange;
+  });
 
   const handleGenerateReport = () => {
     const branchId = isMainOffice && selectedBranch ? selectedBranch : currentBranch?.id;
+    const selectedDate = dateRange?.from ? dateRange.from.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     if (branchId) {
       generateReport(branchId, selectedDate);
     }
@@ -61,8 +77,9 @@ export default function DailyReports() {
     setCloseDialogOpen(true);
   };
 
-  const openDetailReport = (date: string, branchId: string, branchName: string) => {
-    setDetailReportDate(date);
+  const openDetailReport = (startDate: string, endDate: string, branchId: string, branchName: string) => {
+    setDetailReportStartDate(startDate);
+    setDetailReportEndDate(endDate);
     setDetailReportBranchId(branchId);
     setDetailReportBranchName(branchName);
     setDetailReportOpen(true);
@@ -146,22 +163,53 @@ export default function DailyReports() {
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <Label htmlFor="date">Data</Label>
-              <Input
-                id="date"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
+              <Label>Período</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !dateRange && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "dd/MM/yyyy", { locale: pt })} -{" "}
+                          {format(dateRange.to, "dd/MM/yyyy", { locale: pt })}
+                        </>
+                      ) : (
+                        format(dateRange.from, "dd/MM/yyyy", { locale: pt })
+                      )
+                    ) : (
+                      <span>Selecione o período</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             {isMainOffice && (
               <div className="flex-1">
                 <Label htmlFor="branch">Filial</Label>
                 <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma filial" />
+                    <SelectValue placeholder="Todas as filiais" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover">
+                    <SelectItem value="">Todas as filiais</SelectItem>
                     {branches.map(branch => (
                       <SelectItem key={branch.id} value={branch.id}>
                         {branch.name} {branch.isMain && '(Sede)'}
@@ -173,16 +221,21 @@ export default function DailyReports() {
             )}
             <div className="flex items-end gap-2">
               <Button onClick={handleGenerateReport}>
-                <Calendar className="w-4 h-4 mr-2" />
+                <CalendarIcon className="w-4 h-4 mr-2" />
                 Gerar Relatório
               </Button>
               <Button 
                 variant="outline" 
-                onClick={() => openDetailReport(
-                  selectedDate, 
-                  isMainOffice && selectedBranch ? selectedBranch : currentBranch?.id || '',
-                  isMainOffice && selectedBranch ? branches.find(b => b.id === selectedBranch)?.name || '' : currentBranch?.name || ''
-                )}
+                onClick={() => {
+                  const startDate = dateRange?.from?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0];
+                  const endDate = dateRange?.to?.toISOString().split('T')[0] || startDate;
+                  openDetailReport(
+                    startDate,
+                    endDate,
+                    isMainOffice && selectedBranch ? selectedBranch : currentBranch?.id || '',
+                    isMainOffice && selectedBranch ? branches.find(b => b.id === selectedBranch)?.name || '' : currentBranch?.name || ''
+                  );
+                }}
               >
                 <Eye className="w-4 h-4 mr-2" />
                 Ver Detalhes
@@ -250,7 +303,7 @@ export default function DailyReports() {
                         <Button 
                           size="sm" 
                           variant="ghost"
-                          onClick={() => openDetailReport(report.date, report.branchId, report.branchName)}
+                          onClick={() => openDetailReport(report.date, report.date, report.branchId, report.branchName)}
                           title="Ver detalhes"
                         >
                           <Eye className="w-4 h-4" />
@@ -322,7 +375,8 @@ export default function DailyReports() {
       <DailySalesDetailReport
         open={detailReportOpen}
         onOpenChange={setDetailReportOpen}
-        date={detailReportDate}
+        startDate={detailReportStartDate}
+        endDate={detailReportEndDate}
         branchId={detailReportBranchId}
         branchName={detailReportBranchName}
       />

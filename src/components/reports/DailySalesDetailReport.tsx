@@ -38,7 +38,8 @@ interface SaleItemDetail extends SaleItem {
 interface DailySalesDetailReportProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  date: string;
+  startDate: string;
+  endDate: string;
   branchId?: string;
   branchName?: string;
 }
@@ -46,7 +47,8 @@ interface DailySalesDetailReportProps {
 export function DailySalesDetailReport({ 
   open, 
   onOpenChange, 
-  date, 
+  startDate,
+  endDate,
   branchId,
   branchName 
 }: DailySalesDetailReportProps) {
@@ -55,10 +57,12 @@ export function DailySalesDetailReport({
   const { products } = useProducts(branchId || currentBranch?.id);
   const printRef = useRef<HTMLDivElement>(null);
 
-  // Filter sales for the selected date
+  const isDateRange = startDate !== endDate;
+
+  // Filter sales for the selected date range
   const daySales = sales.filter(sale => {
     const saleDate = new Date(sale.createdAt).toISOString().split('T')[0];
-    return saleDate === date;
+    return saleDate >= startDate && saleDate <= endDate;
   });
 
   // Create product cost lookup
@@ -160,11 +164,15 @@ export function DailySalesDetailReport({
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
+    const dateLabel = isDateRange 
+      ? `${format(new Date(startDate), 'dd/MM/yyyy')} - ${format(new Date(endDate), 'dd/MM/yyyy')}`
+      : format(new Date(startDate), 'dd/MM/yyyy');
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Relatório de Vendas - ${format(new Date(date), 'dd/MM/yyyy')}</title>
+        <title>Relatório de Vendas - ${dateLabel}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
@@ -279,10 +287,14 @@ export function DailySalesDetailReport({
           <div className="header text-center mb-6">
             <h1 className="text-xl font-bold">RELATÓRIO DETALHADO DE VENDAS</h1>
             <p className="text-muted-foreground">
-              Data: {format(new Date(date), "dd 'de' MMMM 'de' yyyy", { locale: pt })}
+              {isDateRange ? (
+                <>Período: {format(new Date(startDate), "dd/MM/yyyy", { locale: pt })} - {format(new Date(endDate), "dd/MM/yyyy", { locale: pt })}</>
+              ) : (
+                <>Data: {format(new Date(startDate), "dd 'de' MMMM 'de' yyyy", { locale: pt })}</>
+              )}
             </p>
             <p className="text-muted-foreground">
-              Filial: {branchName || currentBranch?.name}
+              Filial: {branchName || currentBranch?.name || 'Todas'}
             </p>
           </div>
 
