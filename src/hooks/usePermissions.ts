@@ -40,7 +40,25 @@ export function useUserRoles() {
 
   const getUserRole = useCallback((userId: string): UserRole => {
     const assignment = userRoles.find(ur => ur.userId === userId);
-    return assignment?.role || 'viewer';
+    if (assignment?.role) {
+      return assignment.role;
+    }
+    
+    // Fall back to user's stored role
+    const storedUsers = localStorage.getItem('kwanza_users');
+    if (storedUsers) {
+      try {
+        const users = JSON.parse(storedUsers);
+        const user = users.find((u: any) => u.id === userId);
+        if (user?.role) {
+          return user.role as UserRole;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    
+    return 'viewer';
   }, [userRoles]);
 
   const setCustomPermissions = useCallback((userId: string, permissions: string[]) => {
@@ -77,8 +95,26 @@ export function usePermissions(userId: string | undefined) {
       return assignment.customPermissions;
     }
     
-    // Otherwise use default role permissions
-    const role = getUserRole(userId);
+    // Get role from assignment, or fall back to user's stored role
+    let role: UserRole;
+    if (assignment?.role) {
+      role = assignment.role;
+    } else {
+      // Fall back to stored user's role
+      const storedUsers = localStorage.getItem('kwanza_users');
+      if (storedUsers) {
+        try {
+          const users = JSON.parse(storedUsers);
+          const user = users.find((u: any) => u.id === userId);
+          role = (user?.role as UserRole) || 'viewer';
+        } catch {
+          role = 'viewer';
+        }
+      } else {
+        role = 'viewer';
+      }
+    }
+    
     const rolePerms = DEFAULT_ROLE_PERMISSIONS.find(rp => rp.role === role);
     return rolePerms?.permissions || [];
   }, [userId, userRoles, getUserRole]);
@@ -97,8 +133,29 @@ export function usePermissions(userId: string | undefined) {
 
   const role = useMemo(() => {
     if (!userId) return 'viewer' as UserRole;
-    return getUserRole(userId);
-  }, [userId, getUserRole]);
+    
+    // First check role assignments
+    const assignment = userRoles.find(ur => ur.userId === userId);
+    if (assignment?.role) {
+      return assignment.role;
+    }
+    
+    // Fall back to user's stored role
+    const storedUsers = localStorage.getItem('kwanza_users');
+    if (storedUsers) {
+      try {
+        const users = JSON.parse(storedUsers);
+        const user = users.find((u: any) => u.id === userId);
+        if (user?.role) {
+          return user.role as UserRole;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    
+    return 'viewer' as UserRole;
+  }, [userId, userRoles]);
 
   const isAdmin = role === 'admin';
   const isManager = role === 'manager' || isAdmin;
@@ -126,7 +183,25 @@ export function usePermissionCheck() {
       return assignment.customPermissions.includes(permissionId);
     }
     
-    const role = assignment?.role || 'viewer';
+    // Get role from assignment or fall back to user's stored role
+    let role: UserRole = 'viewer';
+    if (assignment?.role) {
+      role = assignment.role;
+    } else {
+      const storedUsers = localStorage.getItem('kwanza_users');
+      if (storedUsers) {
+        try {
+          const users = JSON.parse(storedUsers);
+          const user = users.find((u: any) => u.id === userId);
+          if (user?.role) {
+            role = user.role as UserRole;
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    }
+    
     const rolePerms = DEFAULT_ROLE_PERMISSIONS.find(rp => rp.role === role);
     return rolePerms?.permissions.includes(permissionId) || false;
   }, []);
