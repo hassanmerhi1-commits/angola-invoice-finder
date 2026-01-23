@@ -16,6 +16,22 @@ class ServerDiscovery {
     this.listeners = new Set();
   }
 
+  // Get all local IP addresses (non-internal IPv4)
+  getLocalIPs() {
+    const addresses = [];
+    const interfaces = os.networkInterfaces();
+    
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name]) {
+        // Skip internal and non-IPv4 addresses
+        if (iface.internal || iface.family !== 'IPv4') continue;
+        addresses.push(iface.address);
+      }
+    }
+    
+    return addresses;
+  }
+
   // Get all local network broadcast addresses
   getBroadcastAddresses() {
     const addresses = [];

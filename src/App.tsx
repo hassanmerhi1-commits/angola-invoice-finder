@@ -8,6 +8,7 @@ import { LanguageProvider } from "@/i18n";
 import { BranchProvider } from "@/contexts/BranchContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
+import Setup from "./pages/Setup";
 import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
 import Invoices from "./pages/Invoices";
@@ -50,9 +51,26 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   const { user } = useAuth();
   
+  // Check if first-time setup is needed
+  const setupComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
+  
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      {/* Setup route - only accessible if setup not complete */}
+      <Route 
+        path="/setup" 
+        element={setupComplete ? <Navigate to="/login" replace /> : <Setup />} 
+      />
+      
+      {/* Redirect to setup if not complete */}
+      <Route 
+        path="/login" 
+        element={
+          !setupComplete ? <Navigate to="/setup" replace /> :
+          user ? <Navigate to="/" replace /> : <Login />
+        } 
+      />
+      
       <Route
         element={
           <ProtectedRoute>
@@ -60,7 +78,10 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route path="/" element={<Dashboard />} />
+        <Route 
+          path="/" 
+          element={!setupComplete ? <Navigate to="/setup" replace /> : <Dashboard />} 
+        />
         <Route path="/pos" element={<POS />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/inventory" element={<Inventory />} />
