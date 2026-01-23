@@ -43,13 +43,23 @@ export function CompanySettingsDialog({
   open,
   onOpenChange,
 }: CompanySettingsDialogProps) {
-  const [settings, setSettings] = useState<CompanySettings>(getCompanySettings());
+  const [settings, setSettings] = useState<CompanySettings>(() => {
+    try {
+      return getCompanySettings();
+    } catch {
+      return {} as CompanySettings;
+    }
+  });
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
-      setSettings(getCompanySettings());
+      try {
+        setSettings(getCompanySettings());
+      } catch (error) {
+        console.error('Error loading company settings:', error);
+      }
     }
   }, [open]);
 
