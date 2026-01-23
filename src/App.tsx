@@ -53,29 +53,61 @@ function AppRoutes() {
   const { user } = useAuth();
   
   // Check if first-time setup is needed - use state to make it reactive
-  const [setupComplete, setSetupComplete] = React.useState(() => 
-    localStorage.getItem('kwanza_setup_complete') === 'true'
-  );
+  const [setupComplete, setSetupComplete] = React.useState<boolean | null>(null);
+  const [isCheckingSetup, setIsCheckingSetup] = React.useState(true);
   
-  // Listen for storage changes (for when setup completes)
+  // Check setup status from Electron storage or localStorage
   React.useEffect(() => {
-    const checkSetup = () => {
+    const checkSetupStatus = async () => {
+      setIsCheckingSetup(true);
+      
+      // In Electron, check persistent storage first
+      if (window.electronAPI?.setup?.isComplete) {
+        try {
+          const result = await window.electronAPI.setup.isComplete();
+          if (result.success) {
+            setSetupComplete(result.complete);
+            // Sync with localStorage for consistency
+            localStorage.setItem('kwanza_setup_complete', result.complete ? 'true' : 'false');
+            setIsCheckingSetup(false);
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to check Electron setup status:', e);
+        }
+      }
+      
+      // Fallback to localStorage (web preview)
+      const isComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
+      setSetupComplete(isComplete);
+      setIsCheckingSetup(false);
+    };
+    
+    checkSetupStatus();
+    
+    // Listen for storage changes
+    const handleStorageChange = () => {
       const isComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
       setSetupComplete(isComplete);
     };
     
-    // Check on mount and listen for changes
-    checkSetup();
-    window.addEventListener('storage', checkSetup);
-    
-    // Also check periodically for same-window changes
-    const interval = setInterval(checkSetup, 100);
+    window.addEventListener('storage', handleStorageChange);
+    const interval = setInterval(handleStorageChange, 500);
     
     return () => {
-      window.removeEventListener('storage', checkSetup);
+      window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
   }, []);
+  
+  // Show loading while checking setup status
+  if (isCheckingSetup || setupComplete === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
   
   return (
     <Routes>

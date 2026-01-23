@@ -129,6 +129,28 @@ export interface ElectronAPI {
     quit: () => void;
     restart: () => void;
   };
+  setup?: {
+    getConfig: () => Promise<{ success: boolean; config: SetupConfig }>;
+    saveConfig: (config: Partial<SetupConfig>) => Promise<{ success: boolean; config?: SetupConfig; error?: string }>;
+    isComplete: () => Promise<{ success: boolean; complete: boolean }>;
+    reset: () => Promise<{ success: boolean; error?: string }>;
+  };
+}
+
+export interface SetupConfig {
+  setupComplete: boolean;
+  role: 'server' | 'client' | null;
+  serverConfig?: {
+    databasePath: string;
+    serverIp: string;
+    serverPort: number;
+    setupDate: string;
+  };
+  clientConfig?: {
+    serverIp: string;
+    serverPort: number;
+    setupDate: string;
+  };
 }
 
 declare global {

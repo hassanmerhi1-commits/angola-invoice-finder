@@ -32,6 +32,36 @@ if (handleSquirrelStartup()) {
 // Config is stored in userData folder
 
 const configPath = path.join(app.getPath('userData'), 'hot-update-config.json');
+const setupConfigPath = path.join(app.getPath('userData'), 'setup-config.json');
+
+// ==================== SETUP CONFIGURATION ====================
+// Store setup state in userData so it persists across all build types
+function loadSetupConfig() {
+  try {
+    if (fs.existsSync(setupConfigPath)) {
+      return JSON.parse(fs.readFileSync(setupConfigPath, 'utf8'));
+    }
+  } catch (e) {
+    console.log('[Setup] Config load error:', e.message);
+  }
+  return { 
+    setupComplete: false,
+    role: null, // 'server' or 'client'
+    serverConfig: null,
+    clientConfig: null
+  };
+}
+
+function saveSetupConfig(config) {
+  try {
+    fs.writeFileSync(setupConfigPath, JSON.stringify(config, null, 2));
+    console.log('[Setup] Config saved:', config);
+  } catch (e) {
+    console.error('[Setup] Config save error:', e.message);
+  }
+}
+
+let setupConfig = loadSetupConfig();
 
 function loadHotUpdateConfig() {
   try {
@@ -822,6 +852,42 @@ ipcMain.handle('discovery:local-ips', async () => {
 });
 
 ipcMain.handle('app:is-server', async () => {
-  // Check localStorage equivalent in electron-store or config
-  return false; // Default, will be set by setup
+  setupConfig = loadSetupConfig();
+  return setupConfig.role === 'server';
+});
+
+// ==================== SETUP CONFIG IPC ====================
+ipcMain.handle('setup:get-config', async () => {
+  setupConfig = loadSetupConfig();
+  return { success: true, config: setupConfig };
+});
+
+ipcMain.handle('setup:save-config', async (event, { config }) => {
+  try {
+    setupConfig = { ...setupConfig, ...config };
+    saveSetupConfig(setupConfig);
+    return { success: true, config: setupConfig };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('setup:is-complete', async () => {
+  setupConfig = loadSetupConfig();
+  return { success: true, complete: setupConfig.setupComplete };
+});
+
+ipcMain.handle('setup:reset', async () => {
+  try {
+    setupConfig = { 
+      setupComplete: false,
+      role: null,
+      serverConfig: null,
+      clientConfig: null
+    };
+    saveSetupConfig(setupConfig);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
