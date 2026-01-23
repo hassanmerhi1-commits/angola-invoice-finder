@@ -1,4 +1,7 @@
 @echo off
+:: Always run from the folder where this script lives (project root)
+cd /d "%~dp0"
+
 title Kwanza ERP - Build Installer
 color 0A
 
@@ -6,6 +9,9 @@ echo.
 echo ========================================
 echo    KWANZA ERP - BUILD INSTALLER
 echo ========================================
+echo.
+
+echo [INFO] Running from: %cd%
 echo.
 
 :: Check if Node.js is installed
