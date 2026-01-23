@@ -92,25 +92,38 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stop: () => ipcRenderer.invoke('discovery:stop'),
     
     // Get cached servers from last scan
-    getCached: () => ipcRenderer.invoke('discovery:cached')
+    getCached: () => ipcRenderer.invoke('discovery:cached'),
+    
+    // Get local IP addresses
+    getLocalIPs: () => ipcRenderer.invoke('discovery:local-ips')
   },
   
   // ==================== Hot Update ====================
   hotUpdate: {
-    // Get current hot update configuration
     getConfig: () => ipcRenderer.invoke('hotupdate:get-config'),
-    
-    // Save hot update configuration
     setConfig: (config) => ipcRenderer.invoke('hotupdate:set-config', { config }),
-    
-    // Check if update server is available
     checkServer: (serverUrl) => ipcRenderer.invoke('hotupdate:check-server', { serverUrl }),
-    
-    // Reload app from server (apply update)
     reload: () => ipcRenderer.invoke('hotupdate:reload'),
-    
-    // Get current load source (server or local)
     getSource: () => ipcRenderer.invoke('hotupdate:get-source')
+  },
+  
+  // ==================== Database ====================
+  database: {
+    create: (path) => ipcRenderer.invoke('database:create', { path }),
+    open: (path) => ipcRenderer.invoke('database:open', { path }),
+    query: (sql, params) => ipcRenderer.invoke('database:query', { sql, params }),
+    execute: (sql, params) => ipcRenderer.invoke('database:execute', { sql, params }),
+    backup: (destinationPath) => ipcRenderer.invoke('database:backup', { destinationPath }),
+    getPath: () => ipcRenderer.invoke('database:get-path')
+  },
+  
+  // ==================== App ====================
+  app: {
+    getVersion: () => ipcRenderer.invoke('app:version'),
+    getPlatform: () => Promise.resolve(process.platform),
+    isServer: () => ipcRenderer.invoke('app:is-server'),
+    quit: () => ipcRenderer.send('app:quit'),
+    restart: () => ipcRenderer.send('app:restart')
   }
 });
 

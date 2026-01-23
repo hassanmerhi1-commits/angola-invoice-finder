@@ -788,3 +788,40 @@ ipcMain.handle('hotupdate:get-source', async () => {
   }
   return { success: false, source: 'unknown' };
 });
+
+// ==================== DATABASE IPC ====================
+const database = require('./services/database');
+
+ipcMain.handle('database:create', async (event, { path }) => {
+  return await database.createDatabase(path);
+});
+
+ipcMain.handle('database:open', async (event, { path }) => {
+  return await database.openDatabase(path);
+});
+
+ipcMain.handle('database:query', async (event, { sql, params }) => {
+  return database.query(sql, params);
+});
+
+ipcMain.handle('database:execute', async (event, { sql, params }) => {
+  return database.execute(sql, params);
+});
+
+ipcMain.handle('database:backup', async (event, { destinationPath }) => {
+  return database.backup(destinationPath);
+});
+
+ipcMain.handle('database:get-path', async () => {
+  return database.getPath();
+});
+
+// ==================== DISCOVERY IPC ====================
+ipcMain.handle('discovery:local-ips', async () => {
+  return serverDiscovery.getLocalIPs();
+});
+
+ipcMain.handle('app:is-server', async () => {
+  // Check localStorage equivalent in electron-store or config
+  return false; // Default, will be set by setup
+});

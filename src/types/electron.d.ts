@@ -104,6 +104,7 @@ export interface ElectronAPI {
     scan: (timeout?: number) => Promise<{ success: boolean; servers: DiscoveredServer[]; error?: string }>;
     stop: () => Promise<{ success: boolean }>;
     getCached: () => Promise<{ success: boolean; servers: DiscoveredServer[] }>;
+    getLocalIPs: () => Promise<string[]>;
   };
   hotUpdate?: {
     getConfig: () => Promise<{ success: boolean; config: HotUpdateConfig }>;
@@ -111,6 +112,22 @@ export interface ElectronAPI {
     checkServer: (serverUrl: string) => Promise<{ success: boolean; available: boolean; version?: WebappVersion; error?: string }>;
     reload: () => Promise<{ success: boolean; source?: string; error?: string }>;
     getSource: () => Promise<{ success: boolean; source: 'server' | 'local' | 'unknown'; url?: string }>;
+  };
+  database?: {
+    create: (path: string) => Promise<{ success: boolean; error?: string }>;
+    open: (path: string) => Promise<{ success: boolean; error?: string }>;
+    query: (sql: string, params?: any[]) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+    execute: (sql: string, params?: any[]) => Promise<{ success: boolean; error?: string }>;
+    backup: (destinationPath: string) => Promise<{ success: boolean; error?: string }>;
+    getPath: () => Promise<string>;
+  };
+  app?: {
+    getVersion: () => Promise<string>;
+    getPlatform: () => Promise<string>;
+    getDataPath: () => Promise<string>;
+    isServer: () => Promise<boolean>;
+    quit: () => void;
+    restart: () => void;
   };
 }
 
