@@ -34,10 +34,28 @@ export default function Setup() {
 
   // Check if setup is already complete
   useEffect(() => {
-    const setupComplete = localStorage.getItem('kwanza_setup_complete');
-    if (setupComplete === 'true') {
-      navigate('/login');
-    }
+    const checkSetupComplete = async () => {
+      // In Electron, check persistent storage
+      if (window.electronAPI?.setup?.isComplete) {
+        try {
+          const result = await window.electronAPI.setup.isComplete();
+          if (result.success && result.complete) {
+            navigate('/login');
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to check Electron setup status:', e);
+        }
+      }
+      
+      // Fallback to localStorage
+      const setupComplete = localStorage.getItem('kwanza_setup_complete');
+      if (setupComplete === 'true') {
+        navigate('/login');
+      }
+    };
+    
+    checkSetupComplete();
   }, [navigate]);
 
   // Auto-detect server IP when in server mode
@@ -126,15 +144,29 @@ export default function Setup() {
       // Step 5: Complete
       setSetupProgress(100);
 
-      // Save configuration
+      // Save configuration to Electron persistent storage
       const serverConfig = {
-        role: 'server',
+        role: 'server' as const,
         databasePath,
         serverIp: detectedIp,
         serverPort: 3000,
         setupDate: new Date().toISOString()
       };
       
+      // Save to Electron storage (persists across build types)
+      if (window.electronAPI?.setup?.saveConfig) {
+        try {
+          await window.electronAPI.setup.saveConfig({
+            setupComplete: true,
+            role: 'server',
+            serverConfig
+          });
+        } catch (e) {
+          console.error('Failed to save Electron setup config:', e);
+        }
+      }
+      
+      // Also save to localStorage for consistency
       localStorage.setItem('kwanza_server_config', JSON.stringify(serverConfig));
       localStorage.setItem('kwanza_setup_complete', 'true');
       localStorage.setItem('kwanza_is_server', 'true');
@@ -233,7 +265,7 @@ export default function Setup() {
     }
   };
 
-  const connectToServer = () => {
+  const connectToServer = async () => {
     if (connectionStatus !== 'success') {
       toast.error('Please test the connection first');
       return;
@@ -241,12 +273,30 @@ export default function Setup() {
 
     // Save client configuration
     const clientConfig = {
-      role: 'client',
+      role: 'client' as const,
       serverIp,
       serverPort: parseInt(serverPort),
       setupDate: new Date().toISOString()
     };
 
+    // Save to Electron storage (persists across build types)
+    if (window.electronAPI?.setup?.saveConfig) {
+      try {
+        await window.electronAPI.setup.saveConfig({
+          setupComplete: true,
+          role: 'client',
+          clientConfig: {
+            serverIp,
+            serverPort: parseInt(serverPort),
+            setupDate: new Date().toISOString()
+          }
+        });
+      } catch (e) {
+        console.error('Failed to save Electron setup config:', e);
+      }
+    }
+
+    // Also save to localStorage for consistency
     localStorage.setItem('kwanza_client_config', JSON.stringify(clientConfig));
     localStorage.setItem('kwanza_setup_complete', 'true');
     localStorage.setItem('kwanza_is_server', 'false');

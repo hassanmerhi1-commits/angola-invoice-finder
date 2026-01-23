@@ -124,6 +124,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isServer: () => ipcRenderer.invoke('app:is-server'),
     quit: () => ipcRenderer.send('app:quit'),
     restart: () => ipcRenderer.send('app:restart')
+  },
+  
+  // ==================== Setup ====================
+  setup: {
+    getConfig: () => ipcRenderer.invoke('setup:get-config'),
+    saveConfig: (config) => ipcRenderer.invoke('setup:save-config', { config }),
+    isComplete: () => ipcRenderer.invoke('setup:is-complete'),
+    reset: () => ipcRenderer.invoke('setup:reset')
   }
 });
 
