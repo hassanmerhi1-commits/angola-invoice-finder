@@ -305,8 +305,170 @@ ipcMain.handle('agt:verify-signature', async (event, { invoiceData, signature, k
 // Calculate hash
 ipcMain.handle('agt:calculate-hash', async (event, { data }) => {
   return { 
+    success: true,
     hash: crypto.createHash('sha256').update(data).digest('hex')
   };
+});
+
+// ==================== AGT API TRANSMISSION HANDLERS ====================
+
+let agtClient = null;
+let agtConfig = {
+  environment: 'sandbox',
+  softwareCertificate: '',
+  companyNIF: '',
+  apiKey: ''
+};
+
+// Configure AGT client
+ipcMain.handle('agt:configure', async (event, { config }) => {
+  try {
+    const { AGTClient, validateConfig } = require('./services/agtClient');
+    
+    // Validate config
+    const validation = validateConfig(config);
+    if (!validation.valid) {
+      return { success: false, error: validation.errors.join(', ') };
+    }
+    
+    agtConfig = { ...agtConfig, ...config };
+    agtClient = new AGTClient(agtConfig);
+    
+    console.log('[AGT] Client configured for', config.environment);
+    return { success: true };
+  } catch (error) {
+    console.error('[AGT] Configure error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get current AGT config
+ipcMain.handle('agt:get-config', async () => {
+  return { 
+    success: true, 
+    config: {
+      environment: agtConfig.environment,
+      softwareCertificate: agtConfig.softwareCertificate ? '****' : '',
+      companyNIF: agtConfig.companyNIF,
+      apiKey: agtConfig.apiKey ? '****' : ''
+    }
+  };
+});
+
+// Transmit invoice to AGT
+ipcMain.handle('agt:transmit-invoice', async (event, { invoice, signature }) => {
+  try {
+    if (!agtClient) {
+      // Auto-initialize with default config if not configured
+      const { AGTClient } = require('./services/agtClient');
+      agtClient = new AGTClient(agtConfig);
+    }
+    
+    console.log('[AGT] Transmitting invoice:', invoice.invoiceNumber);
+    const result = await agtClient.transmitInvoice(invoice, signature);
+    
+    return {
+      success: result.success,
+      agtCode: result.agtCode,
+      agtStatus: result.agtStatus,
+      validatedAt: result.validatedAt,
+      errorCode: result.errorCode,
+      errorMessage: result.errorMessage,
+      retryable: result.retryable
+    };
+  } catch (error) {
+    console.error('[AGT] Transmit error:', error);
+    return { 
+      success: false, 
+      agtStatus: 'error',
+      errorMessage: error.message,
+      retryable: true
+    };
+  }
+});
+
+// Transmit with retry
+ipcMain.handle('agt:transmit-with-retry', async (event, { invoice, signature }) => {
+  try {
+    if (!agtClient) {
+      const { AGTClient } = require('./services/agtClient');
+      agtClient = new AGTClient(agtConfig);
+    }
+    
+    console.log('[AGT] Transmitting with retry:', invoice.invoiceNumber);
+    const result = await agtClient.transmitWithRetry(invoice, signature);
+    
+    return {
+      success: result.success,
+      agtCode: result.agtCode,
+      agtStatus: result.agtStatus,
+      validatedAt: result.validatedAt,
+      errorCode: result.errorCode,
+      errorMessage: result.errorMessage || result.message
+    };
+  } catch (error) {
+    console.error('[AGT] Transmit with retry error:', error);
+    return { 
+      success: false, 
+      agtStatus: 'error',
+      errorMessage: error.message
+    };
+  }
+});
+
+// Check invoice status at AGT
+ipcMain.handle('agt:check-status', async (event, { invoiceNumber }) => {
+  try {
+    if (!agtClient) {
+      const { AGTClient } = require('./services/agtClient');
+      agtClient = new AGTClient(agtConfig);
+    }
+    
+    console.log('[AGT] Checking status:', invoiceNumber);
+    const result = await agtClient.checkStatus(invoiceNumber);
+    
+    return {
+      success: true,
+      invoiceNumber: result.invoiceNumber,
+      agtStatus: result.agtStatus,
+      agtCode: result.agtCode,
+      validatedAt: result.validatedAt,
+      errorMessage: result.errorMessage
+    };
+  } catch (error) {
+    console.error('[AGT] Check status error:', error);
+    return { 
+      success: false, 
+      invoiceNumber,
+      agtStatus: 'error',
+      errorMessage: error.message
+    };
+  }
+});
+
+// Void invoice at AGT
+ipcMain.handle('agt:void-invoice', async (event, { invoiceNumber, reason }) => {
+  try {
+    if (!agtClient) {
+      const { AGTClient } = require('./services/agtClient');
+      agtClient = new AGTClient(agtConfig);
+    }
+    
+    console.log('[AGT] Voiding invoice:', invoiceNumber);
+    const result = await agtClient.voidInvoice(invoiceNumber, reason);
+    
+    return {
+      success: result.success,
+      agtStatus: result.agtStatus,
+      errorMessage: result.errorMessage
+    };
+  } catch (error) {
+    console.error('[AGT] Void error:', error);
+    return { 
+      success: false, 
+      errorMessage: error.message
+    };
+  }
 });
 
 // ==================== AUTO-UPDATER EVENTS ====================

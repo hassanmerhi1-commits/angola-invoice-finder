@@ -38,7 +38,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('agt:verify-signature', { invoiceData, signature, keyAlias }),
     
     // Calculate SHA-256 hash
-    calculateHash: (data) => ipcRenderer.invoke('agt:calculate-hash', { data })
+    calculateHash: (data) => ipcRenderer.invoke('agt:calculate-hash', { data }),
+    
+    // AGT API Transmission
+    transmitInvoice: (invoice, signature) =>
+      ipcRenderer.invoke('agt:transmit-invoice', { invoice, signature }),
+    
+    transmitWithRetry: (invoice, signature) =>
+      ipcRenderer.invoke('agt:transmit-with-retry', { invoice, signature }),
+    
+    checkStatus: (invoiceNumber) =>
+      ipcRenderer.invoke('agt:check-status', { invoiceNumber }),
+    
+    voidInvoice: (invoiceNumber, reason) =>
+      ipcRenderer.invoke('agt:void-invoice', { invoiceNumber, reason }),
+    
+    // Configuration
+    configure: (config) =>
+      ipcRenderer.invoke('agt:configure', { config }),
+    
+    getConfig: () =>
+      ipcRenderer.invoke('agt:get-config')
   },
   
   // ==================== Auto-Updater ====================
