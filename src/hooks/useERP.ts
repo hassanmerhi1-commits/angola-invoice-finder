@@ -332,8 +332,27 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Validate that stored user is actually valid
     const currentUser = storage.getCurrentUser();
-    setUser(currentUser);
+    
+    if (currentUser && currentUser.id && currentUser.email) {
+      // Verify user still exists in users list (in case data was corrupted/reset)
+      const users = storage.getUsers();
+      const validUser = users.find(u => u.id === currentUser.id && u.isActive);
+      
+      if (validUser) {
+        setUser(currentUser);
+      } else {
+        // User no longer valid, clear the session
+        storage.setCurrentUser(null);
+        setUser(null);
+      }
+    } else {
+      // No valid user stored
+      storage.setCurrentUser(null);
+      setUser(null);
+    }
+    
     setIsLoading(false);
   }, []);
 
