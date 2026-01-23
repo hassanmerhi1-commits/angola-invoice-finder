@@ -17,10 +17,10 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Building2, User as UserIcon, LogOut, Settings, Menu, Wifi, WifiOff, Database } from 'lucide-react';
+import { Building2, User as UserIcon, LogOut, Settings, Menu, Database, Server, Monitor, RefreshCw } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/i18n';
-import { useRealtimeStatus } from '@/lib/realtime/store';
+import { useDatabaseStatus } from '@/hooks/useDatabaseStatus';
 
 interface HeaderProps {
   user: User | null;
@@ -40,7 +40,7 @@ export function Header({
   onMenuClick,
 }: HeaderProps) {
   const { t } = useTranslation();
-  const { isConnected, mode } = useRealtimeStatus();
+  const { status: dbStatus, isChecking, checkStatus } = useDatabaseStatus();
   
   return (
     <header className="h-16 border-b bg-card px-4 flex items-center justify-between">
@@ -63,51 +63,95 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Connection Status Indicator */}
+        {/* Database Connection Status Indicator */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors ${
-                mode === 'realtime' && isConnected
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                  : mode === 'realtime' && !isConnected
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
-                  : 'bg-muted border-border text-muted-foreground'
-              }`}>
-                {mode === 'realtime' ? (
-                  isConnected ? (
-                    <Wifi className="w-4 h-4" />
-                  ) : (
-                    <WifiOff className="w-4 h-4 animate-pulse" />
-                  )
+              <button
+                onClick={() => checkStatus()}
+                disabled={isChecking}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all hover:shadow-sm ${
+                  dbStatus.isConnected
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                    : dbStatus.mode === 'unknown'
+                    ? 'bg-muted border-border text-muted-foreground'
+                    : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
+                }`}
+              >
+                {isChecking ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : dbStatus.mode === 'server' ? (
+                  <Server className="w-4 h-4" />
+                ) : dbStatus.mode === 'client' ? (
+                  <Monitor className="w-4 h-4" />
                 ) : (
                   <Database className="w-4 h-4" />
                 )}
                 <span className="text-xs font-medium hidden md:inline">
-                  {mode === 'realtime' 
-                    ? (isConnected ? 'Conectado' : 'Reconectando...')
-                    : 'Modo Local'
+                  {dbStatus.mode === 'server' 
+                    ? (dbStatus.isConnected ? 'Servidor' : 'DB Offline')
+                    : dbStatus.mode === 'client'
+                    ? (dbStatus.isConnected ? 'Conectado' : 'Desconectado')
+                    : 'Não configurado'
                   }
                 </span>
                 <span className={`w-2 h-2 rounded-full ${
-                  mode === 'realtime' && isConnected
-                    ? 'bg-emerald-500 animate-pulse'
-                    : mode === 'realtime' && !isConnected
-                    ? 'bg-amber-500 animate-ping'
-                    : 'bg-muted-foreground'
+                  dbStatus.isConnected
+                    ? 'bg-emerald-500'
+                    : dbStatus.mode === 'unknown'
+                    ? 'bg-muted-foreground'
+                    : 'bg-red-500 animate-pulse'
                 }`} />
-              </div>
+              </button>
             </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs">
-              {mode === 'realtime' ? (
-                isConnected ? (
-                  <p>Conectado ao servidor em tempo real. Todas as alterações são sincronizadas instantaneamente.</p>
-                ) : (
-                  <p>Tentando reconectar ao servidor... As alterações serão sincronizadas quando a conexão for restabelecida.</p>
-                )
-              ) : (
-                <p>Modo local ativo. Configure o IP do servidor nas Configurações para habilitar sincronização em rede.</p>
-              )}
+            <TooltipContent side="bottom" className="max-w-xs p-3">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 font-medium">
+                  {dbStatus.mode === 'server' ? (
+                    <>
+                      <Server className="w-4 h-4" />
+                      <span>Modo Servidor</span>
+                    </>
+                  ) : dbStatus.mode === 'client' ? (
+                    <>
+                      <Monitor className="w-4 h-4" />
+                      <span>Modo Cliente</span>
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-4 h-4" />
+                      <span>Não Configurado</span>
+                    </>
+                  )}
+                </div>
+                {dbStatus.mode === 'server' && (
+                  <div className="text-xs space-y-1">
+                    <p><strong>Status:</strong> {dbStatus.isConnected ? 'Base de dados ativa' : 'Base de dados offline'}</p>
+                    {dbStatus.databasePath && (
+                      <p className="text-muted-foreground truncate"><strong>Path:</strong> {dbStatus.databasePath}</p>
+                    )}
+                    {dbStatus.serverIp && (
+                      <p><strong>IP:</strong> {dbStatus.serverIp}:{dbStatus.serverPort}</p>
+                    )}
+                  </div>
+                )}
+                {dbStatus.mode === 'client' && (
+                  <div className="text-xs space-y-1">
+                    <p><strong>Status:</strong> {dbStatus.isConnected ? 'Conectado ao servidor' : 'Servidor não acessível'}</p>
+                    {dbStatus.serverIp && (
+                      <p><strong>Servidor:</strong> {dbStatus.serverIp}:{dbStatus.serverPort}</p>
+                    )}
+                  </div>
+                )}
+                {dbStatus.mode === 'unknown' && (
+                  <p className="text-xs text-muted-foreground">
+                    Execute a configuração inicial para configurar o sistema.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Clique para verificar conexão
+                </p>
+              </div>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
