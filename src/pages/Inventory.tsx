@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useBranches, useProducts } from '@/hooks/useERP';
+import { useProducts } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { Product } from '@/types/erp';
 import { saveProduct } from '@/lib/storage';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,7 +26,7 @@ import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog'
 import { BranchSelector } from '@/components/BranchSelector';
 
 export default function Inventory() {
-  const { currentBranch } = useBranches();
+  const { currentBranch } = useBranchContext();
   const { products, refreshProducts, updateProduct, addProduct, deleteProduct } = useProducts(currentBranch?.id);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);

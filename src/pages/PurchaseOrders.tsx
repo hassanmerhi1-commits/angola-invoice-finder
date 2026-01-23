@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useBranches, useProducts, useSuppliers, usePurchaseOrders, useAuth } from '@/hooks/useERP';
+import { useProducts, useSuppliers, usePurchaseOrders, useAuth } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { PurchaseOrder, PurchaseOrderItem, Product } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,8 +47,8 @@ const STATUS_LABELS: Record<PurchaseOrder['status'], { label: string; variant: '
 
 export default function PurchaseOrders() {
   const { user } = useAuth();
-  const { branches, currentBranch } = useBranches();
-  const { products } = useProducts();
+  const { branches, currentBranch } = useBranchContext();
+  const { products } = useProducts(currentBranch?.id);
   const { suppliers } = useSuppliers();
   const { 
     orders, 

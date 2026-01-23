@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useBranches, useSales } from '@/hooks/useERP';
+import { useSales } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { useTranslation } from '@/i18n';
 import { Sale } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +23,7 @@ import { CompanySettingsDialog } from '@/components/settings/CompanySettingsDial
 export default function Invoices() {
   const { t, language } = useTranslation();
   const locale = language === 'pt' ? 'pt-AO' : 'en-US';
-  const { currentBranch } = useBranches();
+  const { currentBranch } = useBranchContext();
   const { sales } = useSales(currentBranch?.id);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);

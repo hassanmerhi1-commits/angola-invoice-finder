@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBranches } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { Branch } from '@/types/erp';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,7 +46,7 @@ const isLocalNetworkMode = () => {
 
 export default function Branches() {
   const { t } = useLanguage();
-  const { branches, setCurrentBranch } = useBranches();
+  const { branches, setCurrentBranch } = useBranchContext();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);

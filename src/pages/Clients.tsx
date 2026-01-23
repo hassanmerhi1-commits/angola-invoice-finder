@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useClients, useBranches } from '@/hooks/useERP';
+import { useClients } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { Client } from '@/types/erp';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import { Users, Plus, Search, Edit, Trash2, Building } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Clients() {
-  const { currentBranch } = useBranches();
+  const { currentBranch } = useBranchContext();
   const { clients, createClient, saveClient, deleteClient } = useClients();
   const { toast } = useToast();
   

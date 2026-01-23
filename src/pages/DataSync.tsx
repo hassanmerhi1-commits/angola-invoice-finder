@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { useBranches, useDataSync, useAuth } from '@/hooks/useERP';
+import { useDataSync, useAuth } from '@/hooks/useERP';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { SyncPackage } from '@/types/erp';
 import { ImportResult } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +22,7 @@ import { pt } from 'date-fns/locale';
 
 export default function DataSync() {
   const { user } = useAuth();
-  const { branches, currentBranch } = useBranches();
+  const { branches, currentBranch } = useBranchContext();
   const { exportData, importData, downloadSyncPackage, sendSyncPackageByEmail } = useDataSync();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
