@@ -22,7 +22,7 @@ import FiscalDocuments from "./pages/FiscalDocuments";
 import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
-import Placeholder from "./pages/Placeholder";
+import Branches from "./pages/Branches";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -73,9 +73,9 @@ function AppRoutes() {
         <Route path="/fiscal-documents" element={<FiscalDocuments />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
-        <Route path="/accounting" element={<Placeholder />} />
-        <Route path="/customers" element={<Placeholder />} />
-        <Route path="/branches" element={<Placeholder />} />
+        <Route path="/accounting" element={<Branches />} />
+        <Route path="/customers" element={<Clients />} />
+        <Route path="/branches" element={<Branches />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

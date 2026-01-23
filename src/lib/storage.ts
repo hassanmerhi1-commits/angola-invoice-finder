@@ -47,6 +47,11 @@ export function saveBranch(branch: Branch): void {
   setItem(STORAGE_KEYS.branches, branches);
 }
 
+export function deleteBranch(branchId: string): void {
+  const branches = getBranches().filter(b => b.id !== branchId);
+  setItem(STORAGE_KEYS.branches, branches);
+}
+
 export function getCurrentBranch(): Branch | null {
   return getItem<Branch | null>(STORAGE_KEYS.currentBranch, null);
 }
