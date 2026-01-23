@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
+import { BranchSelector } from '@/components/BranchSelector';
 
 export default function Inventory() {
   const { currentBranch } = useBranches();
@@ -72,6 +73,8 @@ export default function Inventory() {
       
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 border-b">
+        <BranchSelector compact />
+        <div className="w-px h-5 bg-border mx-1" />
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => handleOpenDialog()}>
           <Plus className="w-3 h-3" />
           Novo

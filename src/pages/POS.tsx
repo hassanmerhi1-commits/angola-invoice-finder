@@ -11,6 +11,7 @@ import { ProductGrid } from '@/components/pos/ProductGrid';
 import { Cart } from '@/components/pos/Cart';
 import { CheckoutDialog } from '@/components/pos/CheckoutDialog';
 import { ReceiptDialog } from '@/components/pos/ReceiptDialog';
+import { BranchSelector } from '@/components/BranchSelector';
 import { Search, ScanBarcode, Keyboard } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -181,6 +182,7 @@ export default function POS() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 border-b">
           <div className="flex items-center gap-3">
+            <BranchSelector compact />
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
