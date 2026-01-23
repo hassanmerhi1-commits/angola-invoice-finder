@@ -1,3 +1,4 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -51,8 +52,30 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   const { user } = useAuth();
   
-  // Check if first-time setup is needed
-  const setupComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
+  // Check if first-time setup is needed - use state to make it reactive
+  const [setupComplete, setSetupComplete] = React.useState(() => 
+    localStorage.getItem('kwanza_setup_complete') === 'true'
+  );
+  
+  // Listen for storage changes (for when setup completes)
+  React.useEffect(() => {
+    const checkSetup = () => {
+      const isComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
+      setSetupComplete(isComplete);
+    };
+    
+    // Check on mount and listen for changes
+    checkSetup();
+    window.addEventListener('storage', checkSetup);
+    
+    // Also check periodically for same-window changes
+    const interval = setInterval(checkSetup, 100);
+    
+    return () => {
+      window.removeEventListener('storage', checkSetup);
+      clearInterval(interval);
+    };
+  }, []);
   
   return (
     <Routes>
