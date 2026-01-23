@@ -19,6 +19,18 @@ export interface UpdateStatus {
   error?: string;
 }
 
+export interface HotUpdateConfig {
+  enabled: boolean;
+  serverUrl: string;
+  autoConnect?: boolean;
+}
+
+export interface WebappVersion {
+  version: string;
+  buildDate?: string;
+  error?: string;
+}
+
 export interface AGTSignatureResult {
   success: boolean;
   hash?: string;
@@ -92,6 +104,13 @@ export interface ElectronAPI {
     scan: (timeout?: number) => Promise<{ success: boolean; servers: DiscoveredServer[]; error?: string }>;
     stop: () => Promise<{ success: boolean }>;
     getCached: () => Promise<{ success: boolean; servers: DiscoveredServer[] }>;
+  };
+  hotUpdate?: {
+    getConfig: () => Promise<{ success: boolean; config: HotUpdateConfig }>;
+    setConfig: (config: Partial<HotUpdateConfig>) => Promise<{ success: boolean; config?: HotUpdateConfig; error?: string }>;
+    checkServer: (serverUrl: string) => Promise<{ success: boolean; available: boolean; version?: WebappVersion; error?: string }>;
+    reload: () => Promise<{ success: boolean; source?: string; error?: string }>;
+    getSource: () => Promise<{ success: boolean; source: 'server' | 'local' | 'unknown'; url?: string }>;
   };
 }
 
