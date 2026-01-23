@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar, FileText, Lock, RefreshCw, TrendingUp, DollarSign, CreditCard, Banknote } from 'lucide-react';
+import { Calendar, FileText, Lock, RefreshCw, TrendingUp, DollarSign, CreditCard, Banknote, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { DailySalesDetailReport } from '@/components/reports/DailySalesDetailReport';
 
 export default function DailyReports() {
   const { user } = useAuth();
@@ -25,6 +26,12 @@ export default function DailyReports() {
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const [closingBalance, setClosingBalance] = useState('');
   const [closingNotes, setClosingNotes] = useState('');
+  
+  // Detail report dialog
+  const [detailReportOpen, setDetailReportOpen] = useState(false);
+  const [detailReportDate, setDetailReportDate] = useState('');
+  const [detailReportBranchId, setDetailReportBranchId] = useState<string | undefined>();
+  const [detailReportBranchName, setDetailReportBranchName] = useState<string | undefined>();
 
   const isMainOffice = currentBranch?.isMain;
   const filteredReports = isMainOffice && selectedBranch 
@@ -54,6 +61,13 @@ export default function DailyReports() {
     setCloseDialogOpen(true);
   };
 
+  const openDetailReport = (date: string, branchId: string, branchName: string) => {
+    setDetailReportDate(date);
+    setDetailReportBranchId(branchId);
+    setDetailReportBranchName(branchName);
+    setDetailReportOpen(true);
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value);
   };
@@ -65,7 +79,7 @@ export default function DailyReports() {
   const totalCard = filteredReports.reduce((sum, r) => sum + r.cardTotal, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Relatórios Diários</h1>
@@ -147,7 +161,7 @@ export default function DailyReports() {
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma filial" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-popover">
                     {branches.map(branch => (
                       <SelectItem key={branch.id} value={branch.id}>
                         {branch.name} {branch.isMain && '(Sede)'}
@@ -157,10 +171,21 @@ export default function DailyReports() {
                 </Select>
               </div>
             )}
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <Button onClick={handleGenerateReport}>
                 <Calendar className="w-4 h-4 mr-2" />
                 Gerar Relatório
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => openDetailReport(
+                  selectedDate, 
+                  isMainOffice && selectedBranch ? selectedBranch : currentBranch?.id || '',
+                  isMainOffice && selectedBranch ? branches.find(b => b.id === selectedBranch)?.name || '' : currentBranch?.name || ''
+                )}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                Ver Detalhes
               </Button>
             </div>
           </div>
@@ -221,16 +246,26 @@ export default function DailyReports() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {report.status === 'open' && (
+                      <div className="flex gap-1">
                         <Button 
                           size="sm" 
-                          variant="outline"
-                          onClick={() => openCloseDialog(report.id, report.cashTotal)}
+                          variant="ghost"
+                          onClick={() => openDetailReport(report.date, report.branchId, report.branchName)}
+                          title="Ver detalhes"
                         >
-                          <Lock className="w-3 h-3 mr-1" />
-                          Fechar
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      )}
+                        {report.status === 'open' && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => openCloseDialog(report.id, report.cashTotal)}
+                          >
+                            <Lock className="w-3 h-3 mr-1" />
+                            Fechar
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -282,6 +317,15 @@ export default function DailyReports() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detail Report Dialog */}
+      <DailySalesDetailReport
+        open={detailReportOpen}
+        onOpenChange={setDetailReportOpen}
+        date={detailReportDate}
+        branchId={detailReportBranchId}
+        branchName={detailReportBranchName}
+      />
     </div>
   );
 }
