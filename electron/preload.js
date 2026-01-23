@@ -93,6 +93,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     // Get cached servers from last scan
     getCached: () => ipcRenderer.invoke('discovery:cached')
+  },
+  
+  // ==================== Hot Update ====================
+  hotUpdate: {
+    // Get current hot update configuration
+    getConfig: () => ipcRenderer.invoke('hotupdate:get-config'),
+    
+    // Save hot update configuration
+    setConfig: (config) => ipcRenderer.invoke('hotupdate:set-config', { config }),
+    
+    // Check if update server is available
+    checkServer: (serverUrl) => ipcRenderer.invoke('hotupdate:check-server', { serverUrl }),
+    
+    // Reload app from server (apply update)
+    reload: () => ipcRenderer.invoke('hotupdate:reload'),
+    
+    // Get current load source (server or local)
+    getSource: () => ipcRenderer.invoke('hotupdate:get-source')
   }
 });
 
@@ -101,3 +119,4 @@ console.log('🖥️ Kwanza ERP running in Electron desktop mode');
 console.log('🔐 AGT cryptographic services available via electronAPI.agt');
 console.log('🔄 Auto-updater available via electronAPI.updater');
 console.log('🔍 Server discovery available via electronAPI.discovery');
+console.log('🔥 Hot update available via electronAPI.hotUpdate');

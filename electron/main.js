@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 // This module is optional - only used when installed via Squirrel installer
@@ -23,6 +24,40 @@ const handleSquirrelStartup = () => {
 if (handleSquirrelStartup()) {
   app.quit();
 }
+
+// ==================== HOT UPDATE CONFIGURATION ====================
+// The app can load from:
+// 1. Local files (fallback) - dist/index.html
+// 2. Server URL (hot update) - http://server:port/app
+// Config is stored in userData folder
+
+const configPath = path.join(app.getPath('userData'), 'hot-update-config.json');
+
+function loadHotUpdateConfig() {
+  try {
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+  } catch (e) {
+    console.log('[HotUpdate] Config load error:', e.message);
+  }
+  return { 
+    enabled: false, 
+    serverUrl: '',
+    autoConnect: false
+  };
+}
+
+function saveHotUpdateConfig(config) {
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    console.log('[HotUpdate] Config saved:', config);
+  } catch (e) {
+    console.error('[HotUpdate] Config save error:', e.message);
+  }
+}
+
+let hotUpdateConfig = loadHotUpdateConfig();
 
 // Auto-updater (only in production)
 let autoUpdater = null;
@@ -153,7 +188,25 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    // Production: load built files
+    // Production: Check for hot update server first
+    hotUpdateConfig = loadHotUpdateConfig();
+    
+    if (hotUpdateConfig.enabled && hotUpdateConfig.serverUrl) {
+      // HOT UPDATE MODE: Load from server
+      const serverAppUrl = `${hotUpdateConfig.serverUrl}/app`;
+      console.log('[HotUpdate] Loading from server:', serverAppUrl);
+      
+      mainWindow.loadURL(serverAppUrl).catch((err) => {
+        console.error('[HotUpdate] Server load failed, falling back to local:', err.message);
+        loadLocalFiles();
+      });
+    } else {
+      // LOCAL MODE: Load built files
+      loadLocalFiles();
+    }
+  }
+  
+  function loadLocalFiles() {
     // In packaged app, __dirname is inside app.asar, so we need to check multiple paths
     const possiblePaths = [
       path.join(__dirname, '../dist/index.html'),           // Development build
@@ -161,7 +214,6 @@ function createWindow() {
       path.join(app.getAppPath(), 'dist/index.html'),       // Alternative packaged path
     ];
     
-    const fs = require('fs');
     let indexPath = possiblePaths[0]; // Default
     
     for (const p of possiblePaths) {
@@ -645,4 +697,94 @@ ipcMain.handle('discovery:cached', async () => {
     success: true, 
     servers: services.serverDiscovery.getCachedServers() 
   };
+});
+
+// ==================== IPC HANDLERS FOR HOT UPDATE ====================
+
+// Get current hot update config
+ipcMain.handle('hotupdate:get-config', async () => {
+  hotUpdateConfig = loadHotUpdateConfig();
+  return { success: true, config: hotUpdateConfig };
+});
+
+// Save hot update config
+ipcMain.handle('hotupdate:set-config', async (event, { config }) => {
+  try {
+    hotUpdateConfig = { ...hotUpdateConfig, ...config };
+    saveHotUpdateConfig(hotUpdateConfig);
+    return { success: true, config: hotUpdateConfig };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Check if server is available and get webapp version
+ipcMain.handle('hotupdate:check-server', async (event, { serverUrl }) => {
+  try {
+    const http = require('http');
+    const https = require('https');
+    const url = new URL(`${serverUrl}/api/webapp-version`);
+    const client = url.protocol === 'https:' ? https : http;
+    
+    return new Promise((resolve) => {
+      const req = client.get(url, { timeout: 5000 }, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const version = JSON.parse(data);
+            resolve({ success: true, available: true, version });
+          } catch (e) {
+            resolve({ success: true, available: true, version: { version: 'unknown' } });
+          }
+        });
+      });
+      
+      req.on('error', (err) => {
+        resolve({ success: false, available: false, error: err.message });
+      });
+      
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ success: false, available: false, error: 'Connection timeout' });
+      });
+    });
+  } catch (error) {
+    return { success: false, available: false, error: error.message };
+  }
+});
+
+// Reload app from server (apply hot update)
+ipcMain.handle('hotupdate:reload', async () => {
+  try {
+    hotUpdateConfig = loadHotUpdateConfig();
+    
+    if (hotUpdateConfig.enabled && hotUpdateConfig.serverUrl && mainWindow) {
+      const serverAppUrl = `${hotUpdateConfig.serverUrl}/app`;
+      console.log('[HotUpdate] Reloading from server:', serverAppUrl);
+      await mainWindow.loadURL(serverAppUrl);
+      return { success: true, source: 'server' };
+    } else if (mainWindow) {
+      mainWindow.reload();
+      return { success: true, source: 'local' };
+    }
+    
+    return { success: false, error: 'No window available' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get current load source
+ipcMain.handle('hotupdate:get-source', async () => {
+  if (mainWindow) {
+    const url = mainWindow.webContents.getURL();
+    const isFromServer = url.startsWith('http') && !url.includes('localhost:5173');
+    return { 
+      success: true, 
+      source: isFromServer ? 'server' : 'local',
+      url 
+    };
+  }
+  return { success: false, source: 'unknown' };
 });

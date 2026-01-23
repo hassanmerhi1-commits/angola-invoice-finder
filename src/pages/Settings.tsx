@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { CompanySettingsDialog } from '@/components/settings/CompanySettingsDialog';
 import { NetworkSettingsCard } from '@/components/settings/NetworkSettingsCard';
+import { HotUpdateSettingsCard } from '@/components/settings/HotUpdateSettingsCard';
 import type { UpdateStatus } from '@/types/electron';
 
 export default function Settings() {
@@ -278,6 +279,9 @@ export default function Settings() {
 
         {/* Network Settings Card */}
         <NetworkSettingsCard />
+
+        {/* Hot Update Settings Card */}
+        <HotUpdateSettingsCard />
       </div>
     </div>
   );

@@ -34,6 +34,51 @@ app.use(cors());
 app.use(express.json());
 
 // ============================================
+// HOT UPDATE: SERVE WEBAPP FILES
+// ============================================
+// The webapp folder contains the built frontend files
+// To update all clients, just replace files in this folder
+const webappPath = path.join(__dirname, '../webapp');
+const fs = require('fs');
+
+// Check if webapp folder exists, create if not
+if (!fs.existsSync(webappPath)) {
+  fs.mkdirSync(webappPath, { recursive: true });
+  console.log('[WEBAPP] Created webapp folder at:', webappPath);
+}
+
+// Serve static files from webapp folder
+app.use('/app', express.static(webappPath));
+
+// Serve index.html for SPA routing (any /app/* route)
+app.get('/app/*', (req, res) => {
+  const indexPath = path.join(webappPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ 
+      error: 'Webapp not deployed',
+      message: 'Place built files in backend/webapp folder'
+    });
+  }
+});
+
+// Webapp version endpoint
+app.get('/api/webapp-version', (req, res) => {
+  const versionPath = path.join(webappPath, 'version.json');
+  if (fs.existsSync(versionPath)) {
+    try {
+      const version = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+      res.json(version);
+    } catch (e) {
+      res.json({ version: 'unknown', error: e.message });
+    }
+  } else {
+    res.json({ version: 'not-deployed' });
+  }
+});
+
+// ============================================
 // REAL-TIME SYNC LOGIC
 // ============================================
 
