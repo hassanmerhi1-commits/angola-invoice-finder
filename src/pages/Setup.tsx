@@ -271,130 +271,140 @@ export default function Setup() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/80 via-primary to-primary/60 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-blue-400 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary-foreground mb-2">Kwanza ERP</h1>
-          <p className="text-primary-foreground/80">First Time Setup</p>
+          <h1 className="text-5xl font-bold text-white mb-3 drop-shadow-lg">Kwanza ERP</h1>
+          <p className="text-white/90 text-lg">First Time Setup</p>
         </div>
 
         {/* Mode Selection */}
         {mode === 'select' && (
-          <Card className="border-0 shadow-2xl">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">How will this computer be used?</CardTitle>
-              <CardDescription>
+          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur">
+            <CardHeader className="text-center pb-4">
+              <CardTitle className="text-2xl font-semibold text-gray-800">How will this computer be used?</CardTitle>
+              <CardDescription className="text-gray-600">
                 Choose whether this computer will be the main server or a client workstation
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <Button
-                variant="outline"
-                className="h-auto p-6 flex flex-col items-center gap-4 hover:border-primary hover:bg-primary/5 transition-all"
+            <CardContent className="grid gap-6 md:grid-cols-2 px-6 pb-8">
+              <button
+                className="group relative bg-white border-2 border-gray-200 rounded-xl p-8 flex flex-col items-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all duration-200 cursor-pointer"
                 onClick={() => handleRoleSelect('server')}
               >
-                <Server className="h-16 w-16 text-primary" />
+                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                  <Server className="h-8 w-8 text-blue-600" />
+                </div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">Server</div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    Main computer that stores the database.
-                    Other computers will connect to this one.
+                  <div className="font-semibold text-xl text-gray-800 mb-2">Server</div>
+                  <div className="text-sm text-gray-500 leading-relaxed">
+                    Main computer that stores the database. Other computers will connect to this one.
                   </div>
                 </div>
-                <Badge variant="secondary">Recommended for main office</Badge>
-              </Button>
+                <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-0">
+                  Recommended for main office
+                </Badge>
+              </button>
 
-              <Button
-                variant="outline"
-                className="h-auto p-6 flex flex-col items-center gap-4 hover:border-primary hover:bg-primary/5 transition-all"
+              <button
+                className="group relative bg-white border-2 border-gray-200 rounded-xl p-8 flex flex-col items-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all duration-200 cursor-pointer"
                 onClick={() => handleRoleSelect('client')}
               >
-                <Monitor className="h-16 w-16 text-primary" />
+                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                  <Monitor className="h-8 w-8 text-blue-600" />
+                </div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">Client</div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    Workstation that connects to the server.
-                    Data is stored on the server computer.
+                  <div className="font-semibold text-xl text-gray-800 mb-2">Client</div>
+                  <div className="text-sm text-gray-500 leading-relaxed">
+                    Workstation that connects to the server. Data is stored on the server computer.
                   </div>
                 </div>
-                <Badge variant="secondary">For additional computers</Badge>
-              </Button>
+                <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-200 border-0">
+                  For additional computers
+                </Badge>
+              </button>
             </CardContent>
           </Card>
         )}
 
         {/* Server Setup */}
         {mode === 'server-setup' && (
-          <Card className="border-0 shadow-2xl">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Server className="h-6 w-6 text-primary" />
-                <CardTitle>Server Setup</CardTitle>
+          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Server className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl text-gray-800">Server Setup</CardTitle>
+                  <CardDescription className="text-gray-500">
+                    Configure this computer as the main database server
+                  </CardDescription>
+                </div>
               </div>
-              <CardDescription>
-                Configure this computer as the main database server
-              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 px-6 pb-8">
               {/* Database Path */}
               <div className="space-y-2">
-                <Label htmlFor="dbPath">Database Location</Label>
+                <Label htmlFor="dbPath" className="text-gray-700 font-medium">Database Location</Label>
                 <div className="flex gap-2">
                   <Input
                     id="dbPath"
                     value={databasePath}
                     onChange={(e) => setDatabasePath(e.target.value)}
                     placeholder="C:\kwanza erp\database.sqlite"
+                    className="bg-gray-50 border-gray-200"
                   />
-                  <Button variant="outline" size="icon">
+                  <Button variant="outline" size="icon" className="border-gray-200">
                     <FolderOpen className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-gray-500">
                   The database file will be created at this location
                 </p>
               </div>
 
               {/* Detected IP */}
               <div className="space-y-2">
-                <Label>Server IP Address (Auto-Detected)</Label>
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                  <Network className="h-5 w-5 text-primary" />
-                  <span className="font-mono text-lg">
+                <Label className="text-gray-700 font-medium">Server IP Address (Auto-Detected)</Label>
+                <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                  <Network className="h-5 w-5 text-blue-600" />
+                  <span className="font-mono text-lg text-gray-800">
                     {detectedIp || 'Detecting...'}
                   </span>
-                  <Badge variant="outline" className="ml-auto">
+                  <Badge className="ml-auto bg-blue-100 text-blue-700 border-0">
                     Port: 3000
                   </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Other computers will use this IP to connect: <strong>{detectedIp}:3000</strong>
+                <p className="text-sm text-gray-500">
+                  Other computers will use this IP to connect: <strong className="text-gray-700">{detectedIp}:3000</strong>
                 </p>
               </div>
 
               {/* Progress */}
               {isCreatingDatabase && (
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm text-gray-600">
                     <span>Setting up database...</span>
                     <span>{setupProgress}%</span>
                   </div>
-                  <Progress value={setupProgress} />
+                  <Progress value={setupProgress} className="h-2" />
                 </div>
               )}
 
               {/* Actions */}
-              <div className="flex gap-2">
+              <div className="flex gap-3 pt-2">
                 <Button
                   variant="outline"
                   onClick={() => setMode('select')}
                   disabled={isCreatingDatabase}
+                  className="border-gray-200"
                 >
                   Back
                 </Button>
                 <Button
-                  className="flex-1"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
                   onClick={createServerDatabase}
                   disabled={isCreatingDatabase || !detectedIp}
                 >
@@ -575,17 +585,23 @@ export default function Setup() {
 
         {/* Setup Complete */}
         {mode === 'complete' && (
-          <Card className="border-0 shadow-2xl">
-            <CardContent className="py-12 text-center">
-              <CheckCircle className="h-16 w-16 text-primary mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Setup Complete!</h2>
-              <p className="text-muted-foreground mb-6">
+          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur">
+            <CardContent className="py-16 text-center px-8">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="h-10 w-10 text-green-600" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-800 mb-3">Setup Complete!</h2>
+              <p className="text-gray-500 mb-8 text-lg">
                 {selectedRole === 'server' 
                   ? `Server is ready. Other computers can connect to ${detectedIp}:3000`
                   : `Connected to server at ${serverIp}:${serverPort}`
                 }
               </p>
-              <Button size="lg" onClick={finishSetup}>
+              <Button 
+                size="lg" 
+                onClick={finishSetup}
+                className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg"
+              >
                 Continue to Login
               </Button>
             </CardContent>
