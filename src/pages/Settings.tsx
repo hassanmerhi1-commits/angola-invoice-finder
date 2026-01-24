@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '@/i18n';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,22 +14,57 @@ import {
   AlertCircle,
   Monitor,
   Info,
-  Loader2
+  Loader2,
+  Server,
+  MonitorSmartphone,
+  RotateCcw
 } from 'lucide-react';
 import { CompanySettingsDialog } from '@/components/settings/CompanySettingsDialog';
 import { NetworkSettingsCard } from '@/components/settings/NetworkSettingsCard';
 import { HotUpdateSettingsCard } from '@/components/settings/HotUpdateSettingsCard';
-import type { UpdateStatus } from '@/types/electron';
+import { toast } from 'sonner';
+import type { UpdateStatus, SetupConfig } from '@/types/electron';
 
 export default function Settings() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [appVersion, setAppVersion] = useState<string>('');
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [companySettingsOpen, setCompanySettingsOpen] = useState(false);
+  const [setupConfig, setSetupConfig] = useState<SetupConfig | null>(null);
+  const [isResettingSetup, setIsResettingSetup] = useState(false);
   
   const isElectron = !!window.electronAPI?.isElectron;
+
+  // Load setup configuration
+  useEffect(() => {
+    const loadSetupConfig = async () => {
+      if (isElectron && window.electronAPI?.setup?.getConfig) {
+        try {
+          const result = await window.electronAPI.setup.getConfig();
+          if (result.success) {
+            setSetupConfig(result.config);
+          }
+        } catch (e) {
+          console.error('Failed to load setup config:', e);
+        }
+      } else {
+        // Web fallback - read from localStorage
+        const isServer = localStorage.getItem('kwanza_is_server') === 'true';
+        const serverConfig = localStorage.getItem('kwanza_server_config');
+        const clientConfig = localStorage.getItem('kwanza_client_config');
+        setSetupConfig({
+          setupComplete: localStorage.getItem('kwanza_setup_complete') === 'true',
+          role: isServer ? 'server' : (clientConfig ? 'client' : null),
+          serverConfig: serverConfig ? JSON.parse(serverConfig) : null,
+          clientConfig: clientConfig ? JSON.parse(clientConfig) : null
+        });
+      }
+    };
+    loadSetupConfig();
+  }, [isElectron]);
 
   useEffect(() => {
     // Get app version on mount
@@ -60,6 +96,37 @@ export default function Settings() {
       return () => unsubscribe?.();
     }
   }, [isElectron]);
+  
+  const handleResetSetup = async () => {
+    setIsResettingSetup(true);
+    try {
+      // Reset Electron persistent storage
+      if (isElectron && window.electronAPI?.setup?.reset) {
+        await window.electronAPI.setup.reset();
+      }
+      
+      // Clear localStorage setup flags
+      localStorage.removeItem('kwanza_setup_complete');
+      localStorage.removeItem('kwanza_is_server');
+      localStorage.removeItem('kwanza_server_config');
+      localStorage.removeItem('kwanza_client_config');
+      localStorage.removeItem('kwanza_api_url');
+      
+      toast.success('Setup reset successfully. Redirecting to setup wizard...');
+      
+      // Navigate to setup page
+      setTimeout(() => {
+        navigate('/setup');
+        // Force reload to ensure clean state
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to reset setup:', error);
+      toast.error('Failed to reset setup');
+    } finally {
+      setIsResettingSetup(false);
+    }
+  };
 
   const handleCheckForUpdates = async () => {
     if (!isElectron) return;
@@ -279,6 +346,79 @@ export default function Settings() {
               open={companySettingsOpen} 
               onOpenChange={setCompanySettingsOpen} 
             />
+          </CardContent>
+        </Card>
+
+        {/* Setup Configuration Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {setupConfig?.role === 'server' ? (
+                <Server className="w-5 h-5" />
+              ) : (
+                <MonitorSmartphone className="w-5 h-5" />
+              )}
+              Setup Configuration
+            </CardTitle>
+            <CardDescription>
+              Current server/client configuration
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Mode</span>
+              <Badge variant={setupConfig?.role === 'server' ? 'default' : 'secondary'}>
+                {setupConfig?.role === 'server' ? 'Server' : 
+                 setupConfig?.role === 'client' ? 'Client' : 'Not configured'}
+              </Badge>
+            </div>
+            
+            {setupConfig?.role === 'server' && setupConfig.serverConfig && (
+              <>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Database Path</span>
+                  <span className="text-xs font-mono truncate max-w-[200px]">
+                    {setupConfig.serverConfig.databasePath || 'Default'}
+                  </span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Server IP</span>
+                  <span className="font-medium">{setupConfig.serverConfig.serverIp || 'Auto-detect'}</span>
+                </div>
+              </>
+            )}
+            
+            {setupConfig?.role === 'client' && setupConfig.clientConfig && (
+              <>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Server Address</span>
+                  <span className="font-medium">
+                    {setupConfig.clientConfig.serverIp}:{setupConfig.clientConfig.serverPort || 3000}
+                  </span>
+                </div>
+              </>
+            )}
+            
+            <Separator />
+            <Button 
+              variant="destructive" 
+              onClick={handleResetSetup}
+              disabled={isResettingSetup}
+              className="w-full gap-2"
+            >
+              {isResettingSetup ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RotateCcw className="w-4 h-4" />
+              )}
+              Reset Setup Configuration
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              This will reset the server/client configuration and restart the setup wizard.
+            </p>
           </CardContent>
         </Card>
 
