@@ -61,10 +61,14 @@ function AppRoutes() {
     const checkSetupStatus = async () => {
       setIsCheckingSetup(true);
       
+      const isElectron = !!window.electronAPI?.isElectron;
+      console.log('[Setup Check] Environment:', isElectron ? 'Electron' : 'Web');
+      
       // In Electron, check persistent storage first
-      if (window.electronAPI?.setup?.isComplete) {
+      if (isElectron && window.electronAPI?.setup?.isComplete) {
         try {
           const result = await window.electronAPI.setup.isComplete();
+          console.log('[Setup Check] Electron result:', result);
           if (result.success) {
             setSetupComplete(result.complete);
             // Sync with localStorage for consistency
@@ -73,12 +77,29 @@ function AppRoutes() {
             return;
           }
         } catch (e) {
-          console.error('Failed to check Electron setup status:', e);
+          console.error('[Setup Check] Failed to check Electron setup status:', e);
         }
       }
       
       // Fallback to localStorage (web preview)
-      const isComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
+      // For web preview, also verify that role is set (not just the flag)
+      const setupFlag = localStorage.getItem('kwanza_setup_complete');
+      const isServerMode = localStorage.getItem('kwanza_is_server');
+      const serverConfig = localStorage.getItem('kwanza_server_config');
+      const clientConfig = localStorage.getItem('kwanza_client_config');
+      
+      // Setup is only truly complete if we have the flag AND configuration data
+      const hasConfig = isServerMode !== null || serverConfig !== null || clientConfig !== null;
+      const isComplete = setupFlag === 'true' && hasConfig;
+      
+      console.log('[Setup Check] localStorage state:', { 
+        setupFlag, 
+        isServerMode, 
+        hasServerConfig: !!serverConfig, 
+        hasClientConfig: !!clientConfig,
+        isComplete 
+      });
+      
       setSetupComplete(isComplete);
       setIsCheckingSetup(false);
     };
@@ -87,7 +108,11 @@ function AppRoutes() {
     
     // Listen for storage changes
     const handleStorageChange = () => {
-      const isComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
+      const setupFlag = localStorage.getItem('kwanza_setup_complete');
+      const hasConfig = localStorage.getItem('kwanza_is_server') !== null || 
+                        localStorage.getItem('kwanza_server_config') !== null || 
+                        localStorage.getItem('kwanza_client_config') !== null;
+      const isComplete = setupFlag === 'true' && hasConfig;
       setSetupComplete(isComplete);
     };
     
