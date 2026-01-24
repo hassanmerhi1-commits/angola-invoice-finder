@@ -19,6 +19,7 @@ import {
   FileCheck,
   Shield,
   BookOpen,
+  FileEdit,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,6 +34,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { icon: LayoutDashboard, label: t.nav.dashboard, path: '/' },
     { icon: ShoppingCart, label: t.nav.pos, path: '/pos' },
     { icon: FileText, label: t.nav.invoices, path: '/invoices' },
+    { icon: FileEdit, label: 'Pro Forma', path: '/proforma' },
     { icon: FileCheck, label: t.nav.fiscalDocuments, path: '/fiscal-documents' },
     { icon: Package, label: t.nav.inventory, path: '/inventory' },
     { icon: Tags, label: t.nav.categories, path: '/categories' },
