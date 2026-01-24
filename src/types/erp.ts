@@ -249,6 +249,12 @@ export interface PurchaseOrder {
   subtotal: number;
   taxAmount: number;
   total: number;
+  // Freight / Frete
+  freightCost?: number; // Total freight cost for this order
+  freightDistributed?: boolean; // Whether freight has been added to product costs
+  // Other costs (despesas)
+  otherCosts?: number;
+  otherCostsDescription?: string;
   status: 'draft' | 'pending' | 'approved' | 'received' | 'partial' | 'cancelled';
   notes?: string;
   createdBy: string;
@@ -267,6 +273,9 @@ export interface PurchaseOrderItem {
   quantity: number;
   receivedQuantity?: number;
   unitCost: number;
+  // Freight allocation
+  freightAllocation?: number; // Portion of freight allocated to this item
+  effectiveCost?: number; // unitCost + freightAllocation
   taxRate: number;
   subtotal: number;
 }
