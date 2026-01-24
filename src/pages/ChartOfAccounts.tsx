@@ -34,6 +34,10 @@ const typeColors: Record<AccountType, string> = {
   expense: 'bg-orange-500/10 text-orange-500 border-orange-500/20'
 };
 
+// Radix Select forbids empty string values for SelectItem.
+// We keep '' in form state to represent "no parent" and map a sentinel back to ''.
+const ROOT_ACCOUNT_VALUE = '__root__';
+
 interface AccountRowProps {
   account: Account & { children?: Account[] };
   level: number;
@@ -433,10 +437,11 @@ export default function ChartOfAccounts() {
               <Select 
                 value={formData.parent_id} 
                 onValueChange={(v) => {
-                  const parent = accounts.find(a => a.id === v);
+                  const parentId = v === ROOT_ACCOUNT_VALUE ? '' : v;
+                  const parent = accounts.find(a => a.id === parentId);
                   setFormData(prev => ({ 
                     ...prev, 
-                    parent_id: v,
+                    parent_id: parentId,
                     level: parent ? parent.level + 1 : 1
                   }));
                 }}
@@ -445,7 +450,7 @@ export default function ChartOfAccounts() {
                   <SelectValue placeholder="None (Root account)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None (Root account)</SelectItem>
+                  <SelectItem value={ROOT_ACCOUNT_VALUE}>None (Root account)</SelectItem>
                   {getParentAccounts().map(account => (
                     <SelectItem key={account.id} value={account.id}>
                       {account.code} - {account.name}
