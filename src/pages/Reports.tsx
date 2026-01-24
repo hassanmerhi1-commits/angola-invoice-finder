@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { 
   BarChart3, Users, Truck, TrendingUp, Calendar, 
   FileText, Download, Printer, DollarSign, Clock,
-  Package, PieChart, ArrowUpRight, Scale, ArrowRightLeft
+  Package, PieChart, ArrowUpRight, Scale, ArrowRightLeft, History
 } from 'lucide-react';
 import ClientStatementReport from '@/components/reports/ClientStatementReport';
 import SupplierStatementReport from '@/components/reports/SupplierStatementReport';
@@ -18,6 +18,7 @@ import IncomeStatementReport from '@/components/reports/IncomeStatementReport';
 import BalanceSheetReport from '@/components/reports/BalanceSheetReport';
 import StockValuationReport from '@/components/reports/StockValuationReport';
 import StockMovementReport from '@/components/reports/StockMovementReport';
+import { TransactionHistoryReport } from '@/components/reports/TransactionHistoryReport';
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -120,6 +121,10 @@ export default function Reports() {
             <PieChart className="w-4 h-4 mr-2" />
             Rentabilidade
           </TabsTrigger>
+          <TabsTrigger value="transaction-history" className="text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+            <History className="w-4 h-4 mr-2" />
+            Histórico
+          </TabsTrigger>
         </TabsList>
 
         <div className="flex-1 overflow-auto py-4">
@@ -216,6 +221,10 @@ export default function Reports() {
 
           <TabsContent value="profitability" className="mt-0">
             <ProfitabilityReport />
+          </TabsContent>
+
+          <TabsContent value="transaction-history" className="mt-0">
+            <TransactionHistoryReport />
           </TabsContent>
         </div>
       </Tabs>
