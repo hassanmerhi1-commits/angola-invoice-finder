@@ -28,7 +28,7 @@ export default function DailyReports() {
     from: new Date(),
     to: new Date(),
   });
-  const [selectedBranch, setSelectedBranch] = useState<string>(currentBranch?.id || '');
+  const [selectedBranch, setSelectedBranch] = useState<string>(currentBranch?.id || 'all');
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const [closingBalance, setClosingBalance] = useState('');
@@ -46,7 +46,7 @@ export default function DailyReports() {
   // Filter reports by date range
   const filteredReports = reports.filter(r => {
     const reportDate = new Date(r.date);
-    const matchesBranch = !isMainOffice || !selectedBranch || r.branchId === selectedBranch;
+    const matchesBranch = !isMainOffice || selectedBranch === 'all' || r.branchId === selectedBranch;
     const matchesDateRange = dateRange?.from && dateRange?.to 
       ? reportDate >= dateRange.from && reportDate <= dateRange.to
       : true;
@@ -54,7 +54,7 @@ export default function DailyReports() {
   });
 
   const handleGenerateReport = () => {
-    const branchId = isMainOffice && selectedBranch ? selectedBranch : currentBranch?.id;
+    const branchId = isMainOffice && selectedBranch && selectedBranch !== 'all' ? selectedBranch : currentBranch?.id;
     const selectedDate = dateRange?.from ? dateRange.from.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     if (branchId) {
       generateReport(branchId, selectedDate);
@@ -209,7 +209,7 @@ export default function DailyReports() {
                     <SelectValue placeholder="Todas as filiais" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover">
-                    <SelectItem value="">Todas as filiais</SelectItem>
+                    <SelectItem value="all">Todas as filiais</SelectItem>
                     {branches.map(branch => (
                       <SelectItem key={branch.id} value={branch.id}>
                         {branch.name} {branch.isMain && '(Sede)'}
@@ -232,8 +232,8 @@ export default function DailyReports() {
                   openDetailReport(
                     startDate,
                     endDate,
-                    isMainOffice && selectedBranch ? selectedBranch : currentBranch?.id || '',
-                    isMainOffice && selectedBranch ? branches.find(b => b.id === selectedBranch)?.name || '' : currentBranch?.name || ''
+                    isMainOffice && selectedBranch && selectedBranch !== 'all' ? selectedBranch : currentBranch?.id || '',
+                    isMainOffice && selectedBranch && selectedBranch !== 'all' ? branches.find(b => b.id === selectedBranch)?.name || '' : currentBranch?.name || ''
                   );
                 }}
               >
