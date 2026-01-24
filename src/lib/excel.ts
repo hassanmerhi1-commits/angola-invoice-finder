@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { Product, Client, Supplier } from '@/types/erp';
+import { ColumnMapping } from '@/components/import/ColumnMappingDialog';
 
 // Generic export to Excel for any data
 export function exportToExcel(data: Record<string, unknown>[], filename: string) {
@@ -142,8 +143,8 @@ export function exportProductsToCSV(products: Product[], filename: string = 'pro
   URL.revokeObjectURL(url);
 }
 
-// Parse Excel file
-export async function parseExcelFile(file: File): Promise<ExcelProduct[]> {
+// Parse Excel file with optional custom column mapping
+export async function parseExcelFile(file: File, columnMappings?: ColumnMapping[]): Promise<ExcelProduct[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -155,22 +156,76 @@ export async function parseExcelFile(file: File): Promise<ExcelProduct[]> {
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet);
         
-        const products: ExcelProduct[] = jsonData.map((row: any) => ({
-          codigo: String(row['Código'] || row['codigo'] || row['SKU'] || row['sku'] || ''),
-          descricao: String(row['Descrição'] || row['descricao'] || row['Nome'] || row['nome'] || row['Produto'] || ''),
-          preco: parseFloat(row['Preço Venda'] || row['preco'] || row['Preço'] || row['Price'] || 0),
-          custo: parseFloat(row['Preço Custo'] || row['custo'] || row['Cost'] || 0),
-          quantidade: parseInt(row['Quantidade'] || row['quantidade'] || row['Stock'] || row['Qty'] || 0),
-          unidade: String(row['Unidade'] || row['unidade'] || row['Unit'] || 'UN'),
-          categoria: String(row['Categoria'] || row['categoria'] || row['Category'] || ''),
-          iva: parseFloat(row['IVA %'] || row['iva'] || row['IVA'] || row['Tax'] || 14),
-          codigoBarras: row['Código de Barras'] || row['codigo_barras'] || row['Barcode'] || '',
-          fornecedor: row['Fornecedor'] || row['fornecedor'] || row['Supplier'] || '',
-          qtdMinima: parseInt(row['Qtd Mínima'] || row['qtd_minima'] || row['Min Qty'] || 0),
-          localizacao: row['Localização'] || row['localizacao'] || row['Location'] || '',
-        }));
+        const products: ExcelProduct[] = jsonData.map((row: any) => {
+          // If custom mappings provided, use them
+          if (columnMappings && columnMappings.length > 0) {
+            const getMappedValue = (field: string) => {
+              const mapping = columnMappings.find(m => m.systemField === field);
+              return mapping?.excelColumn ? row[mapping.excelColumn] : undefined;
+            };
+            
+            return {
+              codigo: String(getMappedValue('codigo') || ''),
+              descricao: String(getMappedValue('descricao') || ''),
+              preco: parseFloat(getMappedValue('preco') || 0),
+              custo: parseFloat(getMappedValue('custo') || 0),
+              quantidade: parseInt(getMappedValue('quantidade') || 0),
+              unidade: String(getMappedValue('unidade') || 'UN'),
+              categoria: String(getMappedValue('categoria') || ''),
+              iva: parseFloat(getMappedValue('iva') || 14),
+              codigoBarras: getMappedValue('codigoBarras') || '',
+              fornecedor: getMappedValue('fornecedor') || '',
+              qtdMinima: parseInt(getMappedValue('qtdMinima') || 0),
+              localizacao: getMappedValue('localizacao') || '',
+            };
+          }
+          
+          // Default mapping with common column name patterns
+          return {
+            codigo: String(row['Código'] || row['codigo'] || row['SKU'] || row['sku'] || ''),
+            descricao: String(row['Descrição'] || row['descricao'] || row['Nome'] || row['nome'] || row['Produto'] || ''),
+            preco: parseFloat(row['Preço Venda'] || row['preco'] || row['Preço'] || row['Price'] || 0),
+            custo: parseFloat(row['Preço Custo'] || row['custo'] || row['Cost'] || 0),
+            quantidade: parseInt(row['Quantidade'] || row['quantidade'] || row['Stock'] || row['Qty'] || 0),
+            unidade: String(row['Unidade'] || row['unidade'] || row['Unit'] || 'UN'),
+            categoria: String(row['Categoria'] || row['categoria'] || row['Category'] || ''),
+            iva: parseFloat(row['IVA %'] || row['iva'] || row['IVA'] || row['Tax'] || 14),
+            codigoBarras: row['Código de Barras'] || row['codigo_barras'] || row['Barcode'] || '',
+            fornecedor: row['Fornecedor'] || row['fornecedor'] || row['Supplier'] || '',
+            qtdMinima: parseInt(row['Qtd Mínima'] || row['qtd_minima'] || row['Min Qty'] || 0),
+            localizacao: row['Localização'] || row['localizacao'] || row['Location'] || '',
+          };
+        });
         
         resolve(products);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// Get Excel file headers for column mapping
+export async function getExcelHeaders(file: File): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as string[][];
+        
+        if (jsonData.length > 0) {
+          const headers = jsonData[0].map(h => String(h || '').trim()).filter(Boolean);
+          resolve(headers);
+        } else {
+          resolve([]);
+        }
       } catch (error) {
         reject(error);
       }
@@ -257,7 +312,7 @@ export interface ExcelClient {
   limiteCredito?: number;
 }
 
-export async function parseClientsFromExcel(file: File): Promise<ExcelClient[]> {
+export async function parseClientsFromExcel(file: File, columnMappings?: ColumnMapping[]): Promise<ExcelClient[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -269,16 +324,38 @@ export async function parseClientsFromExcel(file: File): Promise<ExcelClient[]> 
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet);
         
-        const clients: ExcelClient[] = jsonData.map((row: any) => ({
-          nome: String(row['Nome'] || row['nome'] || row['Name'] || ''),
-          nif: String(row['NIF'] || row['nif'] || row['Nif'] || ''),
-          telefone: row['Telefone'] || row['telefone'] || row['Phone'] || '',
-          email: row['Email'] || row['email'] || '',
-          morada: row['Morada'] || row['morada'] || row['Endereço'] || row['Address'] || '',
-          cidade: row['Cidade'] || row['cidade'] || row['City'] || '',
-          pais: row['País'] || row['pais'] || row['Country'] || 'Angola',
-          limiteCredito: parseFloat(row['Limite Crédito'] || row['limite_credito'] || row['Credit Limit'] || 0),
-        }));
+        const clients: ExcelClient[] = jsonData.map((row: any) => {
+          // If custom mappings provided, use them
+          if (columnMappings && columnMappings.length > 0) {
+            const getMappedValue = (field: string) => {
+              const mapping = columnMappings.find(m => m.systemField === field);
+              return mapping?.excelColumn ? row[mapping.excelColumn] : undefined;
+            };
+            
+            return {
+              nome: String(getMappedValue('nome') || ''),
+              nif: String(getMappedValue('nif') || ''),
+              telefone: getMappedValue('telefone') || '',
+              email: getMappedValue('email') || '',
+              morada: getMappedValue('morada') || '',
+              cidade: getMappedValue('cidade') || '',
+              pais: getMappedValue('pais') || 'Angola',
+              limiteCredito: parseFloat(getMappedValue('limiteCredito') || 0),
+            };
+          }
+          
+          // Default mapping
+          return {
+            nome: String(row['Nome'] || row['nome'] || row['Name'] || ''),
+            nif: String(row['NIF'] || row['nif'] || row['Nif'] || ''),
+            telefone: row['Telefone'] || row['telefone'] || row['Phone'] || '',
+            email: row['Email'] || row['email'] || '',
+            morada: row['Morada'] || row['morada'] || row['Endereço'] || row['Address'] || '',
+            cidade: row['Cidade'] || row['cidade'] || row['City'] || '',
+            pais: row['País'] || row['pais'] || row['Country'] || 'Angola',
+            limiteCredito: parseFloat(row['Limite Crédito'] || row['limite_credito'] || row['Credit Limit'] || 0),
+          };
+        });
         
         resolve(clients);
       } catch (error) {
@@ -356,7 +433,7 @@ export interface ExcelSupplier {
   notas?: string;
 }
 
-export async function parseSuppliersFromExcel(file: File): Promise<ExcelSupplier[]> {
+export async function parseSuppliersFromExcel(file: File, columnMappings?: ColumnMapping[]): Promise<ExcelSupplier[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -368,18 +445,42 @@ export async function parseSuppliersFromExcel(file: File): Promise<ExcelSupplier
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet);
         
-        const suppliers: ExcelSupplier[] = jsonData.map((row: any) => ({
-          nome: String(row['Nome'] || row['nome'] || row['Name'] || ''),
-          nif: String(row['NIF'] || row['nif'] || row['Nif'] || ''),
-          pessoaContacto: row['Pessoa Contacto'] || row['pessoa_contacto'] || row['Contact Person'] || '',
-          telefone: row['Telefone'] || row['telefone'] || row['Phone'] || '',
-          email: row['Email'] || row['email'] || '',
-          morada: row['Morada'] || row['morada'] || row['Endereço'] || row['Address'] || '',
-          cidade: row['Cidade'] || row['cidade'] || row['City'] || '',
-          pais: row['País'] || row['pais'] || row['Country'] || 'Angola',
-          prazoPagamento: row['Prazo Pagamento'] || row['prazo_pagamento'] || row['Payment Terms'] || 'immediate',
-          notas: row['Notas'] || row['notas'] || row['Notes'] || '',
-        }));
+        const suppliers: ExcelSupplier[] = jsonData.map((row: any) => {
+          // If custom mappings provided, use them
+          if (columnMappings && columnMappings.length > 0) {
+            const getMappedValue = (field: string) => {
+              const mapping = columnMappings.find(m => m.systemField === field);
+              return mapping?.excelColumn ? row[mapping.excelColumn] : undefined;
+            };
+            
+            return {
+              nome: String(getMappedValue('nome') || ''),
+              nif: String(getMappedValue('nif') || ''),
+              pessoaContacto: getMappedValue('pessoaContacto') || '',
+              telefone: getMappedValue('telefone') || '',
+              email: getMappedValue('email') || '',
+              morada: getMappedValue('morada') || '',
+              cidade: getMappedValue('cidade') || '',
+              pais: getMappedValue('pais') || 'Angola',
+              prazoPagamento: getMappedValue('prazoPagamento') || 'immediate',
+              notas: getMappedValue('notas') || '',
+            };
+          }
+          
+          // Default mapping
+          return {
+            nome: String(row['Nome'] || row['nome'] || row['Name'] || ''),
+            nif: String(row['NIF'] || row['nif'] || row['Nif'] || ''),
+            pessoaContacto: row['Pessoa Contacto'] || row['pessoa_contacto'] || row['Contact Person'] || '',
+            telefone: row['Telefone'] || row['telefone'] || row['Phone'] || '',
+            email: row['Email'] || row['email'] || '',
+            morada: row['Morada'] || row['morada'] || row['Endereço'] || row['Address'] || '',
+            cidade: row['Cidade'] || row['cidade'] || row['City'] || '',
+            pais: row['País'] || row['pais'] || row['Country'] || 'Angola',
+            prazoPagamento: row['Prazo Pagamento'] || row['prazo_pagamento'] || row['Payment Terms'] || 'immediate',
+            notas: row['Notas'] || row['notas'] || row['Notes'] || '',
+          };
+        });
         
         resolve(suppliers);
       } catch (error) {

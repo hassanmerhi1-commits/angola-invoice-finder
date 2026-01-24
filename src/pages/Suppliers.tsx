@@ -582,6 +582,7 @@ export default function Suppliers() {
         duplicateKey="nif"
         existingKeys={existingNifs}
         duplicateLabel="NIF"
+        mappingType="suppliers"
       />
     </div>
   );
