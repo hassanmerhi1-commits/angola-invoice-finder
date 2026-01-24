@@ -235,11 +235,211 @@ export function validateImportedProducts(products: ExcelProduct[]): {
     }
 
     if (rowErrors.length > 0) {
-      errors.push({ row: index + 2, errors: rowErrors }); // +2 for header + 1-indexed
+      errors.push({ row: index + 2, errors: rowErrors });
     } else {
       valid.push(product);
     }
   });
 
   return { valid, errors };
+}
+
+// ============ CLIENT IMPORT ============
+
+export interface ExcelClient {
+  nome: string;
+  nif: string;
+  telefone?: string;
+  email?: string;
+  morada?: string;
+  cidade?: string;
+  pais?: string;
+  limiteCredito?: number;
+}
+
+export async function parseClientsFromExcel(file: File): Promise<ExcelClient[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        
+        const clients: ExcelClient[] = jsonData.map((row: any) => ({
+          nome: String(row['Nome'] || row['nome'] || row['Name'] || ''),
+          nif: String(row['NIF'] || row['nif'] || row['Nif'] || ''),
+          telefone: row['Telefone'] || row['telefone'] || row['Phone'] || '',
+          email: row['Email'] || row['email'] || '',
+          morada: row['Morada'] || row['morada'] || row['Endereço'] || row['Address'] || '',
+          cidade: row['Cidade'] || row['cidade'] || row['City'] || '',
+          pais: row['País'] || row['pais'] || row['Country'] || 'Angola',
+          limiteCredito: parseFloat(row['Limite Crédito'] || row['limite_credito'] || row['Credit Limit'] || 0),
+        }));
+        
+        resolve(clients);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    
+    reader.onerror = () => reject(new Error('Falha ao ler ficheiro'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+export function validateImportedClients(clients: ExcelClient[]): {
+  valid: ExcelClient[];
+  errors: { row: number; errors: string[] }[];
+} {
+  const valid: ExcelClient[] = [];
+  const errors: { row: number; errors: string[] }[] = [];
+
+  clients.forEach((client, index) => {
+    const rowErrors: string[] = [];
+    
+    if (!client.nome) {
+      rowErrors.push('Nome é obrigatório');
+    }
+    if (!client.nif) {
+      rowErrors.push('NIF é obrigatório');
+    } else if (client.nif.length < 9) {
+      rowErrors.push('NIF deve ter pelo menos 9 caracteres');
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push({ row: index + 2, errors: rowErrors });
+    } else {
+      valid.push(client);
+    }
+  });
+
+  return { valid, errors };
+}
+
+export function downloadClientImportTemplate() {
+  const templateData = [
+    {
+      'Nome': 'Cliente Exemplo Lda',
+      'NIF': '5000123456',
+      'Telefone': '+244 923 456 789',
+      'Email': 'cliente@exemplo.ao',
+      'Morada': 'Rua Principal, 123',
+      'Cidade': 'Luanda',
+      'País': 'Angola',
+      'Limite Crédito': 500000,
+    }
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(templateData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  
+  XLSX.writeFile(wb, 'template_importacao_clientes.xlsx');
+}
+
+// ============ SUPPLIER IMPORT ============
+
+export interface ExcelSupplier {
+  nome: string;
+  nif: string;
+  pessoaContacto?: string;
+  telefone?: string;
+  email?: string;
+  morada?: string;
+  cidade?: string;
+  pais?: string;
+  prazoPagamento?: string;
+  notas?: string;
+}
+
+export async function parseSuppliersFromExcel(file: File): Promise<ExcelSupplier[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        
+        const suppliers: ExcelSupplier[] = jsonData.map((row: any) => ({
+          nome: String(row['Nome'] || row['nome'] || row['Name'] || ''),
+          nif: String(row['NIF'] || row['nif'] || row['Nif'] || ''),
+          pessoaContacto: row['Pessoa Contacto'] || row['pessoa_contacto'] || row['Contact Person'] || '',
+          telefone: row['Telefone'] || row['telefone'] || row['Phone'] || '',
+          email: row['Email'] || row['email'] || '',
+          morada: row['Morada'] || row['morada'] || row['Endereço'] || row['Address'] || '',
+          cidade: row['Cidade'] || row['cidade'] || row['City'] || '',
+          pais: row['País'] || row['pais'] || row['Country'] || 'Angola',
+          prazoPagamento: row['Prazo Pagamento'] || row['prazo_pagamento'] || row['Payment Terms'] || 'immediate',
+          notas: row['Notas'] || row['notas'] || row['Notes'] || '',
+        }));
+        
+        resolve(suppliers);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    
+    reader.onerror = () => reject(new Error('Falha ao ler ficheiro'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+export function validateImportedSuppliers(suppliers: ExcelSupplier[]): {
+  valid: ExcelSupplier[];
+  errors: { row: number; errors: string[] }[];
+} {
+  const valid: ExcelSupplier[] = [];
+  const errors: { row: number; errors: string[] }[] = [];
+
+  suppliers.forEach((supplier, index) => {
+    const rowErrors: string[] = [];
+    
+    if (!supplier.nome) {
+      rowErrors.push('Nome é obrigatório');
+    }
+    if (!supplier.nif) {
+      rowErrors.push('NIF é obrigatório');
+    } else if (supplier.nif.length < 9) {
+      rowErrors.push('NIF deve ter pelo menos 9 caracteres');
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push({ row: index + 2, errors: rowErrors });
+    } else {
+      valid.push(supplier);
+    }
+  });
+
+  return { valid, errors };
+}
+
+export function downloadSupplierImportTemplate() {
+  const templateData = [
+    {
+      'Nome': 'Fornecedor Exemplo Lda',
+      'NIF': '5000123456',
+      'Pessoa Contacto': 'João Silva',
+      'Telefone': '+244 923 456 789',
+      'Email': 'fornecedor@exemplo.ao',
+      'Morada': 'Rua Principal, 123',
+      'Cidade': 'Luanda',
+      'País': 'Angola',
+      'Prazo Pagamento': '30_days',
+      'Notas': 'Observações adicionais',
+    }
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(templateData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  
+  XLSX.writeFile(wb, 'template_importacao_fornecedores.xlsx');
 }

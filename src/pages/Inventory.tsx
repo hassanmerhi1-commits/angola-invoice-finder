@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useProducts } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Product } from '@/types/erp';
@@ -20,12 +20,14 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
-  Download
+  Download,
+  Upload
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { BranchSelector } from '@/components/BranchSelector';
-import { exportProductsToExcel } from '@/lib/excel';
+import { exportProductsToExcel, parseExcelFile, validateImportedProducts, downloadImportTemplate, ExcelProduct } from '@/lib/excel';
+import { ExcelImportDialog } from '@/components/import/ExcelImportDialog';
 import { toast } from 'sonner';
 
 export default function Inventory() {
@@ -33,6 +35,7 @@ export default function Inventory() {
   const { products, refreshProducts, updateProduct, addProduct, deleteProduct } = useProducts(currentBranch?.id);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
 
   // Check if current branch is a filial (not main office)
@@ -61,6 +64,41 @@ export default function Inventory() {
       setDialogOpen(true);
     }
   };
+
+  const handleImportProducts = (data: ExcelProduct[]) => {
+    let imported = 0;
+    data.forEach((item) => {
+      addProduct({
+        id: crypto.randomUUID(),
+        sku: item.codigo,
+        name: item.descricao,
+        barcode: item.codigoBarras || '',
+        category: item.categoria || 'GERAL',
+        price: item.preco,
+        cost: item.custo,
+        firstCost: item.custo,
+        lastCost: item.custo,
+        avgCost: item.custo,
+        stock: item.quantidade,
+        unit: item.unidade || 'UN',
+        taxRate: item.iva || 14,
+        isActive: true,
+        branchId: currentBranch?.id || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      imported++;
+    });
+    toast.success(`${imported} produtos importados com sucesso`);
+  };
+
+  const productImportColumns: { key: keyof ExcelProduct; label: string }[] = [
+    { key: 'codigo', label: 'Código' },
+    { key: 'descricao', label: 'Descrição' },
+    { key: 'preco', label: 'Preço' },
+    { key: 'quantidade', label: 'Qtd' },
+    { key: 'categoria', label: 'Categoria' },
+  ];
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -115,6 +153,15 @@ export default function Inventory() {
         </Button>
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
           Ajustar Entrada
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1"
+          onClick={() => setImportDialogOpen(true)}
+        >
+          <Upload className="w-3 h-3" />
+          Importar Excel
         </Button>
         <Button 
           variant="outline" 
@@ -371,6 +418,19 @@ export default function Inventory() {
         onOpenChange={setDialogOpen}
         product={selectedProduct}
         onSave={handleSaveProduct}
+      />
+
+      {/* Excel Import Dialog */}
+      <ExcelImportDialog<ExcelProduct>
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        title="Importar Produtos"
+        description="Importe produtos a partir de um ficheiro Excel ou CSV"
+        parseFile={parseExcelFile}
+        validateData={validateImportedProducts}
+        onImport={handleImportProducts}
+        downloadTemplate={downloadImportTemplate}
+        columns={productImportColumns}
       />
     </div>
   );
