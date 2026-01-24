@@ -22,6 +22,7 @@ import {
   FileEdit,
   Receipt,
   Landmark,
+  Wallet,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -45,6 +46,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { icon: Calendar, label: t.nav.dailyReports, path: '/daily-reports' },
     { icon: ArrowRightLeft, label: t.stockTransfer.title, path: '/stock-transfer' },
     { icon: Users, label: t.nav.clients, path: '/clients' },
+    { icon: Wallet, label: 'Caixa', path: '/caixa' },
     { icon: Receipt, label: 'Despesas', path: '/expenses' },
     { icon: Landmark, label: 'Contas Bancárias', path: '/bank-accounts' },
     { icon: Upload, label: t.nav.dataSync, path: '/data-sync' },
