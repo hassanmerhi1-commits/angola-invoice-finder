@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useBranchContext } from '@/contexts/BranchContext';
-import { useSales, useProducts } from '@/hooks/useERP';
+import { useSales, useProducts, useCategories } from '@/hooks/useERP';
 import { Sale, SaleItem, Product } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Printer, FileDown, Eye, TrendingUp, DollarSign, Package } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Printer, FileDown, Eye, TrendingUp, DollarSign, Package, Filter, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 
@@ -33,6 +40,7 @@ interface SaleItemDetail extends SaleItem {
   profitMargin: number;
   subtotalWithoutIVA: number;
   ivaAmount: number;
+  category?: string;
 }
 
 interface DailySalesDetailReportProps {
@@ -55,7 +63,14 @@ export function DailySalesDetailReport({
   const { currentBranch } = useBranchContext();
   const { sales } = useSales(branchId || currentBranch?.id);
   const { products } = useProducts(branchId || currentBranch?.id);
+  const { categories } = useCategories();
   const printRef = useRef<HTMLDivElement>(null);
+  
+  // Filter states
+  const [ivaFilter, setIvaFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [skuFilter, setSkuFilter] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
 
   const isDateRange = startDate !== endDate;
 
@@ -65,72 +80,126 @@ export function DailySalesDetailReport({
     return saleDate >= startDate && saleDate <= endDate;
   });
 
-  // Create product cost lookup
+  // Create product lookups
   const productCostMap = new Map<string, number>();
+  const productCategoryMap = new Map<string, string>();
   products.forEach(p => {
     productCostMap.set(p.id, p.avgCost || p.cost || 0);
+    productCategoryMap.set(p.id, p.category || 'GERAL');
   });
 
-  // Process all sale items with cost and profit calculations
-  const processedItems: SaleItemDetail[] = [];
-  daySales.forEach(sale => {
-    sale.items.forEach(item => {
-      const cost = productCostMap.get(item.productId) || 0;
-      const totalCost = cost * item.quantity;
-      const subtotalWithoutIVA = item.subtotal / (1 + item.taxRate / 100);
-      const ivaAmount = item.subtotal - subtotalWithoutIVA;
-      const profit = subtotalWithoutIVA - totalCost;
-      const profitMargin = subtotalWithoutIVA > 0 ? (profit / subtotalWithoutIVA) * 100 : 0;
+  // Get unique IVA rates from sales
+  const uniqueIvaRates = useMemo(() => {
+    const rates = new Set<number>();
+    daySales.forEach(sale => {
+      sale.items.forEach(item => rates.add(item.taxRate));
+    });
+    return Array.from(rates).sort((a, b) => a - b);
+  }, [daySales]);
 
-      processedItems.push({
-        ...item,
-        cost: totalCost,
-        profit,
-        profitMargin,
-        subtotalWithoutIVA,
-        ivaAmount,
+  // Get unique categories from products in sales
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set<string>();
+    daySales.forEach(sale => {
+      sale.items.forEach(item => {
+        const cat = productCategoryMap.get(item.productId);
+        if (cat) cats.add(cat);
       });
     });
-  });
+    return Array.from(cats).sort();
+  }, [daySales, productCategoryMap]);
 
-  // Aggregate by product
-  const aggregatedByProduct = new Map<string, {
-    sku: string;
-    productName: string;
-    quantity: number;
-    unitPrice: number;
-    cost: number;
-    subtotalWithoutIVA: number;
-    ivaAmount: number;
-    subtotalWithIVA: number;
-    profit: number;
-    taxRate: number;
-  }>();
+  // Process all sale items with cost and profit calculations
+  const processedItems: SaleItemDetail[] = useMemo(() => {
+    const items: SaleItemDetail[] = [];
+    daySales.forEach(sale => {
+      sale.items.forEach(item => {
+        const cost = productCostMap.get(item.productId) || 0;
+        const totalCost = cost * item.quantity;
+        const subtotalWithoutIVA = item.subtotal / (1 + item.taxRate / 100);
+        const ivaAmount = item.subtotal - subtotalWithoutIVA;
+        const profit = subtotalWithoutIVA - totalCost;
+        const profitMargin = subtotalWithoutIVA > 0 ? (profit / subtotalWithoutIVA) * 100 : 0;
+        const category = productCategoryMap.get(item.productId) || 'GERAL';
 
-  processedItems.forEach(item => {
-    const existing = aggregatedByProduct.get(item.productId);
-    if (existing) {
-      existing.quantity += item.quantity;
-      existing.cost += item.cost;
-      existing.subtotalWithoutIVA += item.subtotalWithoutIVA;
-      existing.ivaAmount += item.ivaAmount;
-      existing.subtotalWithIVA += item.subtotal;
-      existing.profit += item.profit;
-    } else {
-      aggregatedByProduct.set(item.productId, {
-        sku: item.sku,
-        productName: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        cost: item.cost,
-        subtotalWithoutIVA: item.subtotalWithoutIVA,
-        ivaAmount: item.ivaAmount,
-        subtotalWithIVA: item.subtotal,
-        profit: item.profit,
-        taxRate: item.taxRate,
+        items.push({
+          ...item,
+          cost: totalCost,
+          profit,
+          profitMargin,
+          subtotalWithoutIVA,
+          ivaAmount,
+          category,
+        });
       });
-    }
-  });
+    });
+    return items;
+  }, [daySales, productCostMap, productCategoryMap]);
+
+  // Apply filters to processed items
+  const filteredItems = useMemo(() => {
+    return processedItems.filter(item => {
+      // IVA filter
+      if (ivaFilter !== 'all' && item.taxRate !== parseFloat(ivaFilter)) {
+        return false;
+      }
+      // Category filter
+      if (categoryFilter !== 'all' && item.category !== categoryFilter) {
+        return false;
+      }
+      // SKU filter
+      if (skuFilter && !item.sku.toLowerCase().includes(skuFilter.toLowerCase()) && 
+          !item.productName.toLowerCase().includes(skuFilter.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+  }, [processedItems, ivaFilter, categoryFilter, skuFilter]);
+
+  // Aggregate filtered items by product
+  const aggregatedByProduct = useMemo(() => {
+    const aggregated = new Map<string, {
+      sku: string;
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      cost: number;
+      subtotalWithoutIVA: number;
+      ivaAmount: number;
+      subtotalWithIVA: number;
+      profit: number;
+      taxRate: number;
+      category: string;
+    }>();
+
+    filteredItems.forEach(item => {
+      const existing = aggregated.get(item.productId);
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.cost += item.cost;
+        existing.subtotalWithoutIVA += item.subtotalWithoutIVA;
+        existing.ivaAmount += item.ivaAmount;
+        existing.subtotalWithIVA += item.subtotal;
+        existing.profit += item.profit;
+      } else {
+        aggregated.set(item.productId, {
+          sku: item.sku,
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          cost: item.cost,
+          subtotalWithoutIVA: item.subtotalWithoutIVA,
+          ivaAmount: item.ivaAmount,
+          subtotalWithIVA: item.subtotal,
+          profit: item.profit,
+          taxRate: item.taxRate,
+          category: item.category || 'GERAL',
+        });
+      }
+    });
+
+    return aggregated;
+  }, [filteredItems]);
 
   const aggregatedItems = Array.from(aggregatedByProduct.values()).sort((a, b) => 
     b.subtotalWithIVA - a.subtotalWithIVA
@@ -263,6 +332,14 @@ export function DailySalesDetailReport({
     handlePrint();
   };
 
+  const hasActiveFilters = ivaFilter !== 'all' || categoryFilter !== 'all' || skuFilter !== '';
+
+  const clearFilters = () => {
+    setIvaFilter('all');
+    setCategoryFilter('all');
+    setSkuFilter('');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
@@ -270,6 +347,17 @@ export function DailySalesDetailReport({
           <DialogTitle className="flex items-center justify-between">
             <span>Relatório Detalhado de Vendas</span>
             <div className="flex gap-2">
+              <Button 
+                variant={showFilters ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Filter className="w-4 h-4 mr-2" />
+                Filtros
+                {hasActiveFilters && <Badge variant="secondary" className="ml-1 text-xs">{
+                  [ivaFilter !== 'all', categoryFilter !== 'all', skuFilter !== ''].filter(Boolean).length
+                }</Badge>}
+              </Button>
               <Button variant="outline" size="sm" onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-2" />
                 Imprimir
@@ -281,6 +369,110 @@ export function DailySalesDetailReport({
             </div>
           </DialogTitle>
         </DialogHeader>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Filter className="w-4 h-4" />
+                  Filtros
+                </span>
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    <X className="w-4 h-4 mr-1" />
+                    Limpar
+                  </Button>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* IVA Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="iva-filter">Taxa IVA</Label>
+                  <Select value={ivaFilter} onValueChange={setIvaFilter}>
+                    <SelectTrigger id="iva-filter">
+                      <SelectValue placeholder="Todas as taxas" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="all">Todas as taxas</SelectItem>
+                      {uniqueIvaRates.map(rate => (
+                        <SelectItem key={rate} value={String(rate)}>
+                          {rate}% IVA
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Category Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="category-filter">Categoria / Família</Label>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger id="category-filter">
+                      <SelectValue placeholder="Todas as categorias" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="all">Todas as categorias</SelectItem>
+                      {uniqueCategories.map(cat => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* SKU/Product Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="sku-filter">Código / Produto</Label>
+                  <Input
+                    id="sku-filter"
+                    placeholder="Pesquisar por código ou nome..."
+                    value={skuFilter}
+                    onChange={(e) => setSkuFilter(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Active Filters Summary */}
+              {hasActiveFilters && (
+                <div className="mt-4 pt-3 border-t flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-muted-foreground">Filtros activos:</span>
+                  {ivaFilter !== 'all' && (
+                    <Badge variant="secondary" className="gap-1">
+                      IVA: {ivaFilter}%
+                      <button onClick={() => setIvaFilter('all')}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {categoryFilter !== 'all' && (
+                    <Badge variant="secondary" className="gap-1">
+                      {categoryFilter}
+                      <button onClick={() => setCategoryFilter('all')}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {skuFilter && (
+                    <Badge variant="secondary" className="gap-1">
+                      "{skuFilter}"
+                      <button onClick={() => setSkuFilter('')}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  <span className="text-sm text-muted-foreground ml-auto">
+                    {aggregatedItems.length} produtos encontrados
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <div ref={printRef}>
           {/* Header */}
@@ -300,6 +492,15 @@ export function DailySalesDetailReport({
             <p className="text-muted-foreground">
               Filial: {branchName || currentBranch?.name || 'Todas'}
             </p>
+            {hasActiveFilters && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Filtros: {[
+                  ivaFilter !== 'all' && `IVA ${ivaFilter}%`,
+                  categoryFilter !== 'all' && categoryFilter,
+                  skuFilter && `"${skuFilter}"`,
+                ].filter(Boolean).join(', ')}
+              </p>
+            )}
           </div>
 
           {/* Summary Cards */}

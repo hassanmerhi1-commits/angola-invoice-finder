@@ -18,6 +18,7 @@ import { PrinterSettingsDialog } from './PrinterSettingsDialog';
 import { AGTQRCode } from '@/components/invoice/AGTQRCode';
 import { getInvoiceHash } from '@/lib/agtQRCode';
 import { printA4Invoice } from '@/lib/a4Invoice';
+import { getCompanySettings } from '@/lib/companySettings';
 import { toast } from 'sonner';
 
 interface ReceiptDialogProps {
@@ -37,6 +38,7 @@ export function ReceiptDialog({
 }: ReceiptDialogProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const company = getCompanySettings();
 
   if (!sale || !branch) return null;
 
@@ -110,7 +112,7 @@ export function ReceiptDialog({
             <h3 className="font-bold text-sm">{branch.name}</h3>
             <p>{branch.address}</p>
             <p>Tel: {branch.phone}</p>
-            <p className="text-[10px]">NIF: 5000000000</p>
+            <p className="text-[10px]">NIF: {company.nif}</p>
           </div>
 
           <Separator className="border-dashed" />

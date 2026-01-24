@@ -6,6 +6,7 @@
 
 import { Sale, Branch } from '@/types/erp';
 import { buildAGTQRCodeString, saleToAGTQRData, getInvoiceHash } from './agtQRCode';
+import { getCompanySettings } from './companySettings';
 
 // Printer configuration
 export interface PrinterConfig {
@@ -66,6 +67,7 @@ export function generateReceiptText(
   branch: Branch,
   config: PrinterConfig = DEFAULT_PRINTER_CONFIG
 ): string {
+  const company = getCompanySettings();
   const width = config.paperWidth === 80 ? 48 : 32;
   const divider = '-'.repeat(width);
   const doubleDivider = '='.repeat(width);
@@ -86,11 +88,11 @@ export function generateReceiptText(
   
   const lines: string[] = [];
   
-  // Header
+  // Header - Use branch info for multi-branch display
   lines.push(center(branch.name.toUpperCase()));
   lines.push(center(branch.address || ''));
   lines.push(center('Tel: ' + (branch.phone || '')));
-  lines.push(center('NIF: 5000000000'));
+  lines.push(center('NIF: ' + company.nif));
   lines.push('');
   lines.push(divider);
   
@@ -168,6 +170,7 @@ export function generateESCPOSReceipt(
   branch: Branch,
   config: PrinterConfig = DEFAULT_PRINTER_CONFIG
 ): Uint8Array {
+  const company = getCompanySettings();
   const encoder = new TextEncoder();
   const commands: number[] = [];
   
@@ -186,7 +189,7 @@ export function generateESCPOSReceipt(
   addCommand(ESC_POS.INIT);
   addCommand(ESC_POS.ALIGN_CENTER);
   
-  // Header - Bold and larger
+  // Header - Bold and larger with branch info
   addCommand(ESC_POS.BOLD_ON);
   addCommand(ESC_POS.DOUBLE_SIZE_ON);
   addText(branch.name.toUpperCase() + '\n');
@@ -195,7 +198,7 @@ export function generateESCPOSReceipt(
   
   addText((branch.address || '') + '\n');
   addText('Tel: ' + (branch.phone || '') + '\n');
-  addText('NIF: 5000000000\n\n');
+  addText('NIF: ' + company.nif + '\n\n');
   
   // Invoice number
   addCommand(ESC_POS.BOLD_ON);
@@ -306,6 +309,9 @@ export async function printViaBrowser(
   // Pre-generate QR code as data URL to avoid CDN delays
   const { generateAGTQRCodeDataURL } = await import('./agtQRCode');
   const qrCodeDataURL = await generateAGTQRCodeDataURL(sale, branch, { size: 100, margin: 1 });
+  
+  // Get company settings for NIF
+  const company = getCompanySettings();
 
   // Create a new window for printing
   const printWindow = window.open('', '_blank', 'width=400,height=600');
@@ -385,7 +391,7 @@ export async function printViaBrowser(
   <div class="center bold large">${branch.name.toUpperCase()}</div>
   <div class="center small">${branch.address || ''}</div>
   <div class="center small">Tel: ${branch.phone || ''}</div>
-  <div class="center small">NIF: 5000000000</div>
+  <div class="center small">NIF: ${company.nif}</div>
   
   <div class="divider"></div>
   
