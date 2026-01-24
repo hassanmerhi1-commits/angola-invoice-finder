@@ -29,9 +29,41 @@ export function useDatabaseStatus() {
       // Check if running in Electron
       const isElectron = !!window.electronAPI?.isElectron;
       
-      // Get stored config
-      const setupComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
-      const isServerMode = localStorage.getItem('kwanza_is_server') === 'true';
+      // First check Electron persistent storage for setup config
+      let setupComplete = false;
+      let isServerMode = false;
+      let serverConfig: any = null;
+      let clientConfig: any = null;
+      
+      if (isElectron && window.electronAPI?.setup?.getConfig) {
+        try {
+          const result = await window.electronAPI.setup.getConfig();
+          if (result.success && result.config) {
+            setupComplete = result.config.setupComplete;
+            isServerMode = result.config.role === 'server';
+            serverConfig = result.config.serverConfig;
+            clientConfig = result.config.clientConfig;
+          }
+        } catch (e) {
+          console.error('[DatabaseStatus] Failed to get Electron config:', e);
+        }
+      }
+      
+      // Fallback to localStorage
+      if (!setupComplete) {
+        setupComplete = localStorage.getItem('kwanza_setup_complete') === 'true';
+        isServerMode = localStorage.getItem('kwanza_is_server') === 'true';
+        
+        const storedServerConfig = localStorage.getItem('kwanza_server_config');
+        const storedClientConfig = localStorage.getItem('kwanza_client_config');
+        
+        if (storedServerConfig) {
+          try { serverConfig = JSON.parse(storedServerConfig); } catch {}
+        }
+        if (storedClientConfig) {
+          try { clientConfig = JSON.parse(storedClientConfig); } catch {}
+        }
+      }
       
       if (!setupComplete) {
         setStatus({
@@ -48,11 +80,10 @@ export function useDatabaseStatus() {
 
       if (isServerMode) {
         // Server mode - check SQLite database
-        const serverConfig = localStorage.getItem('kwanza_server_config');
-        const config = serverConfig ? JSON.parse(serverConfig) : null;
-        
-        let dbPath = config?.databasePath || null;
+        let dbPath = serverConfig?.databasePath || null;
         let connected = false;
+        const serverIp = serverConfig?.serverIp || null;
+        const serverPort = serverConfig?.serverPort || 3000;
         
         if (isElectron && window.electronAPI?.database?.getPath) {
           try {
@@ -72,18 +103,15 @@ export function useDatabaseStatus() {
           isConnected: connected,
           isServer: true,
           databasePath: dbPath,
-          serverIp: config?.serverIp || null,
-          serverPort: config?.serverPort || 3000,
+          serverIp,
+          serverPort,
           mode: 'server',
           lastChecked: new Date(),
         });
       } else {
         // Client mode - check connection to server
-        const clientConfig = localStorage.getItem('kwanza_client_config');
-        const config = clientConfig ? JSON.parse(clientConfig) : null;
-        
-        const serverIp = config?.serverIp || localStorage.getItem('kwanza_api_url')?.replace('http://', '').split(':')[0];
-        const serverPort = config?.serverPort || 3000;
+        const serverIp = clientConfig?.serverIp || localStorage.getItem('kwanza_api_url')?.replace('http://', '').split(':')[0];
+        const serverPort = clientConfig?.serverPort || 3000;
         
         let connected = false;
         
