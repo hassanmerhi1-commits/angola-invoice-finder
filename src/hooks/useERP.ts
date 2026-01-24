@@ -1,7 +1,7 @@
 // ERP Hooks - Core business logic
 // Supports both: Local Network (API + WebSocket) and Demo Mode (localStorage)
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, PurchaseOrderItem, Category } from '@/types/erp';
 import { api, setAuthToken } from '@/lib/api/client';
 import { isLocalNetworkMode } from '@/lib/api/config';
@@ -359,6 +359,34 @@ export function useSales(branchId?: string) {
 // If not present the session is treated as "fresh" (not yet logged in).
 const SESSION_TOKEN_KEY = 'kwanzaerp_window_session';
 
+// -------------------------------------------------
+// Auth store (singleton)
+// Prevents multiple `useAuth()` consumers from having divergent state,
+// which can cause header "blink" + redirect loops.
+// -------------------------------------------------
+type AuthState = {
+  user: User | null;
+  isLoading: boolean;
+};
+
+let authState: AuthState = { user: null, isLoading: true };
+let authInitialized = false;
+const authListeners = new Set<() => void>();
+
+function setAuthState(patch: Partial<AuthState>) {
+  authState = { ...authState, ...patch };
+  authListeners.forEach((l) => l());
+}
+
+function subscribeAuth(listener: () => void) {
+  authListeners.add(listener);
+  return () => authListeners.delete(listener);
+}
+
+function getAuthSnapshot() {
+  return authState;
+}
+
 // Generate a new token once per main.tsx mount and store it
 function initWindowSession() {
   // If running in Electron a token is injected per window; otherwise use sessionStorage
@@ -373,32 +401,35 @@ function initWindowSession() {
 
 initWindowSession();
 
-export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+function initAuthStateOnce() {
+  if (authInitialized) return;
+  authInitialized = true;
 
-  useEffect(() => {
-    // Each window starts without a logged-in user because initWindowSession()
-    // already cleared the session above. However we still read current user
-    // in case it was restored during this same session (i.e. after a login).
-    const currentUser = storage.getCurrentUser();
+  // Each window starts without a logged-in user because initWindowSession()
+  // may clear persisted login for security. Still, we read current user in
+  // case it was restored during this same session (i.e. after a login).
+  const currentUser = storage.getCurrentUser();
 
-    if (currentUser && currentUser.id && currentUser.email) {
-      // Verify user still exists in users list
-      const users = storage.getUsers();
-      const validUser = users.find(u => u.id === currentUser.id && u.isActive);
+  if (currentUser && currentUser.id && currentUser.email) {
+    const users = storage.getUsers();
+    const validUser = users.find((u) => u.id === currentUser.id && u.isActive);
 
-      if (validUser) {
-        setUser(currentUser);
-      } else {
-        storage.setCurrentUser(null);
-        setUser(null);
-      }
-    } else {
-      setUser(null);
+    if (validUser) {
+      setAuthState({ user: currentUser, isLoading: false });
+      return;
     }
 
-    setIsLoading(false);
+    storage.setCurrentUser(null);
+  }
+
+  setAuthState({ user: null, isLoading: false });
+}
+
+export function useAuth() {
+  const snapshot = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getAuthSnapshot);
+
+  useEffect(() => {
+    initAuthStateOnce();
   }, []);
 
   const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
@@ -406,42 +437,40 @@ export function useAuth() {
     const maybeEmail = normalized.includes('@') ? normalized : `${normalized}@kwanzaerp.ao`;
 
     if (isLocalNetworkMode()) {
-      // Network mode expects an email. We allow typing a username and
-      // automatically expand it to our default domain.
       const res = await api.auth.login(maybeEmail, password);
       if (res.data) {
         setAuthToken(res.data.token);
-        const user = mapUserFromDb(res.data.user);
-        storage.setCurrentUser(user);
-        setUser(user);
-        return true;
-      }
-      return false;
-    } else {
-      // Demo mode: allow login by username or email (password is ignored).
-      const users = storage.getUsers();
-      const foundUser = users.find(
-        (u) =>
-          u.isActive &&
-          (u.username === normalized || u.email === normalized || u.email === maybeEmail)
-      );
-
-      if (foundUser) {
-        storage.setCurrentUser(foundUser);
-        setUser(foundUser);
+        const nextUser = mapUserFromDb(res.data.user);
+        storage.setCurrentUser(nextUser);
+        setAuthState({ user: nextUser });
         return true;
       }
       return false;
     }
+
+    // Demo mode: allow login by username or email (password is ignored).
+    const users = storage.getUsers();
+    const foundUser = users.find(
+      (u) =>
+        u.isActive &&
+        (u.username === normalized || u.email === normalized || u.email === maybeEmail)
+    );
+
+    if (foundUser) {
+      storage.setCurrentUser(foundUser);
+      setAuthState({ user: foundUser });
+      return true;
+    }
+    return false;
   }, []);
 
   const logout = useCallback(() => {
     setAuthToken(null);
     storage.setCurrentUser(null);
-    setUser(null);
+    setAuthState({ user: null });
   }, []);
 
-  return { user, isLoading, login, logout };
+  return { user: snapshot.user, isLoading: snapshot.isLoading, login, logout };
 }
 
 // ============================================
