@@ -53,6 +53,11 @@ import { useUsers } from '@/hooks/useUsers';
 
 const ITEMS_PER_PAGE = 50;
 
+// Radix Select forbids empty string values for SelectItem.
+// We keep '' in state to preserve existing "no filter" behavior,
+// and map a non-empty sentinel value back to '' when selected.
+const ALL_SELECT_VALUE = '__all__';
+
 // Category icons
 const CATEGORY_ICONS: Record<TransactionCategory, React.ReactNode> = {
   sales: <ShoppingCart className="w-4 h-4" />,
@@ -255,12 +260,15 @@ export function TransactionHistoryReport() {
               {/* User Select */}
               <div className="space-y-2">
                 <Label>Utilizador</Label>
-                <Select value={selectedUser} onValueChange={setSelectedUser}>
+                <Select
+                  value={selectedUser}
+                  onValueChange={(v) => setSelectedUser(v === ALL_SELECT_VALUE ? '' : v)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os utilizadores" />
                   </SelectTrigger>
                   <SelectContent className="bg-background border shadow-lg z-50">
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value={ALL_SELECT_VALUE}>Todos</SelectItem>
                     {users.map(user => (
                       <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
                     ))}
@@ -271,12 +279,15 @@ export function TransactionHistoryReport() {
               {/* Branch Select */}
               <div className="space-y-2">
                 <Label>Filial</Label>
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                <Select
+                  value={selectedBranch}
+                  onValueChange={(v) => setSelectedBranch(v === ALL_SELECT_VALUE ? '' : v)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Todas as filiais" />
                   </SelectTrigger>
                   <SelectContent className="bg-background border shadow-lg z-50">
-                    <SelectItem value="">Todas</SelectItem>
+                    <SelectItem value={ALL_SELECT_VALUE}>Todas</SelectItem>
                     {branches.map(branch => (
                       <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
                     ))}
@@ -287,12 +298,15 @@ export function TransactionHistoryReport() {
               {/* Category Select */}
               <div className="space-y-2">
                 <Label>Categoria</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <Select
+                  value={selectedCategory}
+                  onValueChange={(v) => setSelectedCategory(v === ALL_SELECT_VALUE ? '' : v)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Todas as categorias" />
                   </SelectTrigger>
                   <SelectContent className="bg-background border shadow-lg z-50">
-                    <SelectItem value="">Todas</SelectItem>
+                    <SelectItem value={ALL_SELECT_VALUE}>Todas</SelectItem>
                     {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
                       <SelectItem key={key} value={key}>{label}</SelectItem>
                     ))}
