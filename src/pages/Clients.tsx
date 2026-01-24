@@ -145,28 +145,57 @@ export default function Clients() {
     return new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value);
   };
 
-  const handleImportClients = (data: ExcelClient[]) => {
+  const handleImportClients = (data: ExcelClient[], options?: { updateDuplicates?: boolean }) => {
     let imported = 0;
+    let updated = 0;
+    
     data.forEach((item) => {
-      createClient({
-        name: item.nome,
-        nif: item.nif,
-        phone: item.telefone || '',
-        email: item.email || '',
-        address: item.morada || '',
-        city: item.cidade || '',
-        country: item.pais || 'Angola',
-        creditLimit: item.limiteCredito || 0,
-        currentBalance: 0,
-        isActive: true,
-      });
-      imported++;
+      // Check if client with this NIF already exists
+      const existingClient = clients.find(c => c.nif.toLowerCase().trim() === item.nif.toLowerCase().trim());
+      
+      if (existingClient && options?.updateDuplicates) {
+        // Update existing client
+        saveClient({
+          ...existingClient,
+          name: item.nome,
+          phone: item.telefone || existingClient.phone,
+          email: item.email || existingClient.email,
+          address: item.morada || existingClient.address,
+          city: item.cidade || existingClient.city,
+          country: item.pais || existingClient.country,
+          creditLimit: item.limiteCredito ?? existingClient.creditLimit,
+        });
+        updated++;
+      } else if (!existingClient) {
+        // Create new client
+        createClient({
+          name: item.nome,
+          nif: item.nif,
+          phone: item.telefone || '',
+          email: item.email || '',
+          address: item.morada || '',
+          city: item.cidade || '',
+          country: item.pais || 'Angola',
+          creditLimit: item.limiteCredito || 0,
+          currentBalance: 0,
+          isActive: true,
+        });
+        imported++;
+      }
     });
+    
+    const messages: string[] = [];
+    if (imported > 0) messages.push(`${imported} novos`);
+    if (updated > 0) messages.push(`${updated} actualizados`);
+    
     toast({
       title: 'Importação concluída',
-      description: `${imported} clientes importados com sucesso`,
+      description: messages.join(', ') || 'Nenhum registo importado',
     });
   };
+
+  // Get existing NIFs for duplicate detection
+  const existingNifs = clients.map(c => c.nif);
 
   const clientImportColumns: { key: keyof ExcelClient; label: string }[] = [
     { key: 'nome', label: 'Nome' },
@@ -448,6 +477,9 @@ export default function Clients() {
         onImport={handleImportClients}
         downloadTemplate={downloadClientImportTemplate}
         columns={clientImportColumns}
+        duplicateKey="nif"
+        existingKeys={existingNifs}
+        duplicateLabel="NIF"
       />
     </div>
   );
