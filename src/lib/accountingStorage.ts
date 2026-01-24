@@ -100,6 +100,108 @@ export function updateCaixaBalance(caixaId: string, amount: number, direction: '
   }
 }
 
+// Get the first open Caixa for a branch (for POS integration)
+export function getOpenCaixaForBranch(branchId: string): Caixa | undefined {
+  const caixas = getCaixas(branchId);
+  return caixas.find(c => c.status === 'open');
+}
+
+// Process a sale payment through Caixa - the vital blood flow!
+export function processSalePayment(
+  branchId: string,
+  saleId: string,
+  invoiceNumber: string,
+  amount: number,
+  paymentMethod: 'cash' | 'card' | 'transfer',
+  cashierId: string,
+  customerName?: string
+): { success: boolean; message: string; transaction?: CashTransaction } {
+  // Only process cash payments through Caixa
+  if (paymentMethod !== 'cash') {
+    return { success: true, message: 'Non-cash payment - no Caixa update needed' };
+  }
+  
+  // Find open Caixa for this branch
+  const openCaixa = getOpenCaixaForBranch(branchId);
+  if (!openCaixa) {
+    // If no Caixa is open, the sale still completes but logs a warning
+    console.warn(`[CAIXA] No open Caixa for branch ${branchId} - sale recorded without Caixa entry`);
+    return { 
+      success: true, 
+      message: 'Venda registada, mas nenhuma Caixa aberta para este balcão' 
+    };
+  }
+  
+  // Find the open session
+  const openSession = getOpenCaixaSession(openCaixa.id);
+  if (!openSession) {
+    console.warn(`[CAIXA] No open session for Caixa ${openCaixa.id}`);
+    return { 
+      success: true, 
+      message: 'Venda registada, mas sessão de Caixa não encontrada' 
+    };
+  }
+  
+  // Create cash transaction - THE BLOOD FLOWS!
+  const transaction = createCashTransaction(
+    openCaixa.id,
+    branchId,
+    'sale',
+    amount,
+    `Venda ${invoiceNumber}${customerName ? ` - ${customerName}` : ''}`,
+    cashierId,
+    undefined, // category
+    customerName, // payee
+    'sale',
+    saleId,
+    invoiceNumber
+  );
+  
+  // Update Caixa balance
+  updateCaixaBalance(openCaixa.id, amount, 'in');
+  
+  // Update session totals
+  updateCaixaSessionTotals(openSession.id, amount, 'sale');
+  
+  console.log(`[CAIXA] Sale ${invoiceNumber} recorded: +${amount.toLocaleString('pt-AO')} Kz to ${openCaixa.name}`);
+  
+  return { 
+    success: true, 
+    message: 'Venda registada na Caixa',
+    transaction 
+  };
+}
+
+// Update session totals (called when transactions happen)
+export function updateCaixaSessionTotals(
+  sessionId: string, 
+  amount: number, 
+  type: 'sale' | 'expense' | 'deposit' | 'withdrawal' | 'adjustment'
+): void {
+  const sessions = getCaixaSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  if (session) {
+    switch (type) {
+      case 'sale':
+      case 'deposit':
+        session.totalIn += amount;
+        if (type === 'sale') session.salesTotal += amount;
+        break;
+      case 'expense':
+      case 'withdrawal':
+        session.totalOut += amount;
+        if (type === 'expense') session.expensesTotal += amount;
+        break;
+      case 'adjustment':
+        session.adjustments += amount; // Can be negative
+        if (amount > 0) session.totalIn += amount;
+        else session.totalOut += Math.abs(amount);
+        break;
+    }
+    setItem(STORAGE_KEYS.caixaSessions, sessions);
+  }
+}
+
 // ==================== CAIXA SESSION FUNCTIONS ====================
 
 export function getCaixaSessions(caixaId?: string, date?: string): CaixaSession[] {

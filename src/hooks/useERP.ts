@@ -316,6 +316,26 @@ export function useSales(branchId?: string) {
       };
 
       storage.saveSale(sale);
+      
+      // THE BLOOD FLOWS! Process payment through Caixa system
+      // Only cash and mixed payments affect Caixa
+      if (paymentMethod === 'cash' || paymentMethod === 'mixed') {
+        const { processSalePayment } = await import('@/lib/accountingStorage');
+        const caixaResult = processSalePayment(
+          branchId,
+          sale.id,
+          sale.invoiceNumber,
+          paymentMethod === 'cash' ? total : amountPaid, // For mixed, use cash portion
+          'cash', // Treat as cash for Caixa purposes
+          cashierId,
+          customerName
+        );
+        
+        if (caixaResult.message && !caixaResult.transaction) {
+          console.warn('[SALE]', caixaResult.message);
+        }
+      }
+      
       refreshSales();
       return sale;
     }
