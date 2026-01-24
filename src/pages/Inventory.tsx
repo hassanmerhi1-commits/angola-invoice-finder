@@ -24,7 +24,8 @@ import {
   Upload,
   ArrowRightLeft,
   ClipboardList,
-  Printer
+  Printer,
+  Calculator
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
@@ -33,8 +34,11 @@ import { BranchSelector } from '@/components/BranchSelector';
 import { exportProductsToExcel, parseExcelFile, validateImportedProducts, downloadImportTemplate, ExcelProduct } from '@/lib/excel';
 import { ExcelImportDialog } from '@/components/import/ExcelImportDialog';
 import { InventoryCountSheetDialog } from '@/components/inventory/InventoryCountSheetDialog';
+import { InventoryAdjustmentDialog } from '@/components/inventory/InventoryAdjustmentDialog';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { logTransaction } from '@/lib/transactionHistory';
+import { createStockMovement } from '@/lib/storage';
 
 export default function Inventory() {
   const navigate = useNavigate();
@@ -44,6 +48,7 @@ export default function Inventory() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [countSheetDialogOpen, setCountSheetDialogOpen] = useState(false);
+  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
 
   // Check if current branch is a filial (not main office)
@@ -128,6 +133,63 @@ export default function Inventory() {
     if (updated > 0) messages.push(`${updated} actualizados`);
     
     toast.success(messages.join(', ') || 'Nenhum registo importado');
+    refreshProducts();
+  };
+
+  // Handle stock adjustments from physical count
+  const handleApplyAdjustments = (
+    adjustments: { productId: string; newStock: number; difference: number }[],
+    reason: string,
+    notes: string
+  ) => {
+    const currentUser = JSON.parse(localStorage.getItem('kwanzaerp_current_user') || '{}');
+    
+    adjustments.forEach(adj => {
+      const product = products.find(p => p.id === adj.productId);
+      if (product) {
+        // Update product stock
+        const updatedProduct = {
+          ...product,
+          stock: adj.newStock,
+          updatedAt: new Date().toISOString(),
+        };
+        updateProduct(updatedProduct);
+
+        // Create stock movement record
+        createStockMovement(
+          adj.productId,
+          currentBranch?.id || '',
+          adj.difference > 0 ? 'IN' : 'OUT',
+          Math.abs(adj.difference),
+          'adjustment',
+          currentUser?.id || 'system',
+          undefined,
+          undefined,
+          `${reason}${notes ? ': ' + notes : ''}`
+        );
+
+        // Log transaction
+        logTransaction({
+          category: 'inventory',
+          action: 'stock_adjusted',
+          entityType: 'Produto',
+          entityId: adj.productId,
+          entityNumber: product.sku,
+          entityName: product.name,
+          description: `Stock ajustado de ${product.stock} para ${adj.newStock} (${adj.difference > 0 ? '+' : ''}${adj.difference}) - ${reason}`,
+          details: {
+            previousStock: product.stock,
+            newStock: adj.newStock,
+            difference: adj.difference,
+            reason,
+            notes,
+          },
+          previousValue: product.stock,
+          newValue: adj.newStock,
+        });
+      }
+    });
+
     refreshProducts();
   };
 
@@ -225,6 +287,15 @@ export default function Inventory() {
         >
           <ClipboardList className="w-3 h-3" />
           Folha Contagem
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1"
+          onClick={() => setAdjustmentDialogOpen(true)}
+        >
+          <Calculator className="w-3 h-3" />
+          Ajustar Stock
         </Button>
 
         <div className="flex-1" />
@@ -501,6 +572,15 @@ export default function Inventory() {
         products={products}
         branch={currentBranch}
         categories={[...new Set(products.map(p => p.category).filter(Boolean))]}
+      />
+
+      {/* Inventory Adjustment Dialog */}
+      <InventoryAdjustmentDialog
+        open={adjustmentDialogOpen}
+        onOpenChange={setAdjustmentDialogOpen}
+        products={products}
+        branch={currentBranch}
+        onApplyAdjustments={handleApplyAdjustments}
       />
     </div>
   );
