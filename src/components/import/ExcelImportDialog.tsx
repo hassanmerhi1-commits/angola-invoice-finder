@@ -1,15 +1,22 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Download, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Download, X, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface ImportError {
   row: number;
   errors: string[];
+}
+
+interface DuplicateInfo<T> {
+  item: T;
+  existingKey: string;
+  rowIndex: number;
 }
 
 interface ExcelImportDialogProps<T> {
@@ -19,9 +26,13 @@ interface ExcelImportDialogProps<T> {
   description: string;
   parseFile: (file: File) => Promise<T[]>;
   validateData: (data: T[]) => { valid: T[]; errors: ImportError[] };
-  onImport: (data: T[]) => void;
+  onImport: (data: T[], options?: { skipDuplicates?: boolean; updateDuplicates?: boolean }) => void;
   downloadTemplate: () => void;
   columns: { key: keyof T; label: string }[];
+  // Duplicate detection
+  duplicateKey?: keyof T; // The key to check for duplicates (e.g., 'codigo', 'nif')
+  existingKeys?: string[]; // Array of existing keys to check against
+  duplicateLabel?: string; // Label for the duplicate key (e.g., 'SKU', 'NIF')
 }
 
 export function ExcelImportDialog<T>({
@@ -34,13 +45,39 @@ export function ExcelImportDialog<T>({
   onImport,
   downloadTemplate,
   columns,
+  duplicateKey,
+  existingKeys = [],
+  duplicateLabel = 'Código',
 }: ExcelImportDialogProps<T>) {
   const [step, setStep] = useState<'upload' | 'preview' | 'importing'>('upload');
   const [parsedData, setParsedData] = useState<T[]>([]);
   const [validData, setValidData] = useState<T[]>([]);
   const [errors, setErrors] = useState<ImportError[]>([]);
   const [fileName, setFileName] = useState<string>('');
+  const [duplicateAction, setDuplicateAction] = useState<'skip' | 'update' | 'include'>('skip');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Detect duplicates
+  const { duplicates, newItems } = useMemo(() => {
+    if (!duplicateKey || existingKeys.length === 0) {
+      return { duplicates: [], newItems: validData };
+    }
+
+    const dupes: DuplicateInfo<T>[] = [];
+    const newOnes: T[] = [];
+    const existingSet = new Set(existingKeys.map(k => k.toLowerCase().trim()));
+
+    validData.forEach((item, idx) => {
+      const keyValue = String(item[duplicateKey] || '').toLowerCase().trim();
+      if (keyValue && existingSet.has(keyValue)) {
+        dupes.push({ item, existingKey: keyValue, rowIndex: idx });
+      } else {
+        newOnes.push(item);
+      }
+    });
+
+    return { duplicates: dupes, newItems: newOnes };
+  }, [validData, duplicateKey, existingKeys]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,7 +101,24 @@ export function ExcelImportDialog<T>({
 
   const handleImport = () => {
     setStep('importing');
-    onImport(validData);
+    
+    // Determine what to import based on duplicate action
+    let dataToImport: T[] = [];
+    
+    if (duplicateAction === 'skip') {
+      dataToImport = newItems;
+    } else if (duplicateAction === 'update') {
+      // Import all, let the handler know to update existing
+      dataToImport = validData;
+      onImport(dataToImport, { updateDuplicates: true });
+      handleClose();
+      return;
+    } else {
+      // Include all (may create duplicates)
+      dataToImport = validData;
+    }
+    
+    onImport(dataToImport, { skipDuplicates: duplicateAction === 'skip' });
     handleClose();
   };
 
@@ -74,6 +128,7 @@ export function ExcelImportDialog<T>({
     setValidData([]);
     setErrors([]);
     setFileName('');
+    setDuplicateAction('skip');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -83,6 +138,8 @@ export function ExcelImportDialog<T>({
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
+
+  const importCount = duplicateAction === 'skip' ? newItems.length : validData.length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -138,7 +195,7 @@ export function ExcelImportDialog<T>({
                 </Button>
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-4 flex-wrap">
                 <Badge variant="default" className="gap-1">
                   <CheckCircle2 className="w-3 h-3" />
                   {validData.length} válidos
@@ -149,7 +206,67 @@ export function ExcelImportDialog<T>({
                     {errors.length} com erros
                   </Badge>
                 )}
+                {duplicates.length > 0 && (
+                  <Badge variant="outline" className="gap-1 text-amber-600 border-amber-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    {duplicates.length} duplicados
+                  </Badge>
+                )}
+                {newItems.length > 0 && duplicates.length > 0 && (
+                  <Badge variant="outline" className="gap-1 text-green-600 border-green-600">
+                    <CheckCircle2 className="w-3 h-3" />
+                    {newItems.length} novos
+                  </Badge>
+                )}
               </div>
+
+              {/* Duplicate Warning */}
+              {duplicates.length > 0 && (
+                <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription>
+                    <div className="font-medium mb-2 text-amber-800 dark:text-amber-200">
+                      {duplicates.length} {duplicateLabel}(s) já existem no sistema
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <p className="text-amber-700 dark:text-amber-300">
+                        Os seguintes registos têm {duplicateLabel} duplicados:
+                      </p>
+                      <div className="max-h-20 overflow-auto bg-amber-100 dark:bg-amber-900/30 p-2 rounded text-xs font-mono">
+                        {duplicates.slice(0, 10).map((d, i) => (
+                          <div key={i}>{d.existingKey.toUpperCase()}</div>
+                        ))}
+                        {duplicates.length > 10 && (
+                          <div className="text-amber-600">... e mais {duplicates.length - 10}</div>
+                        )}
+                      </div>
+                      
+                      <div className="pt-2 space-y-2">
+                        <p className="font-medium text-amber-800 dark:text-amber-200">O que deseja fazer?</p>
+                        <div className="flex flex-col gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox 
+                              checked={duplicateAction === 'skip'} 
+                              onCheckedChange={() => setDuplicateAction('skip')}
+                            />
+                            <span>Ignorar duplicados (importar apenas {newItems.length} novos)</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox 
+                              checked={duplicateAction === 'update'} 
+                              onCheckedChange={() => setDuplicateAction('update')}
+                            />
+                            <span className="flex items-center gap-1">
+                              <RefreshCw className="w-3 h-3" />
+                              Actualizar existentes com dados do ficheiro
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {errors.length > 0 && (
                 <Alert variant="destructive">
@@ -171,27 +288,42 @@ export function ExcelImportDialog<T>({
               )}
 
               {validData.length > 0 && (
-                <ScrollArea className="h-[300px] border rounded-lg">
+                <ScrollArea className="h-[250px] border rounded-lg">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-12">#</TableHead>
+                        <TableHead className="w-20">Estado</TableHead>
                         {columns.map((col) => (
                           <TableHead key={String(col.key)}>{col.label}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {validData.slice(0, 100).map((row, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                          {columns.map((col) => (
-                            <TableCell key={String(col.key)}>
-                              {String(row[col.key] || '-')}
+                      {validData.slice(0, 100).map((row, idx) => {
+                        const isDupe = duplicates.some(d => d.rowIndex === idx);
+                        return (
+                          <TableRow key={idx} className={isDupe ? 'bg-amber-50 dark:bg-amber-950/20' : ''}>
+                            <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                            <TableCell>
+                              {isDupe ? (
+                                <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
+                                  Duplicado
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                                  Novo
+                                </Badge>
+                              )}
                             </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
+                            {columns.map((col) => (
+                              <TableCell key={String(col.key)}>
+                                {String(row[col.key] || '-')}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                   {validData.length > 100 && (
@@ -209,10 +341,18 @@ export function ExcelImportDialog<T>({
           <Button variant="outline" onClick={handleClose}>
             Cancelar
           </Button>
-          {step === 'preview' && validData.length > 0 && (
+          {step === 'preview' && importCount > 0 && (
             <Button onClick={handleImport}>
               <Upload className="w-4 h-4 mr-2" />
-              Importar {validData.length} registos
+              {duplicateAction === 'update' 
+                ? `Importar e Actualizar ${validData.length} registos`
+                : `Importar ${importCount} registos`
+              }
+            </Button>
+          )}
+          {step === 'preview' && importCount === 0 && validData.length > 0 && (
+            <Button disabled>
+              Todos são duplicados
             </Button>
           )}
         </DialogFooter>

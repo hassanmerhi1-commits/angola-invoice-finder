@@ -156,36 +156,69 @@ export default function Suppliers() {
     setDeleteDialogOpen(true);
   };
 
-  const handleImportSuppliers = (data: ExcelSupplier[]) => {
+  const handleImportSuppliers = (data: ExcelSupplier[], options?: { updateDuplicates?: boolean }) => {
     let imported = 0;
+    let updated = 0;
+    
+    const paymentTermsMap: Record<string, Supplier['paymentTerms']> = {
+      'immediate': 'immediate',
+      '15_days': '15_days',
+      '30_days': '30_days',
+      '60_days': '60_days',
+      '90_days': '90_days',
+    };
+    
     data.forEach((item) => {
-      const paymentTermsMap: Record<string, Supplier['paymentTerms']> = {
-        'immediate': 'immediate',
-        '15_days': '15_days',
-        '30_days': '30_days',
-        '60_days': '60_days',
-        '90_days': '90_days',
-      };
-      createSupplier({
-        name: item.nome,
-        nif: item.nif,
-        contactPerson: item.pessoaContacto || '',
-        phone: item.telefone || '',
-        email: item.email || '',
-        address: item.morada || '',
-        city: item.cidade || '',
-        country: item.pais || 'Angola',
-        paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || 'immediate',
-        isActive: true,
-        notes: item.notas || '',
-      });
-      imported++;
+      // Check if supplier with this NIF already exists
+      const existingSupplier = suppliers.find(s => s.nif.toLowerCase().trim() === item.nif.toLowerCase().trim());
+      
+      if (existingSupplier && options?.updateDuplicates) {
+        // Update existing supplier
+        saveSupplier({
+          ...existingSupplier,
+          name: item.nome,
+          contactPerson: item.pessoaContacto || existingSupplier.contactPerson,
+          phone: item.telefone || existingSupplier.phone,
+          email: item.email || existingSupplier.email,
+          address: item.morada || existingSupplier.address,
+          city: item.cidade || existingSupplier.city,
+          country: item.pais || existingSupplier.country,
+          paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || existingSupplier.paymentTerms,
+          notes: item.notas || existingSupplier.notes,
+          updatedAt: new Date().toISOString(),
+        });
+        updated++;
+      } else if (!existingSupplier) {
+        // Create new supplier
+        createSupplier({
+          name: item.nome,
+          nif: item.nif,
+          contactPerson: item.pessoaContacto || '',
+          phone: item.telefone || '',
+          email: item.email || '',
+          address: item.morada || '',
+          city: item.cidade || '',
+          country: item.pais || 'Angola',
+          paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || 'immediate',
+          isActive: true,
+          notes: item.notas || '',
+        });
+        imported++;
+      }
     });
+    
+    const messages: string[] = [];
+    if (imported > 0) messages.push(`${imported} novos`);
+    if (updated > 0) messages.push(`${updated} actualizados`);
+    
     toast({
       title: 'Importação concluída',
-      description: `${imported} fornecedores importados com sucesso`,
+      description: messages.join(', ') || 'Nenhum registo importado',
     });
   };
+
+  // Get existing NIFs for duplicate detection
+  const existingNifs = suppliers.map(s => s.nif);
 
   const supplierImportColumns: { key: keyof ExcelSupplier; label: string }[] = [
     { key: 'nome', label: 'Nome' },
@@ -546,6 +579,9 @@ export default function Suppliers() {
         onImport={handleImportSuppliers}
         downloadTemplate={downloadSupplierImportTemplate}
         columns={supplierImportColumns}
+        duplicateKey="nif"
+        existingKeys={existingNifs}
+        duplicateLabel="NIF"
       />
     </div>
   );
