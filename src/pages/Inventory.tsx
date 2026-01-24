@@ -22,7 +22,9 @@ import {
   AlertCircle,
   Download,
   Upload,
-  ArrowRightLeft
+  ArrowRightLeft,
+  ClipboardList,
+  Printer
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
@@ -30,6 +32,7 @@ import { BranchStockDetail } from '@/components/inventory/BranchStockDetail';
 import { BranchSelector } from '@/components/BranchSelector';
 import { exportProductsToExcel, parseExcelFile, validateImportedProducts, downloadImportTemplate, ExcelProduct } from '@/lib/excel';
 import { ExcelImportDialog } from '@/components/import/ExcelImportDialog';
+import { InventoryCountSheetDialog } from '@/components/inventory/InventoryCountSheetDialog';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -40,6 +43,7 @@ export default function Inventory() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [countSheetDialogOpen, setCountSheetDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
 
   // Check if current branch is a filial (not main office)
@@ -212,6 +216,15 @@ export default function Inventory() {
         >
           <Download className="w-3 h-3" />
           Exportar Excel
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1"
+          onClick={() => setCountSheetDialogOpen(true)}
+        >
+          <ClipboardList className="w-3 h-3" />
+          Folha Contagem
         </Button>
 
         <div className="flex-1" />
@@ -479,6 +492,15 @@ export default function Inventory() {
         existingKeys={existingSkus}
         duplicateLabel="SKU"
         mappingType="products"
+      />
+
+      {/* Inventory Count Sheet Dialog */}
+      <InventoryCountSheetDialog
+        open={countSheetDialogOpen}
+        onOpenChange={setCountSheetDialogOpen}
+        products={products}
+        branch={currentBranch}
+        categories={[...new Set(products.map(p => p.category).filter(Boolean))]}
       />
     </div>
   );
