@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit, Trash2, Truck, Phone, Mail } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Truck, Phone, Mail, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -42,6 +42,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { exportSuppliersToExcel } from '@/lib/excel';
 
 const PAYMENT_TERMS = [
   { value: 'immediate', label: 'Pagamento Imediato' },
@@ -162,10 +163,16 @@ export default function Suppliers() {
             Gestão de fornecedores e compras
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Fornecedor
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportSuppliersToExcel(suppliers)}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Exportar Excel
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Fornecedor
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

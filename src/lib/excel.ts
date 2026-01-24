@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Product } from '@/types/erp';
+import { Product, Client, Supplier } from '@/types/erp';
 
 // Generic export to Excel for any data
 export function exportToExcel(data: Record<string, unknown>[], filename: string) {
@@ -14,6 +14,61 @@ export function exportToExcel(data: Record<string, unknown>[], filename: string)
   ws['!cols'] = colWidths;
 
   XLSX.writeFile(wb, `${filename}.xlsx`);
+}
+
+// Export clients to Excel
+export function exportClientsToExcel(clients: Client[], filename: string = 'clientes.xlsx') {
+  const data = clients.map(c => ({
+    'Código': c.id.slice(0, 8).toUpperCase(),
+    'Nome': c.name,
+    'NIF': c.nif,
+    'Telefone': c.phone || '',
+    'Email': c.email || '',
+    'Morada': c.address || '',
+    'Cidade': c.city || '',
+    'País': c.country,
+    'Limite Crédito': c.creditLimit,
+    'Saldo Actual': c.currentBalance,
+    'Estado': c.isActive ? 'Activo' : 'Inactivo',
+    'Data Criação': c.createdAt ? new Date(c.createdAt).toLocaleDateString('pt-AO') : '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+  
+  const colWidths = Object.keys(data[0] || {}).map(key => ({ wch: Math.max(key.length, 15) }));
+  ws['!cols'] = colWidths;
+
+  XLSX.writeFile(wb, filename);
+}
+
+// Export suppliers to Excel
+export function exportSuppliersToExcel(suppliers: Supplier[], filename: string = 'fornecedores.xlsx') {
+  const data = suppliers.map(s => ({
+    'Código': s.id.slice(0, 8).toUpperCase(),
+    'Nome': s.name,
+    'NIF': s.nif,
+    'Pessoa Contacto': s.contactPerson || '',
+    'Telefone': s.phone || '',
+    'Email': s.email || '',
+    'Morada': s.address || '',
+    'Cidade': s.city || '',
+    'País': s.country,
+    'Prazo Pagamento': s.paymentTerms,
+    'Estado': s.isActive ? 'Activo' : 'Inactivo',
+    'Notas': s.notes || '',
+    'Data Criação': s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-AO') : '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Fornecedores');
+  
+  const colWidths = Object.keys(data[0] || {}).map(key => ({ wch: Math.max(key.length, 15) }));
+  ws['!cols'] = colWidths;
+
+  XLSX.writeFile(wb, filename);
 }
 
 export interface ExcelProduct {

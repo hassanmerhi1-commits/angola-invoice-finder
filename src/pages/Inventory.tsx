@@ -19,11 +19,14 @@ import {
   FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { BranchSelector } from '@/components/BranchSelector';
+import { exportProductsToExcel } from '@/lib/excel';
+import { toast } from 'sonner';
 
 export default function Inventory() {
   const { currentBranch } = useBranchContext();
@@ -112,6 +115,18 @@ export default function Inventory() {
         </Button>
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
           Ajustar Entrada
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1"
+          onClick={() => {
+            exportProductsToExcel(products);
+            toast.success('Produtos exportados para Excel');
+          }}
+        >
+          <Download className="w-3 h-3" />
+          Exportar Excel
         </Button>
 
         <div className="flex-1" />
