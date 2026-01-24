@@ -592,6 +592,202 @@ export function createBankTransaction(
   return transaction;
 }
 
+// ==================== MONEY TRANSFER FUNCTIONS (DOUBLE-ENTRY) ====================
+
+const TRANSFER_STORAGE_KEY = 'kwanzaerp_money_transfers';
+
+export function getMoneyTransfers(branchId?: string): MoneyTransfer[] {
+  const transfers = getItem<MoneyTransfer[]>(TRANSFER_STORAGE_KEY, []);
+  if (branchId) {
+    return transfers.filter(t => t.branchId === branchId);
+  }
+  return transfers;
+}
+
+export function generateTransferNumber(branchCode: string): string {
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const transfers = getMoneyTransfers();
+  const todayTransfers = transfers.filter(t => 
+    t.transferNumber.includes(`TRF-${branchCode}/${today}`)
+  );
+  const seq = (todayTransfers.length + 1).toString().padStart(4, '0');
+  return `TRF-${branchCode}/${today}/${seq}`;
+}
+
+/**
+ * Execute a double-entry money transfer between accounts
+ * DEBIT: Money enters destination account
+ * CREDIT: Money leaves source account
+ */
+export function executeMoneyTransfer(
+  branchId: string,
+  branchCode: string,
+  sourceType: 'caixa' | 'bank',
+  sourceId: string,
+  destinationType: 'caixa' | 'bank',
+  destinationId: string,
+  amount: number,
+  reason: string,
+  createdBy: string,
+  notes?: string
+): { success: boolean; transfer?: MoneyTransfer; error?: string } {
+  
+  // Validate source has sufficient balance
+  let sourceBalance = 0;
+  let sourceDescription = '';
+  let destinationDescription = '';
+  
+  if (sourceType === 'caixa') {
+    const caixa = getCaixaById(sourceId);
+    if (!caixa) return { success: false, error: 'Caixa de origem não encontrada' };
+    if (caixa.status !== 'open') return { success: false, error: 'Caixa de origem não está aberta' };
+    sourceBalance = caixa.currentBalance;
+    sourceDescription = caixa.name;
+  } else {
+    const bank = getBankAccountById(sourceId);
+    if (!bank) return { success: false, error: 'Conta bancária de origem não encontrada' };
+    sourceBalance = bank.currentBalance;
+    sourceDescription = `${bank.bankName} - ${bank.accountNumber}`;
+  }
+  
+  if (sourceBalance < amount) {
+    return { success: false, error: `Saldo insuficiente. Disponível: ${sourceBalance.toLocaleString('pt-AO')} Kz` };
+  }
+  
+  if (destinationType === 'caixa') {
+    const caixa = getCaixaById(destinationId);
+    if (!caixa) return { success: false, error: 'Caixa de destino não encontrada' };
+    destinationDescription = caixa.name;
+  } else {
+    const bank = getBankAccountById(destinationId);
+    if (!bank) return { success: false, error: 'Conta bancária de destino não encontrada' };
+    destinationDescription = `${bank.bankName} - ${bank.accountNumber}`;
+  }
+  
+  // Generate transfer number
+  const transferNumber = generateTransferNumber(branchCode);
+  
+  // Create transfer record
+  const transfer: MoneyTransfer = {
+    id: `trf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    transferNumber,
+    branchId,
+    sourceType,
+    sourceCaixaId: sourceType === 'caixa' ? sourceId : undefined,
+    sourceBankAccountId: sourceType === 'bank' ? sourceId : undefined,
+    sourceDescription,
+    destinationType,
+    destinationCaixaId: destinationType === 'caixa' ? destinationId : undefined,
+    destinationBankAccountId: destinationType === 'bank' ? destinationId : undefined,
+    destinationDescription,
+    amount,
+    status: 'completed',
+    reason,
+    createdBy,
+    createdAt: new Date().toISOString(),
+    completedBy: createdBy,
+    completedAt: new Date().toISOString(),
+    notes
+  };
+  
+  // === DOUBLE-ENTRY ACCOUNTING ===
+  
+  // 1. CREDIT: Deduct from source (money leaves)
+  if (sourceType === 'caixa') {
+    createCashTransaction(
+      sourceId,
+      branchId,
+      'transfer_out',
+      amount,
+      `Transferência para ${destinationDescription}: ${reason}`,
+      createdBy,
+      undefined,
+      destinationDescription,
+      'transfer',
+      transfer.id,
+      transferNumber
+    );
+    updateCaixaBalance(sourceId, amount, 'out');
+    
+    // Update session if open
+    const session = getOpenCaixaSession(sourceId);
+    if (session) {
+      updateCaixaSessionTotals(session.id, amount, 'withdrawal');
+    }
+  } else {
+    createBankTransaction(
+      sourceId,
+      branchId,
+      'transfer_out',
+      amount,
+      `Transferência para ${destinationDescription}: ${reason}`,
+      createdBy,
+      undefined,
+      destinationDescription,
+      'transfer',
+      transfer.id,
+      transferNumber
+    );
+    const sourceBank = getBankAccountById(sourceId);
+    if (sourceBank) {
+      sourceBank.currentBalance -= amount;
+      saveBankAccount(sourceBank);
+    }
+  }
+  
+  // 2. DEBIT: Add to destination (money enters)
+  if (destinationType === 'caixa') {
+    createCashTransaction(
+      destinationId,
+      branchId,
+      'transfer_in',
+      amount,
+      `Transferência de ${sourceDescription}: ${reason}`,
+      createdBy,
+      undefined,
+      sourceDescription,
+      'transfer',
+      transfer.id,
+      transferNumber
+    );
+    updateCaixaBalance(destinationId, amount, 'in');
+    
+    // Update session if open
+    const session = getOpenCaixaSession(destinationId);
+    if (session) {
+      updateCaixaSessionTotals(session.id, amount, 'deposit');
+    }
+  } else {
+    createBankTransaction(
+      destinationId,
+      branchId,
+      'transfer_in',
+      amount,
+      `Transferência de ${sourceDescription}: ${reason}`,
+      createdBy,
+      undefined,
+      sourceDescription,
+      'transfer',
+      transfer.id,
+      transferNumber
+    );
+    const destBank = getBankAccountById(destinationId);
+    if (destBank) {
+      destBank.currentBalance += amount;
+      saveBankAccount(destBank);
+    }
+  }
+  
+  // Save transfer record
+  const transfers = getMoneyTransfers();
+  transfers.push(transfer);
+  setItem(TRANSFER_STORAGE_KEY, transfers);
+  
+  console.log(`[TRANSFER] ${transferNumber}: ${amount.toLocaleString('pt-AO')} Kz from ${sourceDescription} to ${destinationDescription}`);
+  
+  return { success: true, transfer };
+}
+
 // ==================== INITIALIZATION ====================
 
 export function initializeBranchAccounting(branchId: string, branchName: string, branchCode: string): void {
