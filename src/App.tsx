@@ -22,6 +22,7 @@ import Suppliers from "./pages/Suppliers";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import Categories from "./pages/Categories";
 import FiscalDocuments from "./pages/FiscalDocuments";
+import ProForma from "./pages/ProForma";
 import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
@@ -173,6 +174,7 @@ function AppRoutes() {
         <Route path="/stock-transfer" element={<StockTransfer />} />
         <Route path="/data-sync" element={<DataSync />} />
         <Route path="/fiscal-documents" element={<FiscalDocuments />} />
+        <Route path="/proforma" element={<ProForma />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
         <Route path="/accounting" element={<Branches />} />

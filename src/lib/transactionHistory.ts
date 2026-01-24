@@ -73,6 +73,10 @@ export type TransactionAction =
   | 'saft_exported'
   | 'day_closed'
   | 'day_opened'
+  | 'proforma_created'
+  | 'proforma_status_changed'
+  | 'proforma_converted'
+  | 'proforma_deleted'
   // Reports
   | 'report_generated'
   | 'report_exported'
@@ -318,6 +322,10 @@ export const ACTION_LABELS: Record<TransactionAction, string> = {
   saft_exported: 'SAF-T Exportado',
   day_closed: 'Dia Fechado',
   day_opened: 'Dia Aberto',
+  proforma_created: 'Pro Forma Criada',
+  proforma_status_changed: 'Pro Forma Actualizada',
+  proforma_converted: 'Pro Forma Convertida',
+  proforma_deleted: 'Pro Forma Eliminada',
   // Reports
   report_generated: 'Relatório Gerado',
   report_exported: 'Relatório Exportado',
