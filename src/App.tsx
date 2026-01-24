@@ -30,6 +30,7 @@ import Branches from "./pages/Branches";
 import Settings from "./pages/Settings";
 import Expenses from "./pages/Expenses";
 import BankAccounts from "./pages/BankAccounts";
+import CaixaManagement from "./pages/CaixaManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -185,6 +186,7 @@ function AppRoutes() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/bank-accounts" element={<BankAccounts />} />
+        <Route path="/caixa" element={<CaixaManagement />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<NotFound />} />
