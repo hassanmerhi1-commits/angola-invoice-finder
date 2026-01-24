@@ -25,7 +25,9 @@ import {
   ArrowRightLeft,
   ClipboardList,
   Printer,
-  Calculator
+  Calculator,
+  PackagePlus,
+  PackageMinus
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
@@ -35,6 +37,8 @@ import { exportProductsToExcel, parseExcelFile, validateImportedProducts, downlo
 import { ExcelImportDialog } from '@/components/import/ExcelImportDialog';
 import { InventoryCountSheetDialog } from '@/components/inventory/InventoryCountSheetDialog';
 import { InventoryAdjustmentDialog } from '@/components/inventory/InventoryAdjustmentDialog';
+import { StockEntryDialog } from '@/components/inventory/StockEntryDialog';
+import { StockExitDialog } from '@/components/inventory/StockExitDialog';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { logTransaction } from '@/lib/transactionHistory';
@@ -49,6 +53,8 @@ export default function Inventory() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [countSheetDialogOpen, setCountSheetDialogOpen] = useState(false);
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+  const [stockEntryDialogOpen, setStockEntryDialogOpen] = useState(false);
+  const [stockExitDialogOpen, setStockExitDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
 
   // Check if current branch is a filial (not main office)
@@ -255,8 +261,23 @@ export default function Inventory() {
           <Filter className="w-3 h-3" />
           Filtro
         </Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-950/30"
+          onClick={() => setStockEntryDialogOpen(true)}
+        >
+          <PackagePlus className="w-3 h-3" />
           Ajustar Entrada
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1 text-destructive border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/30"
+          onClick={() => setStockExitDialogOpen(true)}
+        >
+          <PackageMinus className="w-3 h-3" />
+          Ajustar Saída
         </Button>
         <Button 
           variant="outline" 
@@ -581,6 +602,123 @@ export default function Inventory() {
         products={products}
         branch={currentBranch}
         onApplyAdjustments={handleApplyAdjustments}
+      />
+
+      {/* Stock Entry Dialog (Ajustar Entrada) */}
+      <StockEntryDialog
+        open={stockEntryDialogOpen}
+        onOpenChange={setStockEntryDialogOpen}
+        products={products}
+        currentBranch={currentBranch}
+        onApplyEntry={(items, sourceBranch, reference, notes) => {
+          const currentUser = JSON.parse(localStorage.getItem('kwanzaerp_current_user') || '{}');
+          
+          items.forEach(item => {
+            const product = products.find(p => p.id === item.productId);
+            if (product) {
+              // Update product stock
+              const newStock = product.stock + item.quantity;
+              updateProduct({
+                ...product,
+                stock: newStock,
+                updatedAt: new Date().toISOString(),
+              });
+
+              // Create stock movement record
+              createStockMovement(
+                item.productId,
+                currentBranch?.id || '',
+                'IN',
+                item.quantity,
+                'transfer_in',
+                currentUser?.id || 'system',
+                undefined,
+                reference,
+                `Transferência de ${sourceBranch}${notes ? ': ' + notes : ''}`
+              );
+
+              // Log transaction
+              logTransaction({
+                category: 'inventory',
+                action: 'stock_adjusted',
+                entityType: 'Produto',
+                entityId: item.productId,
+                entityNumber: item.sku,
+                entityName: item.name,
+                description: `Entrada de ${item.quantity} un. - Ref: ${reference}`,
+                details: {
+                  quantity: item.quantity,
+                  sourceBranch,
+                  reference,
+                  notes,
+                },
+                previousValue: product.stock,
+                newValue: newStock,
+              });
+            }
+          });
+
+          refreshProducts();
+        }}
+      />
+
+      {/* Stock Exit Dialog (Ajustar Saída) */}
+      <StockExitDialog
+        open={stockExitDialogOpen}
+        onOpenChange={setStockExitDialogOpen}
+        products={products}
+        currentBranch={currentBranch}
+        onApplyExit={(items, reason, notes, reference) => {
+          const currentUser = JSON.parse(localStorage.getItem('kwanzaerp_current_user') || '{}');
+          
+          items.forEach(item => {
+            const product = products.find(p => p.id === item.productId);
+            if (product) {
+              // Update product stock
+              const newStock = product.stock - item.quantity;
+              updateProduct({
+                ...product,
+                stock: Math.max(0, newStock),
+                updatedAt: new Date().toISOString(),
+              });
+
+              // Create stock movement record
+              createStockMovement(
+                item.productId,
+                currentBranch?.id || '',
+                'OUT',
+                item.quantity,
+                'adjustment',
+                currentUser?.id || 'system',
+                undefined,
+                reference,
+                `${reason}${notes ? ': ' + notes : ''}`
+              );
+
+              // Log transaction
+              logTransaction({
+                category: 'inventory',
+                action: 'stock_adjusted',
+                entityType: 'Produto',
+                entityId: item.productId,
+                entityNumber: item.sku,
+                entityName: item.name,
+                description: `Saída de ${item.quantity} un. - ${reason}`,
+                details: {
+                  quantity: item.quantity,
+                  reason,
+                  reference,
+                  notes,
+                  lossValue: item.quantity * item.cost,
+                },
+                previousValue: product.stock,
+                newValue: Math.max(0, newStock),
+              });
+            }
+          });
+
+          refreshProducts();
+        }}
       />
     </div>
   );

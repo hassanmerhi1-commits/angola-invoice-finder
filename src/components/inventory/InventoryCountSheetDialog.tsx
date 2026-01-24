@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -11,6 +11,13 @@ import { Printer, FileSpreadsheet, Download } from 'lucide-react';
 import { Product, Branch } from '@/types/erp';
 import { getCompanySettings } from '@/lib/companySettings';
 import * as XLSX from 'xlsx';
+
+// Generate count sheet number
+function generateCountNumber(branchCode: string): string {
+  const date = format(new Date(), 'yyyyMMdd');
+  const seq = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `INV-${branchCode || 'XX'}-${date}-${seq}`;
+}
 
 interface InventoryCountSheetDialogProps {
   open: boolean;
@@ -31,9 +38,14 @@ export function InventoryCountSheetDialog({
   const [includeInactive, setIncludeInactive] = useState(false);
   const [hideSystemStock, setHideSystemStock] = useState(false);
   const [countedBy, setCountedBy] = useState('');
-  const printRef = useRef<HTMLDivElement>(null);
 
   const company = getCompanySettings();
+  
+  // Generate count number
+  const countNumber = useMemo(() => 
+    generateCountNumber(branch?.code || ''),
+    [branch?.code]
+  );
 
   // Filter products
   const filteredProducts = products.filter(p => {
@@ -41,6 +53,17 @@ export function InventoryCountSheetDialog({
     if (selectedCategory !== 'all' && p.category !== selectedCategory) return false;
     return true;
   }).sort((a, b) => a.sku.localeCompare(b.sku));
+
+  // Calculate stock value totals
+  const stockTotals = useMemo(() => {
+    const totalUnits = filteredProducts.reduce((sum, p) => sum + p.stock, 0);
+    const totalCostValue = filteredProducts.reduce((sum, p) => sum + (p.stock * (p.cost || 0)), 0);
+    const totalSaleValue = filteredProducts.reduce((sum, p) => sum + (p.stock * (p.price || 0)), 0);
+    return { totalUnits, totalCostValue, totalSaleValue };
+  }, [filteredProducts]);
+
+  const formatCurrency = (value: number) => 
+    new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value);
 
   const handlePrint = () => {
     const printContent = generatePrintContent();
@@ -63,6 +86,8 @@ export function InventoryCountSheetDialog({
       'Categoria': p.category,
       'Unidade': p.unit,
       'Stock Sistema': hideSystemStock ? '' : p.stock,
+      'Custo Un.': p.cost || 0,
+      'Valor Stock (Custo)': hideSystemStock ? '' : (p.stock * (p.cost || 0)),
       'Contagem Física': '',
       'Diferença': '',
       'Observações': '',
@@ -81,13 +106,15 @@ export function InventoryCountSheetDialog({
       { wch: 15 }, // Categoria
       { wch: 8 },  // Unidade
       { wch: 12 }, // Stock Sistema
+      { wch: 12 }, // Custo Un.
+      { wch: 15 }, // Valor Stock
       { wch: 15 }, // Contagem Física
       { wch: 12 }, // Diferença
       { wch: 20 }, // Observações
     ];
 
     const dateStr = format(new Date(), 'yyyy-MM-dd');
-    XLSX.writeFile(wb, `folha_contagem_${branch?.code || 'geral'}_${dateStr}.xlsx`);
+    XLSX.writeFile(wb, `${countNumber}_${branch?.code || 'geral'}_${dateStr}.xlsx`);
   };
 
   const generatePrintContent = () => {
@@ -99,7 +126,7 @@ export function InventoryCountSheetDialog({
       <html>
       <head>
         <meta charset="UTF-8">
-        <title>Folha de Contagem de Inventário</title>
+        <title>Folha de Contagem - ${countNumber}</title>
         <style>
           * {
             margin: 0;
@@ -198,6 +225,17 @@ export function InventoryCountSheetDialog({
             text-align: center;
             font-weight: bold;
           }
+          .col-cost {
+            width: 70px;
+            text-align: right;
+            font-family: monospace;
+          }
+          .col-value {
+            width: 90px;
+            text-align: right;
+            font-family: monospace;
+            font-weight: bold;
+          }
           .col-count {
             width: 80px;
             text-align: center;
@@ -210,6 +248,35 @@ export function InventoryCountSheetDialog({
           }
           .col-obs {
             width: 100px;
+          }
+          .count-number {
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 4px 8px;
+            border-radius: 4px;
+          }
+          .value-summary {
+            margin-top: 15px;
+            padding: 15px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            border: 1px solid #4caf50;
+          }
+          .value-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 12px;
+          }
+          .value-label {
+            font-weight: 500;
+          }
+          .value-amount {
+            font-family: monospace;
+            font-weight: bold;
           }
           .footer {
             margin-top: 20px;
@@ -264,6 +331,7 @@ export function InventoryCountSheetDialog({
             ${company.phone ? ` | Tel: ${company.phone}` : ''}
           </div>
           <div class="title">Folha de Contagem de Inventário</div>
+          <div class="count-number">Nº: ${countNumber}</div>
         </div>
 
         <div class="meta-info">
@@ -295,6 +363,8 @@ export function InventoryCountSheetDialog({
               <th class="col-category">Categoria</th>
               <th class="col-unit">Un.</th>
               ${!hideSystemStock ? '<th class="col-stock">Stock<br/>Sistema</th>' : ''}
+              ${!hideSystemStock ? '<th class="col-cost">Custo Un.</th>' : ''}
+              ${!hideSystemStock ? '<th class="col-value">Valor Stock</th>' : ''}
               <th class="col-count">Contagem<br/>Física</th>
               <th class="col-diff">Diferença</th>
               <th class="col-obs">Observações</th>
@@ -310,6 +380,8 @@ export function InventoryCountSheetDialog({
                 <td class="col-category">${p.category}</td>
                 <td class="col-unit">${p.unit}</td>
                 ${!hideSystemStock ? `<td class="col-stock">${p.stock}</td>` : ''}
+                ${!hideSystemStock ? `<td class="col-cost">${(p.cost || 0).toFixed(2)}</td>` : ''}
+                ${!hideSystemStock ? `<td class="col-value">${(p.stock * (p.cost || 0)).toLocaleString('pt-AO', { minimumFractionDigits: 2 })}</td>` : ''}
                 <td class="col-count"></td>
                 <td class="col-diff"></td>
                 <td class="col-obs"></td>
@@ -319,17 +391,33 @@ export function InventoryCountSheetDialog({
         </table>
 
         <div class="footer">
+          ${!hideSystemStock ? `
+          <div class="value-summary">
+            <div class="value-row">
+              <span class="value-label">Total de produtos listados:</span>
+              <span class="value-amount">${filteredProducts.length}</span>
+            </div>
+            <div class="value-row">
+              <span class="value-label">Stock total no sistema:</span>
+              <span class="value-amount">${stockTotals.totalUnits.toLocaleString('pt-AO')} unidades</span>
+            </div>
+            <div class="value-row">
+              <span class="value-label">Valor total do stock (Custo):</span>
+              <span class="value-amount" style="color: #2e7d32; font-size: 14px;">${formatCurrency(stockTotals.totalCostValue)}</span>
+            </div>
+            <div class="value-row">
+              <span class="value-label">Valor total do stock (Venda):</span>
+              <span class="value-amount" style="color: #1565c0; font-size: 14px;">${formatCurrency(stockTotals.totalSaleValue)}</span>
+            </div>
+          </div>
+          ` : `
           <div class="summary">
             <div class="summary-row">
               <span>Total de produtos listados:</span>
               <strong>${filteredProducts.length}</strong>
             </div>
-            ${!hideSystemStock ? `
-              <div class="summary-row">
-                <span>Stock total no sistema:</span>
-                <strong>${filteredProducts.reduce((sum, p) => sum + p.stock, 0).toLocaleString()} unidades</strong>
-              </div>
-            ` : ''}
+          </div>
+          `}
           </div>
 
           <div class="signatures">
@@ -423,16 +511,30 @@ export function InventoryCountSheetDialog({
           </div>
 
           {/* Preview Info */}
-          <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+          <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Nº Contagem:</span>
+              <strong className="font-mono">{countNumber}</strong>
+            </div>
             <div className="flex justify-between text-sm">
               <span>Total de produtos:</span>
               <strong>{filteredProducts.length}</strong>
             </div>
             {!hideSystemStock && (
-              <div className="flex justify-between text-sm mt-1">
-                <span>Stock total no sistema:</span>
-                <strong>{filteredProducts.reduce((sum, p) => sum + p.stock, 0).toLocaleString()} un.</strong>
-              </div>
+              <>
+                <div className="flex justify-between text-sm">
+                  <span>Stock total no sistema:</span>
+                  <strong>{stockTotals.totalUnits.toLocaleString('pt-AO')} un.</strong>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t">
+                  <span>Valor do stock (Custo):</span>
+                  <strong className="text-emerald-600">{formatCurrency(stockTotals.totalCostValue)}</strong>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Valor do stock (Venda):</span>
+                  <strong className="text-blue-600">{formatCurrency(stockTotals.totalSaleValue)}</strong>
+                </div>
+              </>
             )}
           </div>
         </div>
