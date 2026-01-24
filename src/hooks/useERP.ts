@@ -252,7 +252,7 @@ export function useSales(branchId?: string) {
     amountPaid: number,
     customerNif?: string,
     customerName?: string,
-  ): Promise<Sale> => {
+  ): Promise<Sale & { caixaInfo?: { caixaName: string; newBalance: number; message: string } }> => {
     const saleItems: SaleItem[] = cartItems.map(item => ({
       productId: item.product.id,
       productName: item.product.name,
@@ -319,6 +319,8 @@ export function useSales(branchId?: string) {
       
       // THE BLOOD FLOWS! Process payment through Caixa system
       // Only cash and mixed payments affect Caixa
+      let caixaInfo: { caixaName: string; newBalance: number; message: string } | undefined;
+      
       if (paymentMethod === 'cash' || paymentMethod === 'mixed') {
         const { processSalePayment } = await import('@/lib/accountingStorage');
         const caixaResult = processSalePayment(
@@ -331,13 +333,19 @@ export function useSales(branchId?: string) {
           customerName
         );
         
-        if (caixaResult.message && !caixaResult.transaction) {
+        if (caixaResult.caixaName && caixaResult.newBalance !== undefined) {
+          caixaInfo = {
+            caixaName: caixaResult.caixaName,
+            newBalance: caixaResult.newBalance,
+            message: caixaResult.message
+          };
+        } else if (caixaResult.message) {
           console.warn('[SALE]', caixaResult.message);
         }
       }
       
       refreshSales();
-      return sale;
+      return { ...sale, caixaInfo };
     }
   }, [refreshSales]);
 

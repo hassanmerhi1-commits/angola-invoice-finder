@@ -115,7 +115,7 @@ export function processSalePayment(
   paymentMethod: 'cash' | 'card' | 'transfer',
   cashierId: string,
   customerName?: string
-): { success: boolean; message: string; transaction?: CashTransaction } {
+): { success: boolean; message: string; transaction?: CashTransaction; caixaName?: string; newBalance?: number } {
   // Only process cash payments through Caixa
   if (paymentMethod !== 'cash') {
     return { success: true, message: 'Non-cash payment - no Caixa update needed' };
@@ -160,6 +160,10 @@ export function processSalePayment(
   // Update Caixa balance
   updateCaixaBalance(openCaixa.id, amount, 'in');
   
+  // Get updated balance for feedback
+  const updatedCaixa = getCaixaById(openCaixa.id);
+  const newBalance = updatedCaixa?.currentBalance ?? openCaixa.currentBalance + amount;
+  
   // Update session totals
   updateCaixaSessionTotals(openSession.id, amount, 'sale');
   
@@ -168,7 +172,9 @@ export function processSalePayment(
   return { 
     success: true, 
     message: 'Venda registada na Caixa',
-    transaction 
+    transaction,
+    caixaName: openCaixa.name,
+    newBalance
   };
 }
 

@@ -166,8 +166,21 @@ export default function POS() {
       setCheckoutOpen(false);
       setReceiptOpen(true);
       refreshProducts();
+      
+      // Show Caixa update feedback for cash payments
+      if (sale.caixaInfo) {
+        toast.success('Caixa Actualizada', {
+          description: `${sale.caixaInfo.caixaName}: ${sale.caixaInfo.newBalance.toLocaleString('pt-AO')} Kz`,
+          icon: '💰',
+        });
+      } else if (paymentMethod === 'cash') {
+        toast.info('Venda concluída', {
+          description: 'Nenhuma Caixa aberta - abra uma sessão para registar movimentos',
+        });
+      }
     } catch (error) {
       console.error('Failed to complete sale:', error);
+      toast.error('Erro ao finalizar venda');
     }
   };
 
