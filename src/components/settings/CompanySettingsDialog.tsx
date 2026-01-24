@@ -22,7 +22,9 @@ import {
   Globe,
   CreditCard,
   FileText,
-  Shield
+  Shield,
+  RefreshCw,
+  DollarSign
 } from 'lucide-react';
 import {
   CompanySettings,
@@ -105,7 +107,17 @@ export function CompanySettingsDialog({
 
     setIsSaving(true);
     try {
-      saveCompanySettings(settings);
+      // Update exchange rate timestamp if rates changed
+      const current = getCompanySettings();
+      const ratesChanged = 
+        settings.exchangeRateUSD !== current.exchangeRateUSD ||
+        settings.exchangeRateEUR !== current.exchangeRateEUR;
+      
+      const toSave = ratesChanged 
+        ? { ...settings, exchangeRateUpdatedAt: new Date().toISOString() }
+        : settings;
+        
+      saveCompanySettings(toSave);
       toast.success('Configurações guardadas com sucesso');
       onOpenChange(false);
     } catch (error) {
@@ -137,10 +149,11 @@ export function CompanySettingsDialog({
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="general">Geral</TabsTrigger>
             <TabsTrigger value="contact">Contacto</TabsTrigger>
             <TabsTrigger value="fiscal">Fiscal</TabsTrigger>
+            <TabsTrigger value="cambio">Câmbio</TabsTrigger>
             <TabsTrigger value="branding">Marca</TabsTrigger>
           </TabsList>
 
@@ -357,6 +370,90 @@ export function CompanySettingsDialog({
                 onChange={(e) => handleChange('footerText', e.target.value)}
                 placeholder="Obrigado pela preferência!"
               />
+            </div>
+          </TabsContent>
+
+          {/* Exchange Rates / Câmbio */}
+          <TabsContent value="cambio" className="space-y-4 mt-4">
+            <div className="flex items-center gap-2 mb-4">
+              <DollarSign className="w-5 h-5 text-primary" />
+              <div>
+                <h3 className="font-medium">Taxas de Câmbio</h3>
+                <p className="text-sm text-muted-foreground">
+                  Configure as taxas de conversão para moedas estrangeiras
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="exchangeRateUSD" className="flex items-center gap-2">
+                  🇺🇸 Dólar (USD)
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">1 USD =</span>
+                  <Input
+                    id="exchangeRateUSD"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={settings.exchangeRateUSD || ''}
+                    onChange={(e) => handleChange('exchangeRateUSD', e.target.value)}
+                    placeholder="850.00"
+                    className="flex-1"
+                  />
+                  <span className="text-sm font-medium">AOA</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exchangeRateEUR" className="flex items-center gap-2">
+                  🇪🇺 Euro (EUR)
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">1 EUR =</span>
+                  <Input
+                    id="exchangeRateEUR"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={settings.exchangeRateEUR || ''}
+                    onChange={(e) => handleChange('exchangeRateEUR', e.target.value)}
+                    placeholder="920.00"
+                    className="flex-1"
+                  />
+                  <span className="text-sm font-medium">AOA</span>
+                </div>
+              </div>
+            </div>
+
+            {settings.exchangeRateUpdatedAt && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Última actualização: {new Date(settings.exchangeRateUpdatedAt).toLocaleString('pt-AO')}
+              </p>
+            )}
+
+            <Separator />
+
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <h4 className="font-medium text-sm mb-2">Conversão Exemplo</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">100 USD =</p>
+                  <p className="font-mono font-medium">
+                    {settings.exchangeRateUSD 
+                      ? `${(100 * Number(settings.exchangeRateUSD)).toLocaleString('pt-AO')} AOA`
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">100 EUR =</p>
+                  <p className="font-mono font-medium">
+                    {settings.exchangeRateEUR 
+                      ? `${(100 * Number(settings.exchangeRateEUR)).toLocaleString('pt-AO')} AOA`
+                      : '—'}
+                  </p>
+                </div>
+              </div>
             </div>
           </TabsContent>
 

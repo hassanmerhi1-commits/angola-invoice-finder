@@ -40,6 +40,11 @@ export interface CompanySettings {
   invoiceNotes?: string;
   footerText?: string;
   
+  // Exchange Rates (Câmbio)
+  exchangeRateUSD?: number; // 1 USD = X AOA
+  exchangeRateEUR?: number; // 1 EUR = X AOA
+  exchangeRateUpdatedAt?: string;
+  
   createdAt?: string;
   updatedAt?: string;
 }
