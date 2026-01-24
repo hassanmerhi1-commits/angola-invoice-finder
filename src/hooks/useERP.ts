@@ -849,11 +849,15 @@ export function usePurchaseOrders(branchId?: string) {
     items: PurchaseOrderItem[],
     createdBy: string,
     notes?: string,
-    expectedDeliveryDate?: string
+    expectedDeliveryDate?: string,
+    freightCost?: number,
+    otherCosts?: number,
+    otherCostsDescription?: string
   ): Promise<PurchaseOrder> => {
     if (isLocalNetworkMode()) {
       const res = await api.purchaseOrders.create({
-        supplierId, branchId, items, createdBy, notes, expectedDeliveryDate
+        supplierId, branchId, items, createdBy, notes, expectedDeliveryDate,
+        freightCost, otherCosts, otherCostsDescription
       });
       if (res.data) return mapPurchaseOrderFromDb(res.data);
       throw new Error(res.error || 'Failed to create order');
@@ -865,6 +869,7 @@ export function usePurchaseOrders(branchId?: string) {
 
       const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
       const taxAmount = items.reduce((sum, item) => sum + (item.subtotal * item.taxRate / 100), 0);
+      const totalWithCosts = subtotal + taxAmount + (freightCost || 0) + (otherCosts || 0);
 
       const order: PurchaseOrder = {
         id: `po_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -876,7 +881,10 @@ export function usePurchaseOrders(branchId?: string) {
         items,
         subtotal,
         taxAmount,
-        total: subtotal + taxAmount,
+        total: totalWithCosts,
+        freightCost,
+        otherCosts,
+        otherCostsDescription,
         status: 'pending',
         notes,
         createdBy,

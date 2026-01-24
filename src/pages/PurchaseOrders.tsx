@@ -73,6 +73,10 @@ export default function PurchaseOrders() {
     notes: '',
     expectedDeliveryDate: '',
     items: [] as { productId: string; quantity: number; unitCost: number }[],
+    // Freight and other costs
+    freightCost: 0,
+    otherCosts: 0,
+    otherCostsDescription: '',
   });
 
   const [newItemForm, setNewItemForm] = useState({
@@ -243,15 +247,21 @@ export default function PurchaseOrders() {
       return;
     }
 
+    // Calculate freight allocation proportional to item value
+    const freightAllocations = calculateFreightAllocation();
+
     const items: PurchaseOrderItem[] = orderForm.items.map(item => {
       const product = products.find(p => p.id === item.productId)!;
       const subtotal = item.quantity * item.unitCost;
+      const freightAllocation = freightAllocations[item.productId] || 0;
       return {
         productId: item.productId,
         productName: product.name,
         sku: product.sku,
         quantity: item.quantity,
         unitCost: item.unitCost,
+        freightAllocation, // Per-unit freight cost
+        effectiveCost: item.unitCost + freightAllocation, // Total per-unit cost including freight
         taxRate: product.taxRate,
         subtotal,
       };
@@ -263,7 +273,10 @@ export default function PurchaseOrders() {
       items,
       user?.id || '',
       orderForm.notes || undefined,
-      orderForm.expectedDeliveryDate || undefined
+      orderForm.expectedDeliveryDate || undefined,
+      orderForm.freightCost || undefined,
+      orderForm.otherCosts || undefined,
+      orderForm.otherCostsDescription || undefined
     );
 
     toast({
@@ -278,6 +291,9 @@ export default function PurchaseOrders() {
       notes: '',
       expectedDeliveryDate: '',
       items: [],
+      freightCost: 0,
+      otherCosts: 0,
+      otherCostsDescription: '',
     });
   };
 
@@ -327,6 +343,21 @@ export default function PurchaseOrders() {
   const orderItemsTotal = orderForm.items.reduce((sum, item) => {
     return sum + (item.quantity * item.unitCost);
   }, 0);
+
+  // Total with freight and other costs
+  const orderGrandTotal = orderItemsTotal + (orderForm.freightCost || 0) + (orderForm.otherCosts || 0);
+  
+  // Calculate freight allocation per item (proportional to value)
+  const calculateFreightAllocation = () => {
+    if (orderItemsTotal === 0 || !orderForm.freightCost) return {};
+    const allocations: Record<string, number> = {};
+    orderForm.items.forEach(item => {
+      const itemValue = item.quantity * item.unitCost;
+      const proportion = itemValue / orderItemsTotal;
+      allocations[item.productId] = (orderForm.freightCost * proportion) / item.quantity;
+    });
+    return allocations;
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -689,11 +720,11 @@ export default function PurchaseOrders() {
                         </TableRow>
                       );
                     })}
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-right font-bold">
-                        Total:
+                    <TableRow className="bg-muted/30">
+                      <TableCell colSpan={3} className="text-right">
+                        Subtotal Produtos:
                       </TableCell>
-                      <TableCell className="text-right font-bold">
+                      <TableCell className="text-right">
                         {orderItemsTotal.toLocaleString('pt-AO')} Kz
                       </TableCell>
                       <TableCell></TableCell>
@@ -702,6 +733,74 @@ export default function PurchaseOrders() {
                 </Table>
               </div>
             )}
+
+            {/* Freight and Other Costs */}
+            <div className="border rounded-lg p-4 space-y-4 bg-amber-50/50 dark:bg-amber-950/20">
+              <h4 className="font-medium flex items-center gap-2">
+                🚚 Frete e Despesas Adicionais
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Frete (Transporte)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={orderForm.freightCost || ''}
+                    onChange={(e) => setOrderForm({ ...orderForm, freightCost: parseFloat(e.target.value) || 0 })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Será distribuído proporcionalmente ao valor de cada produto
+                  </p>
+                </div>
+                <div>
+                  <Label>Outras Despesas</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={orderForm.otherCosts || ''}
+                    onChange={(e) => setOrderForm({ ...orderForm, otherCosts: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+              {(orderForm.otherCosts > 0) && (
+                <div>
+                  <Label>Descrição das Despesas</Label>
+                  <Input
+                    placeholder="Ex: Seguro, documentação, taxas..."
+                    value={orderForm.otherCostsDescription}
+                    onChange={(e) => setOrderForm({ ...orderForm, otherCostsDescription: e.target.value })}
+                  />
+                </div>
+              )}
+              
+              {/* Totals Summary */}
+              <div className="pt-3 border-t space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal Produtos:</span>
+                  <span>{orderItemsTotal.toLocaleString('pt-AO')} Kz</span>
+                </div>
+                {orderForm.freightCost > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>Frete:</span>
+                    <span>+{orderForm.freightCost.toLocaleString('pt-AO')} Kz</span>
+                  </div>
+                )}
+                {orderForm.otherCosts > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>Outras Despesas:</span>
+                    <span>+{orderForm.otherCosts.toLocaleString('pt-AO')} Kz</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-lg pt-2 border-t">
+                  <span>TOTAL DA ENCOMENDA:</span>
+                  <span className="text-primary">{orderGrandTotal.toLocaleString('pt-AO')} Kz</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
