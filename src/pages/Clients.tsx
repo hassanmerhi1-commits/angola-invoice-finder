@@ -10,9 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Users, Plus, Search, Edit, Trash2, Building, FileSpreadsheet } from 'lucide-react';
+import { Users, Plus, Search, Edit, Trash2, Building, FileSpreadsheet, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { exportClientsToExcel } from '@/lib/excel';
+import { exportClientsToExcel, parseClientsFromExcel, validateImportedClients, downloadClientImportTemplate, ExcelClient } from '@/lib/excel';
+import { ExcelImportDialog } from '@/components/import/ExcelImportDialog';
 
 export default function Clients() {
   const { currentBranch } = useBranchContext();
@@ -22,6 +23,7 @@ export default function Clients() {
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -143,6 +145,37 @@ export default function Clients() {
     return new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value);
   };
 
+  const handleImportClients = (data: ExcelClient[]) => {
+    let imported = 0;
+    data.forEach((item) => {
+      createClient({
+        name: item.nome,
+        nif: item.nif,
+        phone: item.telefone || '',
+        email: item.email || '',
+        address: item.morada || '',
+        city: item.cidade || '',
+        country: item.pais || 'Angola',
+        creditLimit: item.limiteCredito || 0,
+        currentBalance: 0,
+        isActive: true,
+      });
+      imported++;
+    });
+    toast({
+      title: 'Importação concluída',
+      description: `${imported} clientes importados com sucesso`,
+    });
+  };
+
+  const clientImportColumns: { key: keyof ExcelClient; label: string }[] = [
+    { key: 'nome', label: 'Nome' },
+    { key: 'nif', label: 'NIF' },
+    { key: 'telefone', label: 'Telefone' },
+    { key: 'email', label: 'Email' },
+    { key: 'cidade', label: 'Cidade' },
+  ];
+
   // Only main office can manage clients
   if (!isMainOffice) {
     return (
@@ -165,6 +198,10 @@ export default function Clients() {
           <p className="text-muted-foreground">Gestão centralizada de clientes</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Importar Excel
+          </Button>
           <Button variant="outline" onClick={() => exportClientsToExcel(clients)}>
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Exportar Excel
@@ -399,6 +436,19 @@ export default function Clients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Excel Import Dialog */}
+      <ExcelImportDialog<ExcelClient>
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        title="Importar Clientes"
+        description="Importe clientes a partir de um ficheiro Excel ou CSV"
+        parseFile={parseClientsFromExcel}
+        validateData={validateImportedClients}
+        onImport={handleImportClients}
+        downloadTemplate={downloadClientImportTemplate}
+        columns={clientImportColumns}
+      />
     </div>
   );
 }

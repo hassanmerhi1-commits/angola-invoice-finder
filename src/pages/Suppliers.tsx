@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit, Trash2, Truck, Phone, Mail, FileSpreadsheet } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Truck, Phone, Mail, FileSpreadsheet, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -42,7 +42,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { exportSuppliersToExcel } from '@/lib/excel';
+import { exportSuppliersToExcel, parseSuppliersFromExcel, validateImportedSuppliers, downloadSupplierImportTemplate, ExcelSupplier } from '@/lib/excel';
+import { ExcelImportDialog } from '@/components/import/ExcelImportDialog';
 
 const PAYMENT_TERMS = [
   { value: 'immediate', label: 'Pagamento Imediato' },
@@ -72,6 +73,7 @@ export default function Suppliers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [formData, setFormData] = useState(initialFormData);
 
@@ -154,6 +156,45 @@ export default function Suppliers() {
     setDeleteDialogOpen(true);
   };
 
+  const handleImportSuppliers = (data: ExcelSupplier[]) => {
+    let imported = 0;
+    data.forEach((item) => {
+      const paymentTermsMap: Record<string, Supplier['paymentTerms']> = {
+        'immediate': 'immediate',
+        '15_days': '15_days',
+        '30_days': '30_days',
+        '60_days': '60_days',
+        '90_days': '90_days',
+      };
+      createSupplier({
+        name: item.nome,
+        nif: item.nif,
+        contactPerson: item.pessoaContacto || '',
+        phone: item.telefone || '',
+        email: item.email || '',
+        address: item.morada || '',
+        city: item.cidade || '',
+        country: item.pais || 'Angola',
+        paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || 'immediate',
+        isActive: true,
+        notes: item.notas || '',
+      });
+      imported++;
+    });
+    toast({
+      title: 'Importação concluída',
+      description: `${imported} fornecedores importados com sucesso`,
+    });
+  };
+
+  const supplierImportColumns: { key: keyof ExcelSupplier; label: string }[] = [
+    { key: 'nome', label: 'Nome' },
+    { key: 'nif', label: 'NIF' },
+    { key: 'pessoaContacto', label: 'Contacto' },
+    { key: 'telefone', label: 'Telefone' },
+    { key: 'cidade', label: 'Cidade' },
+  ];
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -164,6 +205,10 @@ export default function Suppliers() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Importar Excel
+          </Button>
           <Button variant="outline" onClick={() => exportSuppliersToExcel(suppliers)}>
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Exportar Excel
@@ -489,6 +534,19 @@ export default function Suppliers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Excel Import Dialog */}
+      <ExcelImportDialog<ExcelSupplier>
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        title="Importar Fornecedores"
+        description="Importe fornecedores a partir de um ficheiro Excel ou CSV"
+        parseFile={parseSuppliersFromExcel}
+        validateData={validateImportedSuppliers}
+        onImport={handleImportSuppliers}
+        downloadTemplate={downloadSupplierImportTemplate}
+        columns={supplierImportColumns}
+      />
     </div>
   );
 }
