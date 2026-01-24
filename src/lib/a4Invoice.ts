@@ -555,12 +555,9 @@ export async function printA4Invoice(
   printWindow.document.write(html);
   printWindow.document.close();
   
-  printWindow.onload = () => {
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 300);
-  };
+  // Print immediately - no external resources to wait for
+  printWindow.focus();
+  printWindow.print();
 }
 
 export async function downloadA4InvoicePDF(

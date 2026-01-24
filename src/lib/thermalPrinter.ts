@@ -298,11 +298,15 @@ export async function printViaSerial(data: Uint8Array): Promise<boolean> {
 }
 
 // Print using browser's print dialog (fallback)
-export function printViaBrowser(
+export async function printViaBrowser(
   sale: Sale,
   branch: Branch,
   paperWidth: 58 | 80 = 80
-): void {
+): Promise<void> {
+  // Pre-generate QR code as data URL to avoid CDN delays
+  const { generateAGTQRCodeDataURL } = await import('./agtQRCode');
+  const qrCodeDataURL = await generateAGTQRCodeDataURL(sale, branch, { size: 100, margin: 1 });
+
   // Create a new window for printing
   const printWindow = window.open('', '_blank', 'width=400,height=600');
   
@@ -441,9 +445,9 @@ export function printViaBrowser(
   
   <div class="divider"></div>
   
-  <!-- AGT QR Code Section -->
+  <!-- AGT QR Code Section - Pre-rendered -->
   <div class="center" style="padding: 10px 0;">
-    <div id="qrcode" style="display: inline-block; padding: 5px; background: white;"></div>
+    ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" alt="QR Code AGT" style="width: 100px; height: 100px;">` : ''}
     <div style="font-size: 8px; margin-top: 5px; font-family: monospace;">
       Hash: ${getInvoiceHash(sale)}
     </div>
@@ -460,16 +464,6 @@ export function printViaBrowser(
     <br>
     <div>Obrigado pela preferência!</div>
   </div>
-  
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  <script>
-    const qrData = "${buildAGTQRCodeString(saleToAGTQRData(sale, branch)).replace(/"/g, '\\"')}";
-    QRCode.toCanvas(document.createElement('canvas'), qrData, { width: 100, margin: 1 }, function(err, canvas) {
-      if (!err) {
-        document.getElementById('qrcode').appendChild(canvas);
-      }
-    });
-  </script>
 </body>
 </html>
   `;
@@ -477,13 +471,9 @@ export function printViaBrowser(
   printWindow.document.write(html);
   printWindow.document.close();
   
-  // Wait for content to load then print
-  printWindow.onload = () => {
-    printWindow.focus();
-    printWindow.print();
-    // Close after printing (optional)
-    // printWindow.close();
-  };
+  // Print immediately - no external resources to wait for
+  printWindow.focus();
+  printWindow.print();
 }
 
 // Main print function - tries thermal first, falls back to browser

@@ -10,8 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Users, Plus, Search, Edit, Trash2, Building } from 'lucide-react';
+import { Users, Plus, Search, Edit, Trash2, Building, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { exportClientsToExcel } from '@/lib/excel';
 
 export default function Clients() {
   const { currentBranch } = useBranchContext();
@@ -163,10 +164,16 @@ export default function Clients() {
           <h1 className="text-2xl font-bold">Registo de Clientes</h1>
           <p className="text-muted-foreground">Gestão centralizada de clientes</p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Cliente
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportClientsToExcel(clients)}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Exportar Excel
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Cliente
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
