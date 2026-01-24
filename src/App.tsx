@@ -28,6 +28,8 @@ import Reports from "./pages/Reports";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import Branches from "./pages/Branches";
 import Settings from "./pages/Settings";
+import Expenses from "./pages/Expenses";
+import BankAccounts from "./pages/BankAccounts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -181,6 +183,8 @@ function AppRoutes() {
         <Route path="/customers" element={<Clients />} />
         <Route path="/branches" element={<Branches />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/expenses" element={<Expenses />} />
+        <Route path="/bank-accounts" element={<BankAccounts />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<NotFound />} />
