@@ -478,6 +478,7 @@ export default function Inventory() {
         duplicateKey="codigo"
         existingKeys={existingSkus}
         duplicateLabel="SKU"
+        mappingType="products"
       />
     </div>
   );

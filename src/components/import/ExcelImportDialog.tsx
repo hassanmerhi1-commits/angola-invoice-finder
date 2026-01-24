@@ -6,7 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Download, X, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Download, X, AlertTriangle, RefreshCw, Settings2 } from 'lucide-react';
+import { ColumnMappingDialog, ColumnMapping } from './ColumnMappingDialog';
+import { getExcelHeaders } from '@/lib/excel';
 
 interface ImportError {
   row: number;
@@ -24,7 +26,7 @@ interface ExcelImportDialogProps<T> {
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
-  parseFile: (file: File) => Promise<T[]>;
+  parseFile: (file: File, mappings?: ColumnMapping[]) => Promise<T[]>;
   validateData: (data: T[]) => { valid: T[]; errors: ImportError[] };
   onImport: (data: T[], options?: { skipDuplicates?: boolean; updateDuplicates?: boolean }) => void;
   downloadTemplate: () => void;
@@ -33,6 +35,8 @@ interface ExcelImportDialogProps<T> {
   duplicateKey?: keyof T; // The key to check for duplicates (e.g., 'codigo', 'nif')
   existingKeys?: string[]; // Array of existing keys to check against
   duplicateLabel?: string; // Label for the duplicate key (e.g., 'SKU', 'NIF')
+  // Column mapping
+  mappingType?: 'products' | 'clients' | 'suppliers';
 }
 
 export function ExcelImportDialog<T>({
@@ -48,6 +52,7 @@ export function ExcelImportDialog<T>({
   duplicateKey,
   existingKeys = [],
   duplicateLabel = 'Código',
+  mappingType,
 }: ExcelImportDialogProps<T>) {
   const [step, setStep] = useState<'upload' | 'preview' | 'importing'>('upload');
   const [parsedData, setParsedData] = useState<T[]>([]);
@@ -55,6 +60,10 @@ export function ExcelImportDialog<T>({
   const [errors, setErrors] = useState<ImportError[]>([]);
   const [fileName, setFileName] = useState<string>('');
   const [duplicateAction, setDuplicateAction] = useState<'skip' | 'update' | 'include'>('skip');
+  const [showMappingDialog, setShowMappingDialog] = useState(false);
+  const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
+  const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Detect duplicates
@@ -84,9 +93,15 @@ export function ExcelImportDialog<T>({
     if (!file) return;
 
     setFileName(file.name);
+    setCurrentFile(file);
     
     try {
-      const data = await parseFile(file);
+      // Detect headers for column mapping
+      const headers = await getExcelHeaders(file);
+      setDetectedHeaders(headers);
+      
+      // Parse with current mappings (if any)
+      const data = await parseFile(file, columnMappings.length > 0 ? columnMappings : undefined);
       setParsedData(data);
       
       const { valid, errors } = validateData(data);
@@ -96,6 +111,23 @@ export function ExcelImportDialog<T>({
     } catch (error) {
       console.error('Error parsing file:', error);
       setErrors([{ row: 0, errors: ['Erro ao processar ficheiro. Verifique o formato.'] }]);
+    }
+  };
+
+  const handleApplyMapping = async (mappings: ColumnMapping[]) => {
+    setColumnMappings(mappings);
+    
+    if (currentFile) {
+      try {
+        const data = await parseFile(currentFile, mappings);
+        setParsedData(data);
+        
+        const { valid, errors } = validateData(data);
+        setValidData(valid);
+        setErrors(errors);
+      } catch (error) {
+        console.error('Error re-parsing with mappings:', error);
+      }
     }
   };
 
@@ -129,6 +161,9 @@ export function ExcelImportDialog<T>({
     setErrors([]);
     setFileName('');
     setDuplicateAction('skip');
+    setColumnMappings([]);
+    setDetectedHeaders([]);
+    setCurrentFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -188,11 +223,25 @@ export function ExcelImportDialog<T>({
                 <div className="flex items-center gap-2">
                   <FileSpreadsheet className="w-5 h-5 text-primary" />
                   <span className="font-medium">{fileName}</span>
+                  {columnMappings.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      <Settings2 className="w-3 h-3 mr-1" />
+                      Mapeamento personalizado
+                    </Badge>
+                  )}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setStep('upload')}>
-                  <X className="w-4 h-4 mr-1" />
-                  Escolher outro ficheiro
-                </Button>
+                <div className="flex items-center gap-2">
+                  {mappingType && (
+                    <Button variant="outline" size="sm" onClick={() => setShowMappingDialog(true)}>
+                      <Settings2 className="w-4 h-4 mr-1" />
+                      Mapear Colunas
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => setStep('upload')}>
+                    <X className="w-4 h-4 mr-1" />
+                    Escolher outro ficheiro
+                  </Button>
+                </div>
               </div>
 
               <div className="flex gap-4 flex-wrap">
@@ -357,6 +406,17 @@ export function ExcelImportDialog<T>({
           )}
         </DialogFooter>
       </DialogContent>
+
+      {/* Column Mapping Dialog */}
+      {mappingType && (
+        <ColumnMappingDialog
+          open={showMappingDialog}
+          onOpenChange={setShowMappingDialog}
+          type={mappingType}
+          onApplyMapping={handleApplyMapping}
+          excelColumns={detectedHeaders}
+        />
+      )}
     </Dialog>
   );
 }

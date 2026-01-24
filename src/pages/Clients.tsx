@@ -480,6 +480,7 @@ export default function Clients() {
         duplicateKey="nif"
         existingKeys={existingNifs}
         duplicateLabel="NIF"
+        mappingType="clients"
       />
     </div>
   );
