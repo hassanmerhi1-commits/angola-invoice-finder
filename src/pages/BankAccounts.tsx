@@ -9,6 +9,7 @@ import {
   getBankTransactions
 } from '@/lib/accountingStorage';
 import { BankAccount, BankTransaction } from '@/types/accounting';
+import { MoneyTransferDialog } from '@/components/accounting/MoneyTransferDialog';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 
@@ -57,7 +58,8 @@ import {
   Star,
   Edit,
   Eye,
-  Banknote
+  Banknote,
+  ArrowRightLeft
 } from 'lucide-react';
 
 const ANGOLAN_BANKS = [
@@ -114,6 +116,7 @@ export default function BankAccounts() {
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
   const [formData, setFormData] = useState<AccountFormData>(initialFormData);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -255,10 +258,16 @@ export default function BankAccounts() {
             Gestão de contas bancárias por filial - {currentBranch?.name || 'Todas as filiais'}
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Nova Conta
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsTransferDialogOpen(true)} className="gap-2">
+            <ArrowRightLeft className="w-4 h-4" />
+            Transferência
+          </Button>
+          <Button onClick={() => handleOpenDialog()} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Nova Conta
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -614,6 +623,13 @@ export default function BankAccounts() {
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      {/* Money Transfer Dialog */}
+      <MoneyTransferDialog
+        open={isTransferDialogOpen}
+        onOpenChange={setIsTransferDialogOpen}
+        onTransferComplete={loadData}
+      />
     </div>
   );
 }
