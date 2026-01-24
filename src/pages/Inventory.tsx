@@ -21,16 +21,20 @@ import {
   ChevronRight,
   AlertCircle,
   Download,
-  Upload
+  Upload,
+  ArrowRightLeft
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
+import { BranchStockDetail } from '@/components/inventory/BranchStockDetail';
 import { BranchSelector } from '@/components/BranchSelector';
 import { exportProductsToExcel, parseExcelFile, validateImportedProducts, downloadImportTemplate, ExcelProduct } from '@/lib/excel';
 import { ExcelImportDialog } from '@/components/import/ExcelImportDialog';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export default function Inventory() {
+  const navigate = useNavigate();
   const { currentBranch } = useBranchContext();
   const { products, refreshProducts, updateProduct, addProduct, deleteProduct } = useProducts(currentBranch?.id);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -299,18 +303,24 @@ export default function Inventory() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="qtd-detalhada" className="flex-1 m-0 p-4">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center">Quantidade detalhada por filial</p>
-            </CardContent>
-          </Card>
+        <TabsContent value="qtd-detalhada" className="flex-1 m-0 p-4 overflow-auto">
+          <BranchStockDetail selectedProduct={selectedProduct} />
         </TabsContent>
 
         <TabsContent value="transferencia" className="flex-1 m-0 p-4">
           <Card>
             <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center">Transferências pendentes</p>
+              <div className="text-center space-y-4">
+                <ArrowRightLeft className="w-12 h-12 mx-auto text-muted-foreground" />
+                <div>
+                  <h3 className="font-semibold text-lg">Transferência de Stock</h3>
+                  <p className="text-muted-foreground mb-4">Movimente produtos entre filiais e armazéns</p>
+                </div>
+                <Button onClick={() => navigate('/stock-transfer')}>
+                  <ArrowRightLeft className="w-4 h-4 mr-2" />
+                  Ir para Transferências
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
