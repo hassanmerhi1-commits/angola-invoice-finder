@@ -327,32 +327,49 @@ export function useSales(branchId?: string) {
 // ============================================
 // AUTH
 // ============================================
+// Unique session token set once per Electron window.
+// If not present the session is treated as "fresh" (not yet logged in).
+const SESSION_TOKEN_KEY = 'kwanzaerp_window_session';
+
+// Generate a new token once per main.tsx mount and store it
+function initWindowSession() {
+  // If running in Electron a token is injected per window; otherwise use sessionStorage
+  const existingToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
+  if (!existingToken) {
+    const token = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    // Clear any leftover login so the new window starts with login screen
+    storage.setCurrentUser(null);
+  }
+}
+
+initWindowSession();
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Validate that stored user is actually valid
+    // Each window starts without a logged-in user because initWindowSession()
+    // already cleared the session above. However we still read current user
+    // in case it was restored during this same session (i.e. after a login).
     const currentUser = storage.getCurrentUser();
-    
+
     if (currentUser && currentUser.id && currentUser.email) {
-      // Verify user still exists in users list (in case data was corrupted/reset)
+      // Verify user still exists in users list
       const users = storage.getUsers();
       const validUser = users.find(u => u.id === currentUser.id && u.isActive);
-      
+
       if (validUser) {
         setUser(currentUser);
       } else {
-        // User no longer valid, clear the session
         storage.setCurrentUser(null);
         setUser(null);
       }
     } else {
-      // No valid user stored
-      storage.setCurrentUser(null);
       setUser(null);
     }
-    
+
     setIsLoading(false);
   }, []);
 
