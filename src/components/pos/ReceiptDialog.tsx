@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Printer, Settings, Check } from 'lucide-react';
+import { Printer, Settings, Check, FileOutput } from 'lucide-react';
 import { 
   printReceipt, 
   getPrinterConfig, 
@@ -17,6 +17,7 @@ import {
 import { PrinterSettingsDialog } from './PrinterSettingsDialog';
 import { AGTQRCode } from '@/components/invoice/AGTQRCode';
 import { getInvoiceHash } from '@/lib/agtQRCode';
+import { printA4Invoice } from '@/lib/a4Invoice';
 import { toast } from 'sonner';
 
 interface ReceiptDialogProps {
@@ -71,6 +72,20 @@ export function ReceiptDialog({
       }
     } catch (error) {
       toast.error('Erro ao abrir gaveta');
+    }
+  };
+
+  const handlePrintA4 = async () => {
+    try {
+      await printA4Invoice(sale, branch, {
+        showBankDetails: true,
+        showNotes: true,
+        documentType: 'FR',
+      });
+      toast.success('Factura A4 enviada para impressão');
+    } catch (error) {
+      toast.error('Erro ao imprimir factura A4');
+      console.error('A4 print error:', error);
     }
   };
 
@@ -201,24 +216,29 @@ export function ReceiptDialog({
 
         {/* Actions */}
         <div className="space-y-2 print:hidden">
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              className="flex-1" 
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
               onClick={handlePrint}
               disabled={isPrinting}
             >
               <Printer className="w-4 h-4 mr-2" />
-              {isPrinting ? 'Imprimindo...' : 'Imprimir'}
+              {isPrinting ? 'Imprimindo...' : 'Térmico'}
             </Button>
-            <Button className="flex-1" onClick={onNewSale}>
-              Nova Venda
+            <Button variant="outline" onClick={handlePrintA4}>
+              <FileOutput className="w-4 h-4 mr-2" />
+              A4
             </Button>
           </div>
+
+          <Button className="w-full" onClick={onNewSale}>
+            Nova Venda
+          </Button>
+
           <div className="flex gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="flex-1 text-muted-foreground"
               onClick={() => setSettingsOpen(true)}
             >
