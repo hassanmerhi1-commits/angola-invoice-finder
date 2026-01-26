@@ -24,6 +24,7 @@ import {
   Upload,
   ArrowRightLeft,
   ClipboardList,
+  ClipboardCheck,
   Printer,
   Calculator,
   PackagePlus,
@@ -36,6 +37,7 @@ import { BranchSelector } from '@/components/BranchSelector';
 import { exportProductsToExcel, parseExcelFile, validateImportedProducts, downloadImportTemplate, ExcelProduct } from '@/lib/excel';
 import { ExcelImportDialog } from '@/components/import/ExcelImportDialog';
 import { InventoryCountSheetDialog } from '@/components/inventory/InventoryCountSheetDialog';
+import { InventoryReconciliationDialog } from '@/components/inventory/InventoryReconciliationDialog';
 import { InventoryAdjustmentDialog } from '@/components/inventory/InventoryAdjustmentDialog';
 import { StockEntryDialog } from '@/components/inventory/StockEntryDialog';
 import { StockExitDialog } from '@/components/inventory/StockExitDialog';
@@ -52,6 +54,7 @@ export default function Inventory() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [countSheetDialogOpen, setCountSheetDialogOpen] = useState(false);
+  const [reconciliationDialogOpen, setReconciliationDialogOpen] = useState(false);
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [stockEntryDialogOpen, setStockEntryDialogOpen] = useState(false);
   const [stockExitDialogOpen, setStockExitDialogOpen] = useState(false);
@@ -308,6 +311,15 @@ export default function Inventory() {
         >
           <ClipboardList className="w-3 h-3" />
           Folha Contagem
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1"
+          onClick={() => setReconciliationDialogOpen(true)}
+        >
+          <ClipboardCheck className="w-3 h-3" />
+          Reconciliar
         </Button>
         <Button 
           variant="outline" 
@@ -593,6 +605,47 @@ export default function Inventory() {
         products={products}
         branch={currentBranch}
         categories={[...new Set(products.map(p => p.category).filter(Boolean))]}
+      />
+
+      {/* Inventory Reconciliation Dialog */}
+      <InventoryReconciliationDialog
+        open={reconciliationDialogOpen}
+        onOpenChange={setReconciliationDialogOpen}
+        products={products}
+        branch={currentBranch}
+        categories={[...new Set(products.map(p => p.category).filter(Boolean))]}
+        onReconcile={(adjustments) => {
+          const currentUser = JSON.parse(localStorage.getItem('kwanzaerp_current_user') || '{}');
+          
+          adjustments.forEach(adj => {
+            const product = products.find(p => p.id === adj.productId);
+            if (product) {
+              // Update product stock to the counted value
+              updateProduct({
+                ...product,
+                stock: adj.countedStock,
+                updatedAt: new Date().toISOString(),
+              });
+
+              // Create stock movement record
+              const movementType = adj.difference > 0 ? 'IN' : 'OUT';
+              createStockMovement(
+                adj.productId,
+                currentBranch?.id || '',
+                movementType,
+                Math.abs(adj.difference),
+                'adjustment',
+                currentUser?.id || 'system',
+                undefined,
+                undefined,
+                adj.reason
+              );
+            }
+          });
+
+          refreshProducts();
+        }}
+        currentUser={JSON.parse(localStorage.getItem('kwanzaerp_current_user') || '{}')?.name}
       />
 
       {/* Inventory Adjustment Dialog */}
