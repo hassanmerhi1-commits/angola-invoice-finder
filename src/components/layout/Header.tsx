@@ -63,45 +63,55 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Database Connection Status Indicator */}
+        {/* PayrollAO-style Connection Status Indicator */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={() => checkStatus()}
                 disabled={isChecking}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all hover:shadow-sm ${
-                  dbStatus.isConnected
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                    : dbStatus.mode === 'unknown'
-                    ? 'bg-muted border-border text-muted-foreground'
-                    : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
-                }`}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-md border bg-card text-xs font-medium"
               >
-                {isChecking ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                {/* Database icon */}
+                <Database className={`w-4 h-4 ${dbStatus.isConnected ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                
+                {/* Connection dot */}
+                <span className={`w-1.5 h-1.5 rounded-full ${dbStatus.isConnected ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
+                
+                {/* Role icon and label */}
+                {dbStatus.mode === 'client' ? (
+                  <>
+                    <Monitor className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">Cliente</span>
+                  </>
                 ) : dbStatus.mode === 'server' ? (
-                  <Server className="w-4 h-4" />
-                ) : dbStatus.mode === 'client' ? (
-                  <Monitor className="w-4 h-4" />
+                  <>
+                    <Server className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">Servidor</span>
+                  </>
                 ) : (
-                  <Database className="w-4 h-4" />
+                  <>
+                    <span className="text-muted-foreground">—</span>
+                  </>
                 )}
-                <span className="text-xs font-medium hidden md:inline">
-                  {dbStatus.mode === 'server' 
-                    ? (dbStatus.isConnected ? 'Servidor' : 'DB Offline')
-                    : dbStatus.mode === 'client'
-                    ? (dbStatus.isConnected ? 'Conectado' : 'Desconectado')
-                    : 'Não configurado'
-                  }
-                </span>
-                <span className={`w-2 h-2 rounded-full ${
-                  dbStatus.isConnected
-                    ? 'bg-emerald-500'
-                    : dbStatus.mode === 'unknown'
-                    ? 'bg-muted-foreground'
-                    : 'bg-red-500 animate-pulse'
-                }`} />
+                
+                {/* Separator */}
+                <span className="text-muted-foreground mx-1">|</span>
+                
+                {/* Status */}
+                {isChecking ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+                ) : dbStatus.isConnected ? (
+                  <span className="text-emerald-600">Online</span>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728M15.536 8.464a5 5 0 010 7.072M8.464 15.536a5 5 0 010-7.072" />
+                      <line x1="4" y1="4" x2="20" y2="20" strokeWidth={2} />
+                    </svg>
+                    <span className="text-orange-500">Offline</span>
+                  </>
+                )}
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs p-3">

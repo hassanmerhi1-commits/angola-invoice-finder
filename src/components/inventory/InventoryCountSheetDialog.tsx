@@ -121,20 +121,19 @@ export function InventoryCountSheetDialog({
           }
           th, td {
             border: 1px solid #000;
-            padding: 3px 6px;
+            padding: 4px 6px;
             text-align: left;
           }
           th {
             background: #fff;
             font-weight: bold;
             font-size: 10px;
-            text-transform: uppercase;
           }
           td {
             font-size: 10px;
           }
           .col-codigo {
-            width: 85px;
+            width: 90px;
           }
           .col-descricao {
             /* takes remaining space */
@@ -144,7 +143,7 @@ export function InventoryCountSheetDialog({
             text-align: center;
           }
           .col-contagem {
-            width: 70px;
+            width: 80px;
             text-align: center;
           }
           .col-diff {
@@ -154,11 +153,14 @@ export function InventoryCountSheetDialog({
           .branch-header {
             text-align: center;
             font-weight: bold;
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
           }
+          .header-row th {
+            border-bottom: 2px solid #000;
+          }
           .signature-section {
-            margin-top: 30px;
+            margin-top: 40px;
             display: flex;
             justify-content: space-between;
             font-size: 10px;
@@ -166,12 +168,11 @@ export function InventoryCountSheetDialog({
           .signature-line {
             border-top: 1px solid #000;
             padding-top: 3px;
-            min-width: 150px;
-            text-align: center;
+            min-width: 180px;
           }
           @media print {
             body {
-              padding: 5mm;
+              padding: 8mm;
             }
           }
         </style>
@@ -179,9 +180,9 @@ export function InventoryCountSheetDialog({
       <body>
         <table>
           <thead>
-            <tr>
+            <tr class="header-row">
               <th class="col-codigo">Codigo</th>
-              <th class="col-descricao branch-header">${branchName}</th>
+              <th class="col-descricao branch-header">${branchName.toUpperCase()}</th>
               <th class="col-qtd">Qtd</th>
               <th class="col-contagem">Contagem</th>
               <th class="col-diff">Diff</th>
@@ -203,10 +204,10 @@ export function InventoryCountSheetDialog({
         <div class="signature-section">
           <div>
             <div class="signature-line">
-              ${countedBy || '_________________'}
+              ${countedBy || '_________________________'}
             </div>
           </div>
-          <div>
+          <div style="text-align: right;">
             ${branch?.name || ''}, aos ${dateStr}
           </div>
         </div>
