@@ -314,55 +314,67 @@ export function StockEntryDialog({
                 <TableRow>
                   <TableHead className="w-[100px]">Código</TableHead>
                   <TableHead>Produto</TableHead>
-                  <TableHead className="w-[60px] text-center">Un.</TableHead>
-                  <TableHead className="w-[120px] text-center">Quantidade</TableHead>
-                  <TableHead className="w-[120px] text-right">Custo Un.</TableHead>
-                  <TableHead className="w-[120px] text-right">Total</TableHead>
-                  <TableHead className="w-[60px]"></TableHead>
+                  <TableHead className="w-[50px] text-center">Un.</TableHead>
+                  <TableHead className="w-[100px] text-center">Qtd</TableHead>
+                  <TableHead className="w-[100px] text-right">Custo</TableHead>
+                  <TableHead className="w-[80px] text-right">Frete</TableHead>
+                  <TableHead className="w-[100px] text-right">Custo Efetivo</TableHead>
+                  <TableHead className="w-[100px] text-right">Total</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                       <PackagePlus className="w-12 h-12 mx-auto mb-4 opacity-50" />
                       <p>Nenhum produto adicionado</p>
                       <p className="text-xs">Pesquise e adicione produtos acima</p>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((item) => (
-                    <TableRow key={item.productId}>
-                      <TableCell className="font-mono text-sm">{item.sku}</TableCell>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell className="text-center">{item.unit}</TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => handleUpdateQuantity(item.productId, parseInt(e.target.value) || 0)}
-                          className="h-8 text-center"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(item.cost)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono font-medium">
-                        {formatCurrency(item.quantity * item.cost)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-destructive hover:text-destructive"
-                          onClick={() => handleRemoveItem(item.productId)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  items.map((item) => {
+                    const freightPerUnit = freightAllocations[item.productId] || 0;
+                    const effectiveCost = item.cost + freightPerUnit;
+                    return (
+                      <TableRow key={item.productId}>
+                        <TableCell className="font-mono text-sm">{item.sku}</TableCell>
+                        <TableCell className="truncate max-w-[150px]" title={item.name}>{item.name}</TableCell>
+                        <TableCell className="text-center">{item.unit}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                            className="h-8 text-center"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm">
+                          {formatCurrency(item.cost)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                          {freightPerUnit > 0 ? `+${formatCurrency(freightPerUnit)}` : '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm font-medium text-primary">
+                          {formatCurrency(effectiveCost)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-medium">
+                          {formatCurrency(item.quantity * effectiveCost)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveItem(item.productId)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
