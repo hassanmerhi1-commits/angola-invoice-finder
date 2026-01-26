@@ -17,7 +17,9 @@ import {
   Plus, 
   Trash2,
   Save,
-  Building2
+  Building2,
+  Truck,
+  DollarSign
 } from 'lucide-react';
 import { Product, Branch } from '@/types/erp';
 import { useBranches } from '@/hooks/useERP';
@@ -31,6 +33,8 @@ interface EntryItem {
   unit: string;
   quantity: number;
   cost: number;
+  freightAllocation?: number;
+  effectiveCost?: number;
 }
 
 interface StockEntryDialogProps {
@@ -56,6 +60,11 @@ export function StockEntryDialog({
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EntryItem[]>([]);
   const [newItemQty, setNewItemQty] = useState<Record<string, number>>({});
+  
+  // Freight/transportation costs
+  const [freightCost, setFreightCost] = useState<number>(0);
+  const [otherCosts, setOtherCosts] = useState<number>(0);
+  const [otherCostsDescription, setOtherCostsDescription] = useState<string>('');
 
   // Filter out current branch from source options
   const sourceBranches = useMemo(() => 
@@ -126,13 +135,33 @@ export function StockEntryDialog({
   };
 
   // Calculate totals
+  const itemsValue = useMemo(() => 
+    items.reduce((sum, i) => sum + (i.quantity * i.cost), 0), 
+    [items]
+  );
+  
+  const totalLandingCosts = freightCost + otherCosts;
+  const grandTotal = itemsValue + totalLandingCosts;
+
+  // Calculate freight allocation per unit (proportional to value)
+  const freightAllocations = useMemo(() => {
+    if (itemsValue === 0 || totalLandingCosts === 0) return {};
+    const allocations: Record<string, number> = {};
+    items.forEach(item => {
+      const itemValue = item.quantity * item.cost;
+      const proportion = itemValue / itemsValue;
+      allocations[item.productId] = (totalLandingCosts * proportion) / item.quantity;
+    });
+    return allocations;
+  }, [items, itemsValue, totalLandingCosts]);
+
   const totals = useMemo(() => ({
     items: items.length,
     units: items.reduce((sum, i) => sum + i.quantity, 0),
-    value: items.reduce((sum, i) => sum + (i.quantity * i.cost), 0),
-  }), [items]);
+    value: grandTotal,
+  }), [items, grandTotal]);
 
-  // Apply entry
+  // Apply entry with freight allocation
   const handleApply = () => {
     if (items.length === 0) {
       toast({
@@ -152,7 +181,14 @@ export function StockEntryDialog({
       return;
     }
 
-    onApplyEntry(items, sourceBranch, reference || entryNumber, notes);
+    // Add freight allocation to each item
+    const itemsWithFreight = items.map(item => ({
+      ...item,
+      freightAllocation: freightAllocations[item.productId] || 0,
+      effectiveCost: item.cost + (freightAllocations[item.productId] || 0),
+    }));
+
+    onApplyEntry(itemsWithFreight, sourceBranch, reference || entryNumber, notes);
     
     toast({
       title: 'Entrada registada',
@@ -164,6 +200,9 @@ export function StockEntryDialog({
     setSourceBranch('');
     setReference('');
     setNotes('');
+    setFreightCost(0);
+    setOtherCosts(0);
+    setOtherCostsDescription('');
     onOpenChange(false);
   };
 
@@ -175,7 +214,7 @@ export function StockEntryDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <PackagePlus className="w-5 h-5 text-emerald-600" />
+            <PackagePlus className="w-5 h-5 text-primary" />
             Ajustar Entrada - Recepção de Stock
           </DialogTitle>
           <DialogDescription>
@@ -329,19 +368,68 @@ export function StockEntryDialog({
             </Table>
           </ScrollArea>
 
+          {/* Freight and Landing Costs */}
+          <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Truck className="w-4 h-4" />
+              Custos de Transporte / Frete
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Frete (Kz)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={freightCost || ''}
+                  onChange={(e) => setFreightCost(parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Outros Custos (Kz)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={otherCosts || ''}
+                  onChange={(e) => setOtherCosts(parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Descrição Outros</Label>
+                <Input
+                  value={otherCostsDescription}
+                  onChange={(e) => setOtherCostsDescription(e.target.value)}
+                  placeholder="Descarga, seguro..."
+                />
+              </div>
+            </div>
+            {totalLandingCosts > 0 && items.length > 0 && (
+              <div className="text-xs text-muted-foreground bg-background p-2 rounded">
+                <DollarSign className="w-3 h-3 inline mr-1" />
+                Custo adicional será distribuído proporcionalmente entre os {items.length} produtos
+                ({formatCurrency(totalLandingCosts / totals.units)} por unidade média)
+              </div>
+            )}
+          </div>
+
           {/* Summary */}
-          <div className="grid grid-cols-3 gap-4 p-4 border rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+          <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg bg-primary/5">
             <div className="text-center">
               <p className="text-xs text-muted-foreground">Itens</p>
               <p className="text-xl font-bold">{totals.items}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-muted-foreground">Total Unidades</p>
+              <p className="text-xs text-muted-foreground">Unidades</p>
               <p className="text-xl font-bold">{totals.units}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-muted-foreground">Valor Total</p>
-              <p className="text-xl font-bold text-emerald-600">{formatCurrency(totals.value)}</p>
+              <p className="text-xs text-muted-foreground">Valor Produtos</p>
+              <p className="text-lg font-medium">{formatCurrency(itemsValue)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">Total c/ Frete</p>
+              <p className="text-xl font-bold text-primary">{formatCurrency(totals.value)}</p>
             </div>
           </div>
 
@@ -363,7 +451,6 @@ export function StockEntryDialog({
           </Button>
           <Button 
             onClick={handleApply}
-            className="bg-emerald-600 hover:bg-emerald-700"
             disabled={items.length === 0}
           >
             <Save className="w-4 h-4 mr-2" />

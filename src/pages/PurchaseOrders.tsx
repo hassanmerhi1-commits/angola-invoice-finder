@@ -363,14 +363,14 @@ export default function PurchaseOrders() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Encomendas de Compra</h1>
+          <h1 className="text-2xl font-bold">Compras / Faturas de Compra</h1>
           <p className="text-muted-foreground">
-            Gestão de compras e recepção de mercadoria
+            Gestão de compras a fornecedores e recepção de mercadoria
           </p>
         </div>
         <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
-          Nova Encomenda
+          Nova Fatura de Compra
         </Button>
       </div>
 
