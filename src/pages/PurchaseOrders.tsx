@@ -901,105 +901,174 @@ export default function PurchaseOrders() {
         if (open) setScanMode('receive');
         else setScanMode(null);
       }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>Receber Mercadoria - {selectedOrder?.orderNumber}</DialogTitle>
           </DialogHeader>
 
-          {selectedOrder && (
-            <div className="space-y-4">
-              {/* Barcode Scanner for Receiving */}
-              <div className="border rounded-lg p-4 bg-green-500/5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <ScanLine className="w-5 h-5 text-green-600" />
-                    Leitura de Recepção
-                  </h4>
-                  <Badge variant={scanMode === 'receive' ? 'default' : 'outline'} className="bg-green-600">
-                    {scanMode === 'receive' ? 'Activo' : 'Inactivo'}
-                  </Badge>
-                </div>
-                <form onSubmit={handleManualBarcodeSubmit} className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Escaneie o código para confirmar recepção..."
-                      value={barcodeInput}
-                      onChange={(e) => setBarcodeInput(e.target.value)}
-                      onFocus={() => setScanMode('receive')}
-                      className="pl-10"
-                      autoComplete="off"
-                      autoFocus
-                    />
+          {selectedOrder && (() => {
+            // Calculate freight allocation for display
+            const orderItemsTotal = selectedOrder.items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
+            const totalLandingCosts = (selectedOrder.freightCost || 0) + (selectedOrder.otherCosts || 0);
+            
+            const getFreightPerUnit = (item: PurchaseOrderItem) => {
+              if (orderItemsTotal === 0 || totalLandingCosts === 0) return 0;
+              const itemValue = item.quantity * item.unitCost;
+              const proportion = itemValue / orderItemsTotal;
+              return (totalLandingCosts * proportion) / item.quantity;
+            };
+
+            return (
+              <div className="space-y-4">
+                {/* Barcode Scanner for Receiving */}
+                <div className="border rounded-lg p-4 bg-primary/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <ScanLine className="w-5 h-5 text-primary" />
+                      Leitura de Recepção
+                    </h4>
+                    <Badge variant={scanMode === 'receive' ? 'default' : 'outline'}>
+                      {scanMode === 'receive' ? 'Activo' : 'Inactivo'}
+                    </Badge>
                   </div>
-                  <Button type="submit" variant="secondary">
-                    <CheckCircle className="w-4 h-4" />
-                  </Button>
-                </form>
-                <p className="text-xs text-muted-foreground">
-                  Escaneie cada produto para incrementar a quantidade recebida automaticamente.
+                  <form onSubmit={handleManualBarcodeSubmit} className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Escaneie o código para confirmar recepção..."
+                        value={barcodeInput}
+                        onChange={(e) => setBarcodeInput(e.target.value)}
+                        onFocus={() => setScanMode('receive')}
+                        className="pl-10"
+                        autoComplete="off"
+                        autoFocus
+                      />
+                    </div>
+                    <Button type="submit" variant="secondary">
+                      <CheckCircle className="w-4 h-4" />
+                    </Button>
+                  </form>
+                </div>
+
+                {/* Freight Summary */}
+                {totalLandingCosts > 0 && (
+                  <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+                    <h4 className="text-sm font-medium">Custos de Importação / Frete</h4>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Frete:</span>
+                        <span className="ml-2 font-medium">{(selectedOrder.freightCost || 0).toLocaleString('pt-AO')} Kz</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Outros:</span>
+                        <span className="ml-2 font-medium">{(selectedOrder.otherCosts || 0).toLocaleString('pt-AO')} Kz</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Total Custos:</span>
+                        <span className="ml-2 font-bold text-primary">{totalLandingCosts.toLocaleString('pt-AO')} Kz</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Os custos serão distribuídos proporcionalmente e o custo médio dos produtos será actualizado automaticamente.
+                    </p>
+                  </div>
+                )}
+
+                <p className="text-sm text-muted-foreground">
+                  Confirme as quantidades recebidas. O stock e custo médio serão actualizados automaticamente.
                 </p>
-              </div>
 
-              <p className="text-sm text-muted-foreground">
-                Confirme as quantidades recebidas. O stock será actualizado automaticamente.
-              </p>
-
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Produto</TableHead>
-                    <TableHead className="text-right">Encomendado</TableHead>
-                    <TableHead className="text-right">Recebido</TableHead>
-                    <TableHead className="text-center">Progresso</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedOrder.items.map((item) => {
-                    const received = receivedQuantities[item.productId] || 0;
-                    const progress = (received / item.quantity) * 100;
-                    return (
-                      <TableRow key={item.productId}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{item.productName}</p>
-                            <p className="text-xs text-muted-foreground">{item.sku}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            min="0"
-                            max={item.quantity}
-                            className="w-24 ml-auto"
-                            value={received}
-                            onChange={(e) => setReceivedQuantities({
-                              ...receivedQuantities,
-                              [item.productId]: parseInt(e.target.value) || 0,
-                            })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full transition-all ${progress >= 100 ? 'bg-green-500' : 'bg-primary'}`}
-                                style={{ width: `${Math.min(progress, 100)}%` }}
-                              />
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produto</TableHead>
+                      <TableHead className="text-right w-20">Enc.</TableHead>
+                      <TableHead className="text-right w-24">Recebido</TableHead>
+                      <TableHead className="text-right w-24">Custo Un.</TableHead>
+                      <TableHead className="text-right w-24">Frete Un.</TableHead>
+                      <TableHead className="text-right w-28">Custo Efetivo</TableHead>
+                      <TableHead className="text-center w-20">%</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedOrder.items.map((item) => {
+                      const received = receivedQuantities[item.productId] || 0;
+                      const progress = (received / item.quantity) * 100;
+                      const freightPerUnit = getFreightPerUnit(item);
+                      const effectiveCost = item.unitCost + freightPerUnit;
+                      
+                      return (
+                        <TableRow key={item.productId}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{item.productName}</p>
+                              <p className="text-xs text-muted-foreground">{item.sku}</p>
                             </div>
-                            <span className={`text-xs ${progress >= 100 ? 'text-green-500' : ''}`}>
-                              {progress.toFixed(0)}%
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                          </TableCell>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              min="0"
+                              max={item.quantity}
+                              className="w-20 ml-auto h-8 text-center"
+                              value={received}
+                              onChange={(e) => setReceivedQuantities({
+                                ...receivedQuantities,
+                                [item.productId]: parseInt(e.target.value) || 0,
+                              })}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {item.unitCost.toLocaleString('pt-AO')} Kz
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                            {freightPerUnit > 0 ? `+${freightPerUnit.toFixed(2)}` : '—'}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm font-medium text-primary">
+                            {effectiveCost.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 justify-center">
+                              <div className="w-12 h-2 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all ${progress >= 100 ? 'bg-primary' : 'bg-muted-foreground/50'}`}
+                                  style={{ width: `${Math.min(progress, 100)}%` }}
+                                />
+                              </div>
+                              <span className={`text-xs w-8 ${progress >= 100 ? 'text-primary font-medium' : ''}`}>
+                                {progress.toFixed(0)}%
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+
+                {/* Totals Summary */}
+                <div className="grid grid-cols-4 gap-3 p-3 rounded-lg bg-muted/50 text-sm">
+                  <div className="text-center">
+                    <p className="text-muted-foreground text-xs">Subtotal Produtos</p>
+                    <p className="font-medium">{orderItemsTotal.toLocaleString('pt-AO')} Kz</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-muted-foreground text-xs">Frete + Outros</p>
+                    <p className="font-medium">{totalLandingCosts.toLocaleString('pt-AO')} Kz</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-muted-foreground text-xs">IVA</p>
+                    <p className="font-medium">{selectedOrder.taxAmount.toLocaleString('pt-AO')} Kz</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-muted-foreground text-xs">Total c/ Custos</p>
+                    <p className="font-bold text-primary">{(orderItemsTotal + totalLandingCosts + selectedOrder.taxAmount).toLocaleString('pt-AO')} Kz</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setReceiveDialogOpen(false)}>
