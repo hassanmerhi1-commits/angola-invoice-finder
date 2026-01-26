@@ -358,6 +358,47 @@ export default function Setup() {
     setConnectionStatus('idle');
   };
 
+  const startDemoMode = () => {
+    // Demo mode - uses localStorage, no network setup required
+    const demoConfig = {
+      role: 'server' as const,
+      databasePath: 'localStorage',
+      serverIp: 'localhost',
+      serverPort: 3000,
+      setupDate: new Date().toISOString(),
+      isDemo: true
+    };
+
+    // Save to Electron storage if available
+    if (window.electronAPI?.setup?.saveConfig) {
+      try {
+        window.electronAPI.setup.saveConfig({
+          setupComplete: true,
+          role: 'server',
+          serverConfig: {
+            databasePath: 'localStorage',
+            serverIp: 'localhost',
+            serverPort: 3000,
+            setupDate: new Date().toISOString()
+          }
+        });
+      } catch (e) {
+        console.error('Failed to save Electron setup config:', e);
+      }
+    }
+
+    // Save to localStorage
+    localStorage.setItem('kwanza_setup_complete', 'true');
+    localStorage.setItem('kwanza_is_server', 'true');
+    localStorage.setItem('kwanza_server_config', JSON.stringify(demoConfig));
+
+    toast.success('Demo Mode Activated!', {
+      description: 'Using local storage - all data will be stored on this device'
+    });
+
+    setMode('complete');
+  };
+
   const finishSetup = () => {
     navigate('/login');
   };
@@ -380,41 +421,64 @@ export default function Setup() {
                 Choose whether this computer will be the main server or a client workstation
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-6 md:grid-cols-2 px-6 pb-8">
-              <button
-                className="group relative bg-white border-2 border-gray-200 rounded-xl p-8 flex flex-col items-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all duration-200 cursor-pointer"
-                onClick={() => handleRoleSelect('server')}
-              >
-                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                  <Server className="h-8 w-8 text-blue-600" />
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-xl text-gray-800 mb-2">Server</div>
-                  <div className="text-sm text-gray-500 leading-relaxed">
-                    Main computer that stores the database. Other computers will connect to this one.
+            <CardContent className="space-y-6 px-6 pb-8">
+              <div className="grid gap-6 md:grid-cols-2">
+                <button
+                  className="group relative bg-white border-2 border-gray-200 rounded-xl p-8 flex flex-col items-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all duration-200 cursor-pointer"
+                  onClick={() => handleRoleSelect('server')}
+                >
+                  <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                    <Server className="h-8 w-8 text-blue-600" />
                   </div>
-                </div>
-                <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-0">
-                  Recommended for main office
-                </Badge>
-              </button>
+                  <div className="text-center">
+                    <div className="font-semibold text-xl text-gray-800 mb-2">Server</div>
+                    <div className="text-sm text-gray-500 leading-relaxed">
+                      Main computer that stores the database. Other computers will connect to this one.
+                    </div>
+                  </div>
+                  <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-0">
+                    Recommended for main office
+                  </Badge>
+                </button>
 
-              <button
-                className="group relative bg-white border-2 border-gray-200 rounded-xl p-8 flex flex-col items-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all duration-200 cursor-pointer"
-                onClick={() => handleRoleSelect('client')}
-              >
-                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                  <Monitor className="h-8 w-8 text-blue-600" />
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-xl text-gray-800 mb-2">Client</div>
-                  <div className="text-sm text-gray-500 leading-relaxed">
-                    Workstation that connects to the server. Data is stored on the server computer.
+                <button
+                  className="group relative bg-white border-2 border-gray-200 rounded-xl p-8 flex flex-col items-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all duration-200 cursor-pointer"
+                  onClick={() => handleRoleSelect('client')}
+                >
+                  <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                    <Monitor className="h-8 w-8 text-blue-600" />
                   </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-xl text-gray-800 mb-2">Client</div>
+                    <div className="text-sm text-gray-500 leading-relaxed">
+                      Workstation that connects to the server. Data is stored on the server computer.
+                    </div>
+                  </div>
+                  <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-200 border-0">
+                    For additional computers
+                  </Badge>
+                </button>
+              </div>
+              
+              {/* Demo Mode - Quick Start */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-gray-200" />
                 </div>
-                <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-200 border-0">
-                  For additional computers
-                </Badge>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-gray-500">or</span>
+                </div>
+              </div>
+              
+              <button
+                className="w-full group bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl p-4 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer"
+                onClick={startDemoMode}
+              >
+                <Monitor className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-semibold text-lg">Demo Mode (Quick Start)</div>
+                  <div className="text-sm text-white/80">Use local storage - no network setup required</div>
+                </div>
               </button>
             </CardContent>
           </Card>
