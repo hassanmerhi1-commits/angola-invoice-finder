@@ -979,6 +979,10 @@ export function processPurchaseOrderReceive(orderId: string, receivedQuantities:
   const order = orders.find(o => o.id === orderId);
   if (!order) return;
 
+  // Calculate total order value for freight allocation
+  const orderItemsTotal = order.items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
+  const totalLandingCosts = (order.freightCost || 0) + (order.otherCosts || 0);
+
   // Update received quantities
   order.items.forEach(item => {
     item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
@@ -996,19 +1000,52 @@ export function processPurchaseOrderReceive(orderId: string, receivedQuantities:
 
   order.receivedBy = userId;
   order.receivedAt = new Date().toISOString();
+  order.freightDistributed = true; // Mark freight as distributed to costs
 
   savePurchaseOrder(order);
 
-  // Update stock for each item
+  // Update stock AND cost for each item using weighted average
   order.items.forEach(item => {
     const received = receivedQuantities[item.productId] || 0;
     if (received > 0) {
-      // Find product in the destination branch
       const products = getAllProducts();
-      let product = products.find(p => p.id === item.productId);
+      const product = products.find(p => p.id === item.productId);
       
       if (product) {
-        updateProductStock(product.id, received);
+        // Calculate freight allocation for this item (proportional to value)
+        let freightPerUnit = 0;
+        if (orderItemsTotal > 0 && totalLandingCosts > 0) {
+          const itemValue = item.quantity * item.unitCost;
+          const proportion = itemValue / orderItemsTotal;
+          freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
+        }
+        
+        // Effective cost = unit cost + freight allocation
+        const effectiveCost = item.unitCost + freightPerUnit;
+        
+        // Calculate weighted average cost
+        // WAC = (Previous Stock × Previous Cost + Received Qty × Landed Cost) / Total Stock
+        const previousTotalValue = product.stock * (product.cost || 0);
+        const newItemsTotalValue = received * effectiveCost;
+        const newTotalStock = product.stock + received;
+        
+        const newAverageCost = newTotalStock > 0 
+          ? (previousTotalValue + newItemsTotalValue) / newTotalStock
+          : effectiveCost;
+
+        // Update product with new stock AND cost
+        const updatedProduct: Product = {
+          ...product,
+          stock: newTotalStock,
+          cost: newAverageCost, // Update to weighted average cost
+          avgCost: newAverageCost, // Also update avgCost field
+          lastCost: effectiveCost, // Track last purchase cost (with freight)
+          // Set firstCost only if it's 0 (first purchase)
+          firstCost: product.firstCost || effectiveCost,
+          updatedAt: new Date().toISOString(),
+        };
+        
+        saveProduct(updatedProduct);
       }
     }
   });
