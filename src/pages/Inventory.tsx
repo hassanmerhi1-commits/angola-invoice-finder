@@ -669,11 +669,21 @@ export default function Inventory() {
           items.forEach(item => {
             const product = products.find(p => p.id === item.productId);
             if (product) {
-              // Update product stock
-              const newStock = product.stock + item.quantity;
+              // Calculate new weighted average cost if freight was added
+              const previousTotalValue = product.stock * (product.cost || 0);
+              const newItemsTotalValue = item.quantity * (item.effectiveCost || item.cost);
+              const newTotalStock = product.stock + item.quantity;
+              
+              // Weighted average cost = (previous value + new value) / total units
+              const newAverageCost = newTotalStock > 0 
+                ? (previousTotalValue + newItemsTotalValue) / newTotalStock
+                : item.effectiveCost || item.cost;
+
+              // Update product stock AND cost (with landed cost)
               updateProduct({
                 ...product,
-                stock: newStock,
+                stock: newTotalStock,
+                cost: newAverageCost, // Update to weighted average landed cost
                 updatedAt: new Date().toISOString(),
               });
 
@@ -690,7 +700,7 @@ export default function Inventory() {
                 `Transferência de ${sourceBranch}${notes ? ': ' + notes : ''}`
               );
 
-              // Log transaction
+              // Log transaction with cost update details
               logTransaction({
                 category: 'inventory',
                 action: 'stock_adjusted',
@@ -698,15 +708,20 @@ export default function Inventory() {
                 entityId: item.productId,
                 entityNumber: item.sku,
                 entityName: item.name,
-                description: `Entrada de ${item.quantity} un. - Ref: ${reference}`,
+                description: `Entrada de ${item.quantity} un. - Ref: ${reference}${item.freightAllocation ? ' (c/ frete)' : ''}`,
                 details: {
                   quantity: item.quantity,
                   sourceBranch,
                   reference,
                   notes,
+                  unitCost: item.cost,
+                  freightPerUnit: item.freightAllocation || 0,
+                  effectiveCost: item.effectiveCost || item.cost,
+                  previousCost: product.cost,
+                  newAverageCost: newAverageCost,
                 },
                 previousValue: product.stock,
-                newValue: newStock,
+                newValue: newTotalStock,
               });
             }
           });
