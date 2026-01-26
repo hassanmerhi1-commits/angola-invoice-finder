@@ -51,7 +51,7 @@ export const pt: TranslationKeys = {
     inventory: "Inventário",
     categories: "Categorias",
     suppliers: "Fornecedores",
-    purchaseOrders: "Ordens de Compra",
+    purchaseOrders: "Compras",
     dailyReports: "Relatórios Diários",
     clients: "Clientes",
     stockTransfer: "Transferência de Stock",

@@ -49,7 +49,7 @@ export const en = {
     inventory: "Inventory",
     categories: "Categories",
     suppliers: "Suppliers",
-    purchaseOrders: "Purchase Orders",
+    purchaseOrders: "Purchases",
     dailyReports: "Daily Reports",
     clients: "Clients",
     stockTransfer: "Stock Transfer",
