@@ -65,6 +65,14 @@ export default function Setup() {
     }
   }, [mode]);
 
+  // Auto-scan for servers when entering client mode
+  useEffect(() => {
+    if (mode === 'client-setup') {
+      // Auto-start scanning when entering client mode
+      scanForServersAuto();
+    }
+  }, [mode]);
+
   const detectLocalIp = async () => {
     try {
       // Try Electron API first
@@ -104,6 +112,89 @@ export default function Setup() {
     } catch (error) {
       console.error('Failed to detect IP:', error);
       setDetectedIp('192.168.1.x');
+    }
+  };
+
+  // Auto-scan and auto-connect for clients
+  const scanForServersAuto = async () => {
+    setIsScanning(true);
+    setDiscoveredServers([]);
+
+    try {
+      if (window.electronAPI?.discovery?.scan) {
+        // Use Electron's UDP discovery
+        const result = await window.electronAPI.discovery.scan();
+        if (result.success && result.servers && result.servers.length > 0) {
+          const servers = result.servers.map((s: any) => ({
+            ip: s.ip,
+            port: s.port,
+            name: s.name,
+            version: s.version
+          }));
+          setDiscoveredServers(servers);
+          
+          // Auto-select the first server found
+          const firstServer = servers[0];
+          setServerIp(firstServer.ip);
+          setServerPort(firstServer.port.toString());
+          
+          // Auto-test connection
+          try {
+            const response = await fetch(`http://${firstServer.ip}:${firstServer.port}/api/health`, {
+              signal: AbortSignal.timeout(5000)
+            });
+            if (response.ok) {
+              setConnectionStatus('success');
+              toast.success('Servidor encontrado!', {
+                description: `Conectado automaticamente a ${firstServer.ip}:${firstServer.port}`
+              });
+            }
+          } catch {
+            setConnectionStatus('idle');
+          }
+        }
+      } else {
+        // Web preview fallback - scan common local IPs
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        const testIps = ['192.168.1.1', '192.168.0.1', '192.168.1.100', '10.0.0.1'];
+        const found: ServerInfo[] = [];
+        
+        for (const ip of testIps) {
+          try {
+            const response = await fetch(`http://${ip}:3000/api/health`, {
+              signal: AbortSignal.timeout(1000)
+            });
+            if (response.ok) {
+              const data = await response.json();
+              found.push({
+                ip,
+                port: 3000,
+                name: data.serverName || 'Kwanza ERP Server',
+                version: data.version || '1.0.0'
+              });
+            }
+          } catch {
+            // Server not found at this IP
+          }
+        }
+        
+        setDiscoveredServers(found);
+        
+        // Auto-select first found server
+        if (found.length > 0) {
+          setServerIp(found[0].ip);
+          setServerPort(found[0].port.toString());
+          setConnectionStatus('success');
+          toast.success('Servidor encontrado!', {
+            description: `${found[0].ip}:${found[0].port}`
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Auto-scan failed:', error);
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -186,57 +277,8 @@ export default function Setup() {
     }
   };
 
-  const scanForServers = async () => {
-    setIsScanning(true);
-    setDiscoveredServers([]);
-
-    try {
-      if (window.electronAPI?.discovery?.scan) {
-        // Use Electron's UDP discovery
-        const result = await window.electronAPI.discovery.scan();
-        if (result.success && result.servers) {
-          setDiscoveredServers(result.servers.map(s => ({
-            ip: s.ip,
-            port: s.port,
-            name: s.name,
-            version: s.version
-          })));
-        }
-      } else {
-        // Simulate discovery for web preview
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Check common local IPs
-        const testIps = ['192.168.1.1', '192.168.0.1', '192.168.1.100'];
-        const found: ServerInfo[] = [];
-        
-        for (const ip of testIps) {
-          try {
-            const response = await fetch(`http://${ip}:3000/api/health`, {
-              signal: AbortSignal.timeout(1000)
-            });
-            if (response.ok) {
-              const data = await response.json();
-              found.push({
-                ip,
-                port: 3000,
-                name: data.serverName || 'Kwanza ERP Server',
-                version: data.version || '1.0.0'
-              });
-            }
-          } catch {
-            // Server not found at this IP
-          }
-        }
-        
-        setDiscoveredServers(found);
-      }
-    } catch (error) {
-      console.error('Scan failed:', error);
-    } finally {
-      setIsScanning(false);
-    }
-  };
+  // Legacy scan function kept for backward compatibility
+  const scanForServers = scanForServersAuto;
 
   const testConnection = async () => {
     if (!serverIp) {
@@ -477,66 +519,96 @@ export default function Setup() {
 
         {/* Client Setup */}
         {mode === 'client-setup' && (
-          <Card className="border-0 shadow-2xl">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Monitor className="h-6 w-6 text-primary" />
-                <CardTitle>Client Setup</CardTitle>
+          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Monitor className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl text-gray-800">Client Setup</CardTitle>
+                  <CardDescription className="text-gray-500">
+                    Connect this computer to an existing Kwanza ERP server
+                  </CardDescription>
+                </div>
               </div>
-              <CardDescription>
-                Connect this computer to an existing Kwanza ERP server
-              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Auto Discovery */}
+            <CardContent className="space-y-6 px-6 pb-8">
+              {/* Auto Discovery Status */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label>Find Server Automatically</Label>
+                  <Label className="text-gray-700 font-medium">Server Discovery</Label>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={scanForServers}
+                    onClick={scanForServersAuto}
                     disabled={isScanning}
+                    className="border-gray-200"
                   >
                     {isScanning ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Scanning...
+                        Searching...
                       </>
                     ) : (
                       <>
                         <Wifi className="mr-2 h-4 w-4" />
-                        Scan Network
+                        Scan Again
                       </>
                     )}
                   </Button>
                 </div>
 
-                {discoveredServers.length > 0 && (
-                  <div className="space-y-2">
-                    {discoveredServers.map((server, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        className="w-full justify-start h-auto p-3"
-                        onClick={() => selectDiscoveredServer(server)}
-                      >
-                        <Server className="mr-3 h-5 w-5 text-primary" />
-                        <div className="text-left">
-                          <div className="font-medium">{server.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {server.ip}:{server.port} • v{server.version}
-                          </div>
-                        </div>
-                      </Button>
-                    ))}
+                {isScanning && discoveredServers.length === 0 && (
+                  <div className="text-center py-6 bg-blue-50 rounded-lg border border-blue-100">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-blue-600" />
+                    <p className="text-gray-600 font-medium">Searching for servers on the network...</p>
+                    <p className="text-sm text-gray-500 mt-1">This may take a few seconds</p>
                   </div>
                 )}
 
-                {isScanning && discoveredServers.length === 0 && (
-                  <div className="text-center py-4 text-muted-foreground">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                    Searching for servers on the network...
+                {!isScanning && discoveredServers.length === 0 && (
+                  <div className="text-center py-6 bg-orange-50 rounded-lg border border-orange-100">
+                    <XCircle className="h-8 w-8 mx-auto mb-3 text-orange-500" />
+                    <p className="text-gray-600 font-medium">No servers found</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Make sure the server is running and on the same network
+                    </p>
+                  </div>
+                )}
+
+                {discoveredServers.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-500 mb-2">
+                      {discoveredServers.length} server{discoveredServers.length > 1 ? 's' : ''} found:
+                    </p>
+                    {discoveredServers.map((server, index) => (
+                      <button
+                        key={index}
+                        className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                          serverIp === server.ip 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : 'border-gray-200 hover:border-blue-300 bg-white'
+                        }`}
+                        onClick={() => selectDiscoveredServer(server)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Server className="h-5 w-5 text-blue-600" />
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-800">{server.name}</div>
+                            <div className="text-sm text-gray-500">
+                              {server.ip}:{server.port} • v{server.version}
+                            </div>
+                          </div>
+                          {serverIp === server.ip && connectionStatus === 'success' && (
+                            <Badge className="bg-green-100 text-green-700 border-0">
+                              <CheckCircle className="mr-1 h-3 w-3" />
+                              Connected
+                            </Badge>
+                          )}
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -544,10 +616,10 @@ export default function Setup() {
               {/* Manual Entry */}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+                  <span className="w-full border-t border-gray-200" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
+                  <span className="bg-white px-3 text-gray-400">
                     Or enter manually
                   </span>
                 </div>
@@ -555,7 +627,7 @@ export default function Setup() {
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="md:col-span-2 space-y-2">
-                  <Label htmlFor="serverIp">Server IP Address</Label>
+                  <Label htmlFor="serverIp" className="text-gray-700 font-medium">Server IP Address</Label>
                   <Input
                     id="serverIp"
                     value={serverIp}
@@ -564,10 +636,11 @@ export default function Setup() {
                       setConnectionStatus('idle');
                     }}
                     placeholder="192.168.1.100"
+                    className="bg-gray-50 border-gray-200"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="serverPort">Port</Label>
+                  <Label htmlFor="serverPort" className="text-gray-700 font-medium">Port</Label>
                   <Input
                     id="serverPort"
                     value={serverPort}
@@ -576,16 +649,18 @@ export default function Setup() {
                       setConnectionStatus('idle');
                     }}
                     placeholder="3000"
+                    className="bg-gray-50 border-gray-200"
                   />
                 </div>
               </div>
 
               {/* Connection Test */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
                   onClick={testConnection}
                   disabled={connectionStatus === 'testing' || !serverIp}
+                  className="border-gray-200"
                 >
                   {connectionStatus === 'testing' ? (
                     <>
@@ -598,35 +673,36 @@ export default function Setup() {
                 </Button>
 
                 {connectionStatus === 'success' && (
-                  <Badge className="bg-primary text-primary-foreground">
+                  <Badge className="bg-green-100 text-green-700 border-0">
                     <CheckCircle className="mr-1 h-3 w-3" />
                     Connected
                   </Badge>
                 )}
 
                 {connectionStatus === 'error' && (
-                  <Badge variant="destructive">
+                  <Badge className="bg-red-100 text-red-700 border-0">
                     <XCircle className="mr-1 h-3 w-3" />
-                    Failed
+                    Connection Failed
                   </Badge>
                 )}
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2">
+              <div className="flex gap-3 pt-2">
                 <Button
                   variant="outline"
                   onClick={() => setMode('select')}
+                  className="border-gray-200"
                 >
                   Back
                 </Button>
                 <Button
-                  className="flex-1"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
                   onClick={connectToServer}
                   disabled={connectionStatus !== 'success'}
                 >
                   <Monitor className="mr-2 h-4 w-4" />
-                  Connect to Server
+                  {connectionStatus === 'success' ? 'Complete Setup' : 'Connect to Server'}
                 </Button>
               </div>
             </CardContent>

@@ -821,6 +821,7 @@ ipcMain.handle('hotupdate:get-source', async () => {
 
 // ==================== DATABASE IPC ====================
 const database = require('./services/database');
+const { serverDiscovery } = require('./services/serverDiscovery');
 
 ipcMain.handle('database:create', async (event, { path }) => {
   return await database.createDatabase(path);
