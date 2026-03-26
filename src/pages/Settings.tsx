@@ -77,7 +77,7 @@ export default function Settings() {
       });
       
       // Listen for update status changes
-      const unsubscribe = window.electronAPI?.updater.onStatus((data) => {
+      window.electronAPI?.updater.onStatus((data) => {
         setUpdateStatus(data);
         
         if (data.status === 'checking') {
@@ -92,8 +92,6 @@ export default function Settings() {
           setIsDownloading(false);
         }
       });
-      
-      return () => unsubscribe?.();
     }
   }, [isElectron]);
   
