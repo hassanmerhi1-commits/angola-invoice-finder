@@ -11,73 +11,66 @@ export function useUsers() {
   const refreshUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      // For now, always use localStorage for users
-      // TODO: Add backend API endpoint for users when needed
-      setUsers(storage.getUsers());
-    } catch (error) {
-      setUsers(storage.getUsers());
+      const data = await storage.getUsers();
+      setUsers(data);
+    } catch {
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    refreshUsers();
-  }, [refreshUsers]);
+  useEffect(() => { refreshUsers(); }, [refreshUsers]);
 
   const createUser = useCallback(async (data: {
-    email: string;
-    name: string;
-    username?: string;
-    role: UserRole;
-    branchId: string;
-    password?: string;
+    email: string; name: string; username?: string; role: UserRole; branchId: string; password?: string;
   }): Promise<User> => {
-    const newUser = storage.createUser({
-      email: data.email,
-      name: data.name,
-      username: data.username,
-      role: data.role,
-      branchId: data.branchId,
-      isActive: true,
-    });
+    const newUser: User = {
+      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      email: data.email, name: data.name, username: data.username,
+      role: data.role, branchId: data.branchId, isActive: true,
+      createdAt: new Date().toISOString(),
+    };
+    await storage.saveUser(newUser);
     await refreshUsers();
     return newUser;
   }, [refreshUsers]);
 
   const updateUser = useCallback(async (user: User): Promise<void> => {
-    storage.saveUser(user);
+    await storage.saveUser(user);
     await refreshUsers();
   }, [refreshUsers]);
 
   const deleteUser = useCallback(async (userId: string): Promise<void> => {
-    storage.deleteUser(userId);
+    await storage.deleteUser(userId);
     await refreshUsers();
   }, [refreshUsers]);
 
   const updateUserRole = useCallback(async (userId: string, role: UserRole): Promise<void> => {
-    storage.updateUserRole(userId, role);
-    await refreshUsers();
+    const allUsers = await storage.getUsers();
+    const user = allUsers.find(u => u.id === userId);
+    if (user) {
+      user.role = role;
+      user.updatedAt = new Date().toISOString();
+      await storage.saveUser(user);
+      await refreshUsers();
+    }
   }, [refreshUsers]);
 
   const toggleUserActive = useCallback(async (userId: string): Promise<void> => {
-    storage.toggleUserActive(userId);
-    await refreshUsers();
+    const allUsers = await storage.getUsers();
+    const user = allUsers.find(u => u.id === userId);
+    if (user) {
+      user.isActive = !user.isActive;
+      user.updatedAt = new Date().toISOString();
+      await storage.saveUser(user);
+      await refreshUsers();
+    }
   }, [refreshUsers]);
 
   const getUserById = useCallback((userId: string): User | undefined => {
     return users.find(u => u.id === userId);
   }, [users]);
 
-  return {
-    users,
-    isLoading,
-    refreshUsers,
-    createUser,
-    updateUser,
-    deleteUser,
-    updateUserRole,
-    toggleUserActive,
-    getUserById,
-  };
+  return { users, isLoading, refreshUsers, createUser, updateUser, deleteUser, updateUserRole, toggleUserActive, getUserById };
 }
