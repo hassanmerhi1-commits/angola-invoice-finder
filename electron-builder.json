@@ -30,8 +30,8 @@
   ],
   "publish": {
     "provider": "github",
-    "owner": "your-github-username",
-    "repo": "kwanza-erp",
+    "owner": "hassanmerhi1-commits",
+    "repo": "angola-invoice-finder",
     "releaseType": "release"
   },
   "win": {
