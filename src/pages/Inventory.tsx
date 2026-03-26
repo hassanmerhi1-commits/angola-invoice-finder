@@ -44,7 +44,7 @@ import { StockExitDialog } from '@/components/inventory/StockExitDialog';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { logTransaction } from '@/lib/transactionHistory';
-import { createStockMovement } from '@/lib/storage';
+import { saveStockMovement } from '@/lib/storage';
 
 export default function Inventory() {
   const navigate = useNavigate();
