@@ -14,6 +14,8 @@ export interface DiscoveredServer {
   port: number;
   version?: string;
   lastSeen?: string;
+  hostname?: string;
+  connectedClients?: number;
 }
 
 export interface SetupConfig {
@@ -118,6 +120,7 @@ export interface ElectronAPI {
   discovery?: {
     start: () => Promise<{ success: boolean }>;
     stop: () => Promise<{ success: boolean }>;
+    scan: (timeout?: number) => Promise<{ success: boolean; servers: DiscoveredServer[]; error?: string }>;
     getServers: () => Promise<DiscoveredServer[]>;
     onServerFound: (callback: (server: DiscoveredServer) => void) => void;
   };

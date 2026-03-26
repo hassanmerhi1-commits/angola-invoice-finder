@@ -77,7 +77,7 @@ export default function Settings() {
       });
       
       // Listen for update status changes
-      const unsubscribe = window.electronAPI?.updater.onUpdateStatus((data) => {
+      const unsubscribe = window.electronAPI?.updater.onStatus((data) => {
         setUpdateStatus(data);
         
         if (data.status === 'checking') {
@@ -135,7 +135,7 @@ export default function Settings() {
     setUpdateStatus(null);
     
     try {
-      await window.electronAPI?.updater.checkForUpdates();
+      await window.electronAPI?.updater.check();
     } catch (error) {
       setUpdateStatus({ status: 'error', error: 'Failed to check for updates' });
       setIsChecking(false);
@@ -147,7 +147,7 @@ export default function Settings() {
     
     setIsDownloading(true);
     try {
-      await window.electronAPI?.updater.downloadUpdate();
+      await window.electronAPI?.updater.download();
     } catch (error) {
       setUpdateStatus({ status: 'error', error: 'Failed to download update' });
       setIsDownloading(false);
@@ -156,7 +156,7 @@ export default function Settings() {
 
   const handleInstallUpdate = async () => {
     if (!isElectron) return;
-    await window.electronAPI?.updater.installUpdate();
+    await window.electronAPI?.updater.install();
   };
 
   const getStatusBadge = () => {
