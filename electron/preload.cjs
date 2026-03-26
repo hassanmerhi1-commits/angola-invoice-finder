@@ -1,0 +1,93 @@
+/**
+ * Kwanza ERP - Preload Script
+ * 
+ * Clean IPC API matching PayrollAO architecture.
+ * All database operations transparently routed through main process
+ * which handles server/client mode.
+ */
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  // IP file operations (the core of the architecture)
+  ipfile: {
+    read: () => ipcRenderer.invoke('ipfile:read'),
+    write: (content) => ipcRenderer.invoke('ipfile:write', content),
+    parse: () => ipcRenderer.invoke('ipfile:parse'),
+  },
+
+  // Company management
+  company: {
+    list: () => ipcRenderer.invoke('company:list'),
+    create: (name) => ipcRenderer.invoke('company:create', name),
+    setActive: (companyId) => ipcRenderer.invoke('company:setActive', companyId),
+  },
+
+  // Database operations (transparently routed to server if client mode)
+  db: {
+    getStatus: () => ipcRenderer.invoke('db:getStatus'),
+    create: () => ipcRenderer.invoke('db:create'),
+    init: () => ipcRenderer.invoke('db:init'),
+    getAll: (table, companyId) => ipcRenderer.invoke('db:getAll', table, companyId),
+    getById: (table, id, companyId) => ipcRenderer.invoke('db:getById', table, id, companyId),
+    insert: (table, data, companyId) => ipcRenderer.invoke('db:insert', table, data, companyId),
+    update: (table, id, data, companyId) => ipcRenderer.invoke('db:update', table, id, data, companyId),
+    delete: (table, id, companyId) => ipcRenderer.invoke('db:delete', table, id, companyId),
+    query: (sql, params, companyId) => ipcRenderer.invoke('db:query', sql, params, companyId),
+    export: (companyId) => ipcRenderer.invoke('db:export', companyId),
+    import: (data, companyId) => ipcRenderer.invoke('db:import', data, companyId),
+    testConnection: () => ipcRenderer.invoke('db:testConnection'),
+  },
+
+  // Real-time sync listeners
+  onDatabaseUpdate: (callback) => {
+    ipcRenderer.removeAllListeners('erp:updated');
+    ipcRenderer.on('erp:updated', (_, data) => callback(data));
+  },
+  onDatabaseSync: (callback) => {
+    ipcRenderer.removeAllListeners('erp:sync');
+    ipcRenderer.on('erp:sync', (_, data) => callback(data));
+  },
+
+  // Network info
+  network: {
+    getLocalIPs: () => ipcRenderer.invoke('network:getLocalIPs'),
+    getInstallPath: () => ipcRenderer.invoke('network:getInstallPath'),
+    getIPFilePath: () => ipcRenderer.invoke('network:getIPFilePath'),
+    getComputerName: () => ipcRenderer.invoke('network:getComputerName'),
+  },
+
+  // Printing
+  print: {
+    html: (html, options) => ipcRenderer.invoke('print:html', html, options),
+  },
+
+  // App controls
+  app: {
+    relaunch: () => ipcRenderer.invoke('app:relaunch'),
+    getVersion: () => ipcRenderer.invoke('app:version'),
+  },
+
+  // Auto-updater
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    getVersion: () => ipcRenderer.invoke('updater:getVersion'),
+    onStatus: (callback) => {
+      ipcRenderer.removeAllListeners('updater:status');
+      ipcRenderer.on('updater:status', (_, data) => callback(data));
+    },
+  },
+
+  // AGT (simplified)
+  agt: {
+    calculateHash: (data) => ipcRenderer.invoke('agt:calculate-hash', { data }),
+  },
+
+  // Platform info
+  platform: process.platform,
+  isElectron: true,
+});
+
+console.log('🏢 Kwanza ERP running in Electron desktop mode');
