@@ -305,7 +305,7 @@ export default function Setup() {
                   {connectionStatus === 'testing' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wifi className="h-4 w-4 mr-2" />}
                   Testar Conexão
                 </Button>
-                {connectionStatus === 'success' && <Badge className="bg-green-500/10 text-green-600 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />OK</Badge>}
+                {connectionStatus === 'success' && <Badge className="bg-primary/10 text-primary border-primary/20"><CheckCircle className="h-3 w-3 mr-1" />OK</Badge>}
                 {connectionStatus === 'error' && <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Falhou</Badge>}
               </div>
 
@@ -321,8 +321,8 @@ export default function Setup() {
         {mode === 'complete' && (
           <Card className="shadow-2xl">
             <CardContent className="py-12 text-center space-y-6">
-              <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle className="h-8 w-8 text-primary" />
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-foreground">Configuração Completa!</h2>
