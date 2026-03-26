@@ -40,7 +40,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
@@ -55,98 +55,33 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   const { user } = useAuth();
-  
-  // Check if first-time setup is needed - use state to make it reactive
   const [setupComplete, setSetupComplete] = React.useState<boolean | null>(null);
-  const [isCheckingSetup, setIsCheckingSetup] = React.useState(true);
-  
-  // Check setup status from Electron storage or localStorage
+
   React.useEffect(() => {
-    const checkSetupStatus = async () => {
-      setIsCheckingSetup(true);
-      
-      const isElectron = !!window.electronAPI?.isElectron;
-      console.log('[Setup Check] Environment:', isElectron ? 'Electron' : 'Web');
-      
-      // In Electron, check persistent storage first
-      if (isElectron && window.electronAPI?.setup?.isComplete) {
-        try {
-          const result = await window.electronAPI.setup.isComplete();
-          console.log('[Setup Check] Electron result:', result);
-          if (result.success) {
-            setSetupComplete(result.complete);
-            // Sync with localStorage for consistency
-            localStorage.setItem('kwanza_setup_complete', result.complete ? 'true' : 'false');
-            setIsCheckingSetup(false);
-            return;
-          }
-        } catch (e) {
-          console.error('[Setup Check] Failed to check Electron setup status:', e);
-        }
-      }
-      
-      // Fallback to localStorage (web preview)
-      // For web preview, also verify that role is set (not just the flag)
-      const setupFlag = localStorage.getItem('kwanza_setup_complete');
-      const isServerMode = localStorage.getItem('kwanza_is_server');
-      const serverConfig = localStorage.getItem('kwanza_server_config');
-      const clientConfig = localStorage.getItem('kwanza_client_config');
-      
-      // Setup is only truly complete if we have the flag AND configuration data
-      const hasConfig = isServerMode !== null || serverConfig !== null || clientConfig !== null;
-      const isComplete = setupFlag === 'true' && hasConfig;
-      
-      console.log('[Setup Check] localStorage state:', { 
-        setupFlag, 
-        isServerMode, 
-        hasServerConfig: !!serverConfig, 
-        hasClientConfig: !!clientConfig,
-        isComplete 
-      });
-      
-      setSetupComplete(isComplete);
-      setIsCheckingSetup(false);
+    const check = () => {
+      const flag = localStorage.getItem('kwanza_setup_complete');
+      setSetupComplete(flag === 'true');
     };
-    
-    checkSetupStatus();
-    
-    // Listen for storage changes
-    const handleStorageChange = () => {
-      const setupFlag = localStorage.getItem('kwanza_setup_complete');
-      const hasConfig = localStorage.getItem('kwanza_is_server') !== null || 
-                        localStorage.getItem('kwanza_server_config') !== null || 
-                        localStorage.getItem('kwanza_client_config') !== null;
-      const isComplete = setupFlag === 'true' && hasConfig;
-      setSetupComplete(isComplete);
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    const interval = setInterval(handleStorageChange, 500);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
+    check();
+    // Poll for changes (setup page sets this)
+    const interval = setInterval(check, 500);
+    return () => clearInterval(interval);
   }, []);
-  
-  // Show loading while checking setup status
-  if (isCheckingSetup || setupComplete === null) {
+
+  if (setupComplete === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
-  
+
   return (
     <Routes>
-      {/* Setup route - only accessible if setup not complete */}
       <Route 
         path="/setup" 
         element={setupComplete ? <Navigate to="/login" replace /> : <Setup />} 
       />
-      
-      {/* Redirect to setup if not complete */}
       <Route 
         path="/login" 
         element={
@@ -154,7 +89,6 @@ function AppRoutes() {
           user ? <Navigate to="/" replace /> : <Login />
         } 
       />
-      
       <Route
         element={
           <ProtectedRoute>
@@ -162,10 +96,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route 
-          path="/" 
-          element={!setupComplete ? <Navigate to="/setup" replace /> : <Dashboard />} 
-        />
+        <Route path="/" element={!setupComplete ? <Navigate to="/setup" replace /> : <Dashboard />} />
         <Route path="/pos" element={<POS />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/inventory" element={<Inventory />} />
@@ -195,12 +126,7 @@ function AppRoutes() {
 }
 
 const App = () => {
-  const isElectron =
-    typeof window !== "undefined" && !!window.electronAPI?.isElectron;
-
-  // BrowserRouter breaks under file:// URLs (Electron packaged apps) because
-  // window.location.pathname becomes something like /C:/.../dist/index.html.
-  // HashRouter avoids that by using the URL hash for routing.
+  const isElectron = typeof window !== "undefined" && !!window.electronAPI?.isElectron;
   const Router = isElectron ? HashRouter : BrowserRouter;
 
   return (
