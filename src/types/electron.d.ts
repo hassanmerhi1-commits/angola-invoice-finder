@@ -1,15 +1,99 @@
-// Shared Electron API type definitions
+// Shared Electron API type definitions - Kwanza ERP
+// Matches preload.cjs API exactly
 
-export interface DiscoveredServer {
+export interface ElectronAPI {
+  platform: string;
+  isElectron: boolean;
+
+  // IP file operations
+  ipfile: {
+    read: () => Promise<string>;
+    write: (content: string) => Promise<{ success: boolean; error?: string }>;
+    parse: () => Promise<IPFileConfig>;
+  };
+
+  // Company management
+  company: {
+    list: () => Promise<CompanyInfo[]>;
+    create: (name: string) => Promise<{ success: boolean; company?: CompanyInfo; error?: string }>;
+    setActive: (companyId: string) => Promise<{ success: boolean; error?: string }>;
+  };
+
+  // Database operations
+  db: {
+    getStatus: () => Promise<DBStatus>;
+    create: () => Promise<{ success: boolean; error?: string }>;
+    init: () => Promise<{ success: boolean; mode?: string; error?: string }>;
+    getAll: (table: string, companyId?: string) => Promise<{ success: boolean; data: any[] }>;
+    getById: (table: string, id: string, companyId?: string) => Promise<{ success: boolean; data: any }>;
+    insert: (table: string, data: any, companyId?: string) => Promise<{ success: boolean; error?: string }>;
+    update: (table: string, id: string, data: any, companyId?: string) => Promise<{ success: boolean; error?: string }>;
+    delete: (table: string, id: string, companyId?: string) => Promise<{ success: boolean; error?: string }>;
+    query: (sql: string, params?: any[], companyId?: string) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+    export: (companyId?: string) => Promise<{ success: boolean; data?: any }>;
+    import: (data: any, companyId?: string) => Promise<{ success: boolean; error?: string }>;
+    testConnection: () => Promise<{ success: boolean; mode?: string; error?: string }>;
+  };
+
+  // Real-time sync
+  onDatabaseUpdate: (callback: (data: { table: string; action: string }) => void) => void;
+  onDatabaseSync: (callback: (data: { table: string; rows: any[]; companyId?: string }) => void) => void;
+
+  // Network
+  network: {
+    getLocalIPs: () => Promise<string[]>;
+    getInstallPath: () => Promise<string>;
+    getIPFilePath: () => Promise<string>;
+    getComputerName: () => Promise<string>;
+  };
+
+  // Printing
+  print: {
+    html: (html: string, options?: { silent?: boolean }) => Promise<{ success: boolean; error?: string }>;
+  };
+
+  // App
+  app: {
+    relaunch: () => Promise<void>;
+    getVersion: () => Promise<string>;
+  };
+
+  // Auto-updater
+  updater: {
+    check: () => Promise<{ success: boolean; error?: string }>;
+    download: () => Promise<{ success: boolean; error?: string }>;
+    install: () => Promise<{ success: boolean }>;
+    getVersion: () => Promise<string>;
+    onStatus: (callback: (data: UpdateStatus) => void) => void;
+  };
+
+  // AGT
+  agt: {
+    calculateHash: (data: string) => Promise<{ success: boolean; hash?: string }>;
+  };
+}
+
+export interface IPFileConfig {
+  valid: boolean;
+  error?: string;
+  path: string | null;
+  isServer: boolean;
+  serverAddress?: string;
+}
+
+export interface DBStatus {
+  success: boolean;
+  mode: 'server' | 'client' | 'unconfigured';
+  path: string | null;
+  serverAddress: string | null;
+  wsPort: number;
+  connected: boolean;
+}
+
+export interface CompanyInfo {
   id: string;
-  ip: string;
-  port: number;
   name: string;
-  version: string;
-  branch?: string;
-  connectedClients: number;
-  hostname?: string;
-  discoveredAt: string;
+  dbFile: string;
 }
 
 export interface UpdateStatus {
@@ -17,140 +101,6 @@ export interface UpdateStatus {
   version?: string;
   progress?: number;
   error?: string;
-}
-
-export interface HotUpdateConfig {
-  enabled: boolean;
-  serverUrl: string;
-  autoConnect?: boolean;
-}
-
-export interface WebappVersion {
-  version: string;
-  buildDate?: string;
-  error?: string;
-}
-
-export interface AGTSignatureResult {
-  success: boolean;
-  hash?: string;
-  shortHash?: string;
-  signature?: string;
-  algorithm?: string;
-  error?: string;
-}
-
-export interface AGTTransmissionResult {
-  success: boolean;
-  agtCode?: string;
-  agtStatus?: 'validated' | 'pending' | 'rejected' | 'error';
-  validatedAt?: string;
-  errorCode?: string;
-  errorMessage?: string;
-  retryable?: boolean;
-}
-
-export interface AGTStatusResult {
-  success: boolean;
-  invoiceNumber?: string;
-  agtStatus?: 'validated' | 'pending' | 'rejected' | 'error';
-  agtCode?: string;
-  validatedAt?: string;
-  errorMessage?: string;
-}
-
-export interface AGTVoidResult {
-  success: boolean;
-  agtStatus?: string;
-  errorMessage?: string;
-}
-
-export interface AGTConfig {
-  environment: 'production' | 'sandbox';
-  softwareCertificate: string;
-  companyNIF: string;
-  apiKey: string;
-}
-
-export interface ElectronAPI {
-  platform: string;
-  isElectron: boolean;
-  agt: {
-    // Signing
-    signInvoice: (invoiceData: any, keyAlias: string, passphrase: string) => Promise<AGTSignatureResult>;
-    generateKeys: (keyAlias: string, passphrase: string) => Promise<{ success: boolean; publicKey?: string; privateKeyHash?: string; error?: string }>;
-    listKeys: () => Promise<{ success: boolean; keys: string[]; error?: string }>;
-    verifySignature: (invoiceData: any, signature: string, keyAlias: string) => Promise<{ success: boolean; valid: boolean; error?: string }>;
-    calculateHash: (data: string) => Promise<{ success: boolean; hash?: string; error?: string }>;
-    
-    // AGT API Transmission
-    transmitInvoice: (invoice: any, signature: any) => Promise<AGTTransmissionResult>;
-    transmitWithRetry: (invoice: any, signature: any) => Promise<AGTTransmissionResult>;
-    checkStatus: (invoiceNumber: string) => Promise<AGTStatusResult>;
-    voidInvoice: (invoiceNumber: string, reason: string) => Promise<AGTVoidResult>;
-    
-    // Configuration
-    configure: (config: AGTConfig) => Promise<{ success: boolean; error?: string }>;
-    getConfig: () => Promise<{ success: boolean; config?: AGTConfig; error?: string }>;
-  };
-  updater: {
-    checkForUpdates: () => Promise<{ success: boolean; error?: string }>;
-    downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
-    installUpdate: () => Promise<{ success: boolean; error?: string }>;
-    getVersion: () => Promise<string>;
-    onUpdateStatus: (callback: (data: UpdateStatus) => void) => () => void;
-  };
-  discovery?: {
-    scan: (timeout?: number) => Promise<{ success: boolean; servers: DiscoveredServer[]; error?: string }>;
-    stop: () => Promise<{ success: boolean }>;
-    getCached: () => Promise<{ success: boolean; servers: DiscoveredServer[] }>;
-    getLocalIPs: () => Promise<string[]>;
-  };
-  hotUpdate?: {
-    getConfig: () => Promise<{ success: boolean; config: HotUpdateConfig }>;
-    setConfig: (config: Partial<HotUpdateConfig>) => Promise<{ success: boolean; config?: HotUpdateConfig; error?: string }>;
-    checkServer: (serverUrl: string) => Promise<{ success: boolean; available: boolean; version?: WebappVersion; error?: string }>;
-    reload: () => Promise<{ success: boolean; source?: string; error?: string }>;
-    getSource: () => Promise<{ success: boolean; source: 'server' | 'local' | 'unknown'; url?: string }>;
-  };
-  database?: {
-    create: (path: string) => Promise<{ success: boolean; error?: string }>;
-    open: (path: string) => Promise<{ success: boolean; error?: string }>;
-    query: (sql: string, params?: any[]) => Promise<{ success: boolean; data?: any[]; error?: string }>;
-    execute: (sql: string, params?: any[]) => Promise<{ success: boolean; error?: string }>;
-    backup: (destinationPath: string) => Promise<{ success: boolean; error?: string }>;
-    getPath: () => Promise<string>;
-  };
-  app?: {
-    getVersion: () => Promise<string>;
-    getPlatform: () => Promise<string>;
-    getDataPath: () => Promise<string>;
-    isServer: () => Promise<boolean>;
-    quit: () => void;
-    restart: () => void;
-  };
-  setup?: {
-    getConfig: () => Promise<{ success: boolean; config: SetupConfig }>;
-    saveConfig: (config: Partial<SetupConfig>) => Promise<{ success: boolean; config?: SetupConfig; error?: string }>;
-    isComplete: () => Promise<{ success: boolean; complete: boolean }>;
-    reset: () => Promise<{ success: boolean; error?: string }>;
-  };
-}
-
-export interface SetupConfig {
-  setupComplete: boolean;
-  role: 'server' | 'client' | null;
-  serverConfig?: {
-    databasePath: string;
-    serverIp: string;
-    serverPort: number;
-    setupDate: string;
-  };
-  clientConfig?: {
-    serverIp: string;
-    serverPort: number;
-    setupDate: string;
-  };
 }
 
 declare global {
