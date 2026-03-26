@@ -1,6 +1,60 @@
 // Shared Electron API type definitions - Kwanza ERP
 // Matches preload.cjs API exactly
 
+export interface HotUpdateConfig {
+  enabled: boolean;
+  serverUrl: string;
+  autoConnect?: boolean;
+}
+
+export interface DiscoveredServer {
+  id: string;
+  name: string;
+  ip: string;
+  port: number;
+  version?: string;
+  lastSeen?: string;
+}
+
+export interface SetupConfig {
+  setupComplete: boolean;
+  role: 'server' | 'client' | null;
+  serverConfig?: {
+    databasePath?: string;
+    serverIp?: string;
+    serverPort?: number;
+  } | null;
+  clientConfig?: {
+    serverIp?: string;
+    serverPort?: number;
+  } | null;
+}
+
+export interface AGTConfig {
+  companyNIF: string;
+  environment: 'production' | 'sandbox';
+  certificatePath?: string;
+  apiKey?: string;
+}
+
+export interface AGTTransmissionResult {
+  success: boolean;
+  agtCode?: string;
+  agtStatus: 'validated' | 'pending' | 'error' | 'rejected';
+  validatedAt?: string;
+  errorMessage?: string;
+  retryable?: boolean;
+}
+
+export interface AGTStatusResult {
+  success: boolean;
+  invoiceNumber: string;
+  agtStatus: 'validated' | 'pending' | 'error' | 'rejected';
+  agtCode?: string;
+  validatedAt?: string;
+  errorMessage?: string;
+}
+
 export interface ElectronAPI {
   platform: string;
   isElectron: boolean;
@@ -35,6 +89,19 @@ export interface ElectronAPI {
     testConnection: () => Promise<{ success: boolean; mode?: string; error?: string }>;
   };
 
+  // Setup wizard
+  setup?: {
+    getConfig: () => Promise<{ success: boolean; config?: SetupConfig }>;
+    saveConfig: (config: SetupConfig) => Promise<{ success: boolean; error?: string }>;
+    reset: () => Promise<{ success: boolean; error?: string }>;
+  };
+
+  // Database management (legacy)
+  database?: {
+    getPath: () => Promise<string>;
+    query: (sql: string) => Promise<{ success: boolean; data?: any[] }>;
+  };
+
   // Real-time sync
   onDatabaseUpdate: (callback: (data: { table: string; action: string }) => void) => void;
   onDatabaseSync: (callback: (data: { table: string; rows: any[]; companyId?: string }) => void) => void;
@@ -45,6 +112,14 @@ export interface ElectronAPI {
     getInstallPath: () => Promise<string>;
     getIPFilePath: () => Promise<string>;
     getComputerName: () => Promise<string>;
+  };
+
+  // Server discovery
+  discovery?: {
+    start: () => Promise<{ success: boolean }>;
+    stop: () => Promise<{ success: boolean }>;
+    getServers: () => Promise<DiscoveredServer[]>;
+    onServerFound: (callback: (server: DiscoveredServer) => void) => void;
   };
 
   // Printing
@@ -67,9 +142,32 @@ export interface ElectronAPI {
     onStatus: (callback: (data: UpdateStatus) => void) => void;
   };
 
+  // Hot updates
+  hotUpdate?: {
+    getConfig: () => Promise<{ success: boolean; config?: HotUpdateConfig; error?: string }>;
+    setConfig: (config: HotUpdateConfig) => Promise<{ success: boolean; config?: HotUpdateConfig; error?: string }>;
+    checkServer: (url: string) => Promise<{ success: boolean; available?: boolean; version?: { version: string }; error?: string }>;
+    reload: () => Promise<{ success: boolean; source?: string; error?: string }>;
+    getSource: () => Promise<{ success: boolean; source: 'server' | 'local' | 'unknown' }>;
+  };
+
   // AGT
   agt: {
     calculateHash: (data: string) => Promise<{ success: boolean; hash?: string }>;
+    getConfig: () => Promise<{ success: boolean; config?: AGTConfig; error?: string }>;
+    configure: (config: AGTConfig) => Promise<{ success: boolean; error?: string }>;
+    signInvoice: (data: any, keyAlias: string, passphrase: string) => Promise<{
+      success: boolean;
+      hash?: string;
+      shortHash?: string;
+      signature?: string;
+      algorithm?: string;
+      error?: string;
+    }>;
+    transmitInvoice: (payload: any, signatureData: any) => Promise<AGTTransmissionResult>;
+    transmitWithRetry: (payload: any, signatureData: any) => Promise<AGTTransmissionResult>;
+    checkStatus: (invoiceNumber: string) => Promise<AGTStatusResult>;
+    voidInvoice: (invoiceNumber: string, reason: string) => Promise<{ success: boolean; errorMessage?: string }>;
   };
 }
 
