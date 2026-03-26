@@ -142,7 +142,7 @@ export interface ElectronAPI {
     download: () => Promise<{ success: boolean; error?: string }>;
     install: () => Promise<{ success: boolean }>;
     getVersion: () => Promise<string>;
-    onStatus: (callback: (data: UpdateStatus) => void) => void;
+    onStatus: (callback: (data: UpdateStatus) => void) => (() => void) | void;
   };
 
   // Hot updates
