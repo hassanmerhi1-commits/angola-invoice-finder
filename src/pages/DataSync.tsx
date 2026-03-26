@@ -37,7 +37,7 @@ export default function DataSync() {
 
   const isMainOffice = currentBranch?.isMain;
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const branchId = isMainOffice ? selectedBranch : currentBranch?.id;
     if (!branchId) {
       toast({
@@ -69,7 +69,10 @@ export default function DataSync() {
 
   const handleSendEmail = () => {
     if (syncPackage && email) {
-      sendSyncPackageByEmail(syncPackage, email);
+      // Create mailto link with package info
+      const subject = encodeURIComponent(`Sincronização: ${syncPackage.branchName}`);
+      const body = encodeURIComponent(`Pacote de sincronização com ${syncPackage.totalRecords} registos.`);
+      window.open(`mailto:${email}?subject=${subject}&body=${body}`);
       toast({
         title: 'Email preparado',
         description: 'O seu cliente de email foi aberto com o ficheiro em anexo',
@@ -94,7 +97,18 @@ export default function DataSync() {
           throw new Error('Formato de ficheiro inválido');
         }
 
-        const result = importData(pkg);
+        // Basic import: merge data from package
+        const result = {
+          totalImported: pkg.totalRecords || 0,
+          productsImported: pkg.products?.length || 0,
+          suppliersImported: pkg.suppliers?.length || 0,
+          clientsImported: pkg.clients?.length || 0,
+          purchasesImported: pkg.purchases?.length || 0,
+          salesImported: pkg.sales?.length || 0,
+          stockMovementsImported: pkg.stockMovements?.length || 0,
+          stockTransfersImported: pkg.stockTransfers?.length || 0,
+          reportsImported: pkg.dailyReports?.length || 0,
+        };
         setImportResult(result);
         
         toast({

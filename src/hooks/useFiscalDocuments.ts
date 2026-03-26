@@ -27,7 +27,7 @@ export function useCreditNotes(branchId?: string) {
     refreshCreditNotes();
   }, [refreshCreditNotes]);
 
-  const createCreditNote = useCallback((
+  const createCreditNote = useCallback(async (
     branchId: string,
     branchCode: string,
     originalSale: Sale,
@@ -36,9 +36,10 @@ export function useCreditNotes(branchId?: string) {
     items: CreditNoteItem[],
     issuedBy: string,
     restoreStock: boolean = true
-  ): CreditNote => {
-    const branch = getBranches().find(b => b.id === branchId);
-    const previousHash = fiscalStorage.getLastDocumentHash('credit');
+  ): Promise<CreditNote> => {
+    const branches = await getBranches();
+    const branch = branches.find(b => b.id === branchId);
+    const previousHash = await fiscalStorage.getLastDocumentHash('credit');
     const documentNumber = fiscalStorage.generateCreditNoteNumber(branchCode);
     
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -76,9 +77,9 @@ export function useCreditNotes(branchId?: string) {
 
     // Restore stock if returning products
     if (restoreStock) {
-      items.forEach(item => {
-        updateProductStock(item.productId, item.quantity);
-      });
+      for (const item of items) {
+        await updateProductStock(item.productId, item.quantity);
+      }
     }
 
     refreshCreditNotes();
@@ -111,7 +112,7 @@ export function useDebitNotes(branchId?: string) {
     refreshDebitNotes();
   }, [refreshDebitNotes]);
 
-  const createDebitNote = useCallback((
+  const createDebitNote = useCallback(async (
     branchId: string,
     branchCode: string,
     originalSale: Sale | null,
@@ -121,9 +122,10 @@ export function useDebitNotes(branchId?: string) {
     issuedBy: string,
     customerNif?: string,
     customerName?: string
-  ): DebitNote => {
-    const branch = getBranches().find(b => b.id === branchId);
-    const previousHash = fiscalStorage.getLastDocumentHash('debit');
+  ): Promise<DebitNote> => {
+    const branches = await getBranches();
+    const branch = branches.find(b => b.id === branchId);
+    const previousHash = await fiscalStorage.getLastDocumentHash('debit');
     const documentNumber = fiscalStorage.generateDebitNoteNumber(branchCode);
     
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -188,7 +190,7 @@ export function useTransportDocuments(branchId?: string) {
     refreshTransportDocs();
   }, [refreshTransportDocs]);
 
-  const createTransportDocument = useCallback((
+  const createTransportDocument = useCallback(async (
     branchId: string,
     branchCode: string,
     type: TransportDocument['type'],
@@ -212,9 +214,10 @@ export function useTransportDocuments(branchId?: string) {
       totalWeight?: number;
       totalVolume?: number;
     }
-  ): TransportDocument => {
-    const branch = getBranches().find(b => b.id === branchId);
-    const previousHash = fiscalStorage.getLastDocumentHash('transport');
+  ): Promise<TransportDocument> => {
+    const branches = await getBranches();
+    const branch = branches.find(b => b.id === branchId);
+    const previousHash = await fiscalStorage.getLastDocumentHash('transport');
     const documentNumber = fiscalStorage.generateTransportDocNumber(branchCode);
 
     const doc: TransportDocument = {
@@ -302,16 +305,18 @@ export function useSAFTExport() {
     refreshExports();
   }, [refreshExports]);
 
-  const generateSAFT = useCallback((
+  const generateSAFT = useCallback(async (
     periodStart: string,
     periodEnd: string,
     exportedBy: string,
     branchId?: string
-  ): SAFTExport => {
-    const branch = branchId ? getBranches().find(b => b.id === branchId) : null;
-    const xml = fiscalStorage.generateSAFTXML(periodStart, periodEnd, branchId);
+  ): Promise<SAFTExport> => {
+    const branches = await getBranches();
+    const branch = branchId ? branches.find(b => b.id === branchId) : null;
+    const xml = await fiscalStorage.generateSAFTXML(periodStart, periodEnd, branchId);
     const fileName = `SAFT_AO_${periodStart.replace(/-/g, '')}_${periodEnd.replace(/-/g, '')}.xml`;
 
+    const allSales = await getAllSales();
     const saftExport: SAFTExport = {
       id: `saft_${Date.now()}`,
       branchId: branchId || 'all',
@@ -320,7 +325,7 @@ export function useSAFTExport() {
       periodEnd,
       exportType: 'custom',
       company: fiscalStorage.getCompanyInfo(),
-      invoices: getAllSales().filter(s => {
+      invoices: allSales.filter(s => {
         const date = s.createdAt.split('T')[0];
         return date >= periodStart && date <= periodEnd;
       }),

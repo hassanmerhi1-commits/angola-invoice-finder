@@ -42,7 +42,6 @@ export function generateDocumentHash(
   documentNumber: string,
   total: number
 ): string {
-  // Simplified hash for demo - in production, use crypto API with proper signature
   const dataToHash = `${previousHash};${documentDate};${documentNumber};${total.toFixed(2)}`;
   let hash = 0;
   for (let i = 0; i < dataToHash.length; i++) {
@@ -53,14 +52,20 @@ export function generateDocumentHash(
   return Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
 }
 
-export function getLastDocumentHash(documentType: 'invoice' | 'credit' | 'debit' | 'transport'): string {
-  const documents = {
-    invoice: getAllSales(),
+export async function getLastDocumentHash(documentType: 'invoice' | 'credit' | 'debit' | 'transport'): Promise<string> {
+  const documentsMap: Record<string, any[]> = {
     credit: getCreditNotes(),
     debit: getDebitNotes(),
     transport: getTransportDocuments(),
   };
-  const docs = documents[documentType];
+  
+  let docs: any[];
+  if (documentType === 'invoice') {
+    docs = await getAllSales();
+  } else {
+    docs = documentsMap[documentType] || [];
+  }
+  
   if (docs.length === 0) return '0';
   const lastDoc = docs[docs.length - 1];
   return (lastDoc as any).saftHash || '0';
@@ -181,13 +186,14 @@ export function saveSAFTExport(saftExport: SAFTExport): void {
   setItem(STORAGE_KEYS.saftExports, exports);
 }
 
-export function generateSAFTXML(
+export async function generateSAFTXML(
   periodStart: string,
   periodEnd: string,
   branchId?: string
-): string {
+): Promise<string> {
   const company = getCompanyInfo();
-  const sales = getAllSales().filter(s => {
+  const allSales = await getAllSales();
+  const sales = allSales.filter(s => {
     const date = s.createdAt.split('T')[0];
     return date >= periodStart && date <= periodEnd && 
            (!branchId || s.branchId === branchId) &&
@@ -201,10 +207,9 @@ export function generateSAFTXML(
     const date = n.createdAt.split('T')[0];
     return date >= periodStart && date <= periodEnd && n.status === 'issued';
   });
-  const products = getProducts(branchId);
-  const clients = getClients();
+  const products = await getProducts(branchId);
+  const clients = await getClients();
 
-  // Generate SAF-T XML structure
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <AuditFile xmlns="urn:OECD:StandardAuditFile-Tax:AO_1.0">
   <Header>

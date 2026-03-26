@@ -1,6 +1,6 @@
 // Supplier Returns Hook
 import { useState, useEffect, useCallback } from 'react';
-import { PurchaseOrder } from '@/types/erp';
+import { PurchaseOrder, StockMovement } from '@/types/erp';
 import { 
   SupplierReturn, 
   SupplierReturnItem,
@@ -21,7 +21,7 @@ export function useSupplierReturns(branchId?: string) {
     refreshReturns();
   }, [refreshReturns]);
 
-  const createSupplierReturn = useCallback((
+  const createSupplierReturn = useCallback(async (
     branchId: string,
     branchCode: string,
     purchaseOrder: PurchaseOrder,
@@ -31,8 +31,9 @@ export function useSupplierReturns(branchId?: string) {
     createdBy: string,
     notes?: string,
     deductStock: boolean = true
-  ): SupplierReturn => {
-    const branch = getBranches().find(b => b.id === branchId);
+  ): Promise<SupplierReturn> => {
+    const branches = await getBranches();
+    const branch = branches.find(b => b.id === branchId);
     const returnNumber = generateSupplierReturnNumber(branchCode);
     
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -64,23 +65,26 @@ export function useSupplierReturns(branchId?: string) {
 
     // Deduct stock when creating the return (items leaving our inventory)
     if (deductStock) {
-      items.forEach(item => {
-        // Decrease stock (negative quantity)
-        updateProductStock(item.productId, -item.quantity);
+      for (const item of items) {
+        await updateProductStock(item.productId, -item.quantity);
         
-        // Record stock movement
-        createStockMovement(
-          item.productId,
+        const movement: StockMovement = {
+          id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
           branchId,
-          'OUT',
-          item.quantity,
-          'return',
+          type: 'OUT',
+          quantity: item.quantity,
+          reason: 'return',
           createdBy,
-          supplierReturn.id,
-          returnNumber,
-          `Devolução a fornecedor: ${reasonDescription}`
-        );
-      });
+          referenceId: supplierReturn.id,
+          referenceNumber: returnNumber,
+          notes: `Devolução a fornecedor: ${reasonDescription}`,
+          createdAt: new Date().toISOString(),
+        };
+        await saveStockMovement(movement);
+      }
     }
 
     refreshReturns();
@@ -121,25 +125,30 @@ export function useSupplierReturns(branchId?: string) {
     }
   }, [refreshReturns]);
 
-  const cancelReturn = useCallback((returnId: string, userId: string) => {
+  const cancelReturn = useCallback(async (returnId: string, userId: string) => {
     const returns = getSupplierReturns();
     const returnDoc = returns.find(r => r.id === returnId);
     if (returnDoc && returnDoc.status === 'pending') {
       // Restore stock if it was deducted
-      returnDoc.items.forEach(item => {
-        updateProductStock(item.productId, item.quantity);
-        createStockMovement(
-          item.productId,
-          returnDoc.branchId,
-          'IN',
-          item.quantity,
-          'adjustment',
-          userId,
-          returnDoc.id,
-          returnDoc.returnNumber,
-          'Cancelamento de devolução a fornecedor'
-        );
-      });
+      for (const item of returnDoc.items) {
+        await updateProductStock(item.productId, item.quantity);
+        const movement: StockMovement = {
+          id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          branchId: returnDoc.branchId,
+          type: 'IN',
+          quantity: item.quantity,
+          reason: 'adjustment',
+          createdBy: userId,
+          referenceId: returnDoc.id,
+          referenceNumber: returnDoc.returnNumber,
+          notes: 'Cancelamento de devolução a fornecedor',
+          createdAt: new Date().toISOString(),
+        };
+        await saveStockMovement(movement);
+      }
       
       returnDoc.status = 'cancelled';
       saveSupplierReturn(returnDoc);
