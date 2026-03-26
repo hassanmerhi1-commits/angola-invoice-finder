@@ -8,7 +8,7 @@ import {
   saveSupplierReturn, 
   generateSupplierReturnNumber 
 } from '@/lib/supplierReturns';
-import { getBranches, updateProductStock, createStockMovement } from '@/lib/storage';
+import { getBranches, updateProductStock, saveStockMovement } from '@/lib/storage';
 
 export function useSupplierReturns(branchId?: string) {
   const [supplierReturns, setSupplierReturns] = useState<SupplierReturn[]>([]);

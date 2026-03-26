@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useDataSync, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { SyncPackage } from '@/types/erp';
-import { ImportResult } from '@/lib/storage';
+// ImportResult type defined inline
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ import { pt } from 'date-fns/locale';
 export default function DataSync() {
   const { user } = useAuth();
   const { branches, currentBranch } = useBranchContext();
-  const { exportData, importData, downloadSyncPackage, sendSyncPackageByEmail } = useDataSync();
+  const { exportData, downloadSyncPackage } = useDataSync();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,7 +33,7 @@ export default function DataSync() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [syncPackage, setSyncPackage] = useState<SyncPackage | null>(null);
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importResult, setImportResult] = useState<any | null>(null);
 
   const isMainOffice = currentBranch?.isMain;
 
@@ -48,8 +48,8 @@ export default function DataSync() {
       return;
     }
 
-    const pkg = exportData(branchId, dateFrom, dateTo);
-    setSyncPackage(pkg);
+    const pkg = await exportData(branchId, dateFrom, dateTo);
+    setSyncPackage(pkg as any);
     
     toast({
       title: 'Pacote preparado',

@@ -1,6 +1,66 @@
-// Local storage layer for Kwanza ERP - Offline First Architecture
-import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, SyncPackage, Supplier, PurchaseOrder, Category, StockMovement } from '@/types/erp';
+/**
+ * Kwanza ERP - Storage Layer
+ * 
+ * Dual-mode storage:
+ * 1. Electron mode: Uses electronAPI.db (SQLite via IPC → WebSocket)
+ * 2. Web preview / Demo: Uses localStorage with default sample data
+ * 
+ * All functions are async to support both modes transparently.
+ */
 
+import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, Supplier, PurchaseOrder, Category, StockMovement } from '@/types/erp';
+
+// ============= MODE DETECTION =============
+export function isElectronMode(): boolean {
+  return !!window.electronAPI?.isElectron && !!window.electronAPI?.db;
+}
+
+// ============= ELECTRON DB HELPERS =============
+async function dbGetAll<T>(table: string): Promise<T[]> {
+  if (!isElectronMode()) return [];
+  try {
+    const result = await window.electronAPI!.db.getAll(table);
+    return (result.data || []) as T[];
+  } catch (e) {
+    console.error(`[Storage] dbGetAll(${table}) error:`, e);
+    return [];
+  }
+}
+
+async function dbInsert(table: string, data: Record<string, any>): Promise<boolean> {
+  if (!isElectronMode()) return false;
+  try {
+    const result = await window.electronAPI!.db.insert(table, data);
+    return result.success;
+  } catch (e) {
+    console.error(`[Storage] dbInsert(${table}) error:`, e);
+    return false;
+  }
+}
+
+async function dbUpdate(table: string, id: string, data: Record<string, any>): Promise<boolean> {
+  if (!isElectronMode()) return false;
+  try {
+    const result = await window.electronAPI!.db.update(table, id, data);
+    return result.success;
+  } catch (e) {
+    console.error(`[Storage] dbUpdate(${table}) error:`, e);
+    return false;
+  }
+}
+
+async function dbDelete(table: string, id: string): Promise<boolean> {
+  if (!isElectronMode()) return false;
+  try {
+    const result = await window.electronAPI!.db.delete(table, id);
+    return result.success;
+  } catch (e) {
+    console.error(`[Storage] dbDelete(${table}) error:`, e);
+    return false;
+  }
+}
+
+// ============= LOCAL STORAGE HELPERS =============
 const STORAGE_KEYS = {
   branches: 'kwanzaerp_branches',
   products: 'kwanzaerp_products',
@@ -17,8 +77,7 @@ const STORAGE_KEYS = {
   stockMovements: 'kwanzaerp_stock_movements',
 };
 
-// Generic storage functions
-function getItem<T>(key: string, defaultValue: T): T {
+function lsGet<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
     return item ? JSON.parse(item) : defaultValue;
@@ -27,1060 +86,868 @@ function getItem<T>(key: string, defaultValue: T): T {
   }
 }
 
-function setItem<T>(key: string, value: T): void {
+function lsSet<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-// Branch functions
-export function getBranches(): Branch[] {
-  return getItem<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
-}
-
-export function saveBranch(branch: Branch): void {
-  const branches = getBranches();
-  const index = branches.findIndex(b => b.id === branch.id);
-  if (index >= 0) {
-    branches[index] = branch;
-  } else {
-    branches.push(branch);
+// ============= BRANCH FUNCTIONS =============
+export async function getBranches(): Promise<Branch[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('branches');
+    return rows.map(mapBranchFromDb);
   }
-  setItem(STORAGE_KEYS.branches, branches);
+  return lsGet<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
 }
 
-export function deleteBranch(branchId: string): void {
-  const branches = getBranches().filter(b => b.id !== branchId);
-  setItem(STORAGE_KEYS.branches, branches);
+export async function saveBranch(branch: Branch): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('branches', mapBranchToDb(branch));
+    return;
+  }
+  const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
+  const index = branches.findIndex(b => b.id === branch.id);
+  if (index >= 0) branches[index] = branch;
+  else branches.push(branch);
+  lsSet(STORAGE_KEYS.branches, branches);
+}
+
+export async function deleteBranch(branchId: string): Promise<void> {
+  if (isElectronMode()) { await dbDelete('branches', branchId); return; }
+  const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, []).filter(b => b.id !== branchId);
+  lsSet(STORAGE_KEYS.branches, branches);
 }
 
 export function getCurrentBranch(): Branch | null {
-  return getItem<Branch | null>(STORAGE_KEYS.currentBranch, null);
+  return lsGet<Branch | null>(STORAGE_KEYS.currentBranch, null);
 }
 
 export function setCurrentBranch(branch: Branch): void {
-  setItem(STORAGE_KEYS.currentBranch, branch);
+  lsSet(STORAGE_KEYS.currentBranch, branch);
 }
 
-// Product functions
-export function getProducts(branchId?: string): Product[] {
-  const products = getItem<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
-  if (branchId) {
-    return products.filter(p => p.branchId === branchId || p.branchId === 'all');
+// ============= PRODUCT FUNCTIONS =============
+export async function getProducts(branchId?: string): Promise<Product[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('products');
+    let products = rows.map(mapProductFromDb);
+    if (branchId) products = products.filter(p => p.branchId === branchId || p.branchId === 'all');
+    return products;
   }
+  const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
+  if (branchId) return products.filter(p => p.branchId === branchId || p.branchId === 'all');
   return products;
 }
 
-export function getAllProducts(): Product[] {
-  return getItem<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
+export async function getAllProducts(): Promise<Product[]> {
+  return getProducts();
 }
 
-export function saveProduct(product: Product): void {
-  const products = getAllProducts();
-  const index = products.findIndex(p => p.id === product.id);
-  if (index >= 0) {
-    products[index] = product;
-  } else {
-    products.push(product);
+export async function saveProduct(product: Product): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('products', mapProductToDb(product));
+    return;
   }
-  setItem(STORAGE_KEYS.products, products);
+  const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
+  const index = products.findIndex(p => p.id === product.id);
+  if (index >= 0) products[index] = product;
+  else products.push(product);
+  lsSet(STORAGE_KEYS.products, products);
 }
 
-export function updateProductStock(productId: string, quantityChange: number): void {
-  const products = getAllProducts();
+export async function deleteProduct(productId: string): Promise<void> {
+  if (isElectronMode()) { await dbDelete('products', productId); return; }
+  const products = lsGet<Product[]>(STORAGE_KEYS.products, []).filter(p => p.id !== productId);
+  lsSet(STORAGE_KEYS.products, products);
+}
+
+export async function updateProductStock(productId: string, quantityChange: number): Promise<void> {
+  if (isElectronMode()) {
+    const result = await window.electronAPI!.db.getById('products', productId);
+    if (result.data) {
+      const newStock = (result.data.stock || 0) + quantityChange;
+      await dbUpdate('products', productId, { stock: newStock });
+    }
+    return;
+  }
+  const products = lsGet<Product[]>(STORAGE_KEYS.products, []);
   const index = products.findIndex(p => p.id === productId);
   if (index >= 0) {
     products[index].stock += quantityChange;
-    setItem(STORAGE_KEYS.products, products);
+    lsSet(STORAGE_KEYS.products, products);
   }
 }
 
-// Sales functions
-export function getSales(branchId?: string): Sale[] {
-  const sales = getItem<Sale[]>(STORAGE_KEYS.sales, []);
-  if (branchId) {
-    return sales.filter(s => s.branchId === branchId);
+// ============= SALES FUNCTIONS =============
+export async function getSales(branchId?: string): Promise<Sale[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('sales');
+    let sales = rows.map(mapSaleFromDb);
+    // Also load sale_items for each sale
+    const items = await dbGetAll<any>('sale_items');
+    sales = sales.map(s => ({
+      ...s,
+      items: items.filter((i: any) => i.sale_id === s.id).map(mapSaleItemFromDb),
+    }));
+    if (branchId) sales = sales.filter(s => s.branchId === branchId);
+    return sales;
   }
-  return sales;
+  const sales = lsGet<Sale[]>(STORAGE_KEYS.sales, []);
+  return branchId ? sales.filter(s => s.branchId === branchId) : sales;
 }
 
-export function getAllSales(): Sale[] {
-  return getItem<Sale[]>(STORAGE_KEYS.sales, []);
+export async function getAllSales(): Promise<Sale[]> {
+  return getSales();
 }
 
-export function saveSale(sale: Sale): void {
-  const sales = getAllSales();
+export async function saveSale(sale: Sale): Promise<void> {
+  if (isElectronMode()) {
+    // Save sale header
+    await dbInsert('sales', {
+      id: sale.id,
+      invoice_number: sale.invoiceNumber,
+      invoice_type: 'FT',
+      branch_id: sale.branchId,
+      client_name: sale.customerName || '',
+      client_nif: sale.customerNif || '',
+      subtotal: sale.subtotal,
+      tax_amount: sale.taxAmount,
+      discount: sale.discount || 0,
+      total: sale.total,
+      amount_paid: sale.amountPaid,
+      change_amount: sale.change || 0,
+      payment_method: sale.paymentMethod,
+      status: sale.status,
+      cashier_id: sale.cashierId,
+      cashier_name: sale.cashierName || '',
+      agt_hash: sale.saftHash || '',
+      created_at: sale.createdAt,
+    });
+    // Save sale items
+    for (const item of sale.items) {
+      await dbInsert('sale_items', {
+        id: `si_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sale_id: sale.id,
+        product_id: item.productId,
+        product_name: item.productName,
+        sku: item.sku,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        cost_at_sale: 0,
+        discount: item.discount || 0,
+        tax_rate: item.taxRate,
+        tax_amount: item.taxAmount,
+        total: item.subtotal,
+      });
+    }
+    // Update stock
+    for (const item of sale.items) {
+      await updateProductStock(item.productId, -item.quantity);
+    }
+    return;
+  }
+
+  const sales = lsGet<Sale[]>(STORAGE_KEYS.sales, []);
   sales.push(sale);
-  setItem(STORAGE_KEYS.sales, sales);
-  
-  // Update product stock
-  sale.items.forEach(item => {
-    updateProductStock(item.productId, -item.quantity);
-  });
+  lsSet(STORAGE_KEYS.sales, sales);
+  // Update stock in localStorage
+  for (const item of sale.items) {
+    await updateProductStock(item.productId, -item.quantity);
+  }
 }
 
 export function generateInvoiceNumber(branchCode: string): string {
-  const sales = getAllSales();
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const count = sales.filter(s => 
-    s.invoiceNumber.startsWith(`FT ${branchCode}/${today}`)
-  ).length + 1;
-  return `FT ${branchCode}/${today}/${count.toString().padStart(4, '0')}`;
+  const seq = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+  return `FT ${branchCode}/${today}/${seq}`;
 }
 
-// Daily Report functions
-export function getDailyReports(branchId?: string): DailySummary[] {
-  const reports = getItem<DailySummary[]>(STORAGE_KEYS.dailyReports, []);
-  return branchId ? reports.filter(r => r.branchId === branchId) : reports;
-}
-
-export function saveDailyReport(report: DailySummary): void {
-  const reports = getDailyReports();
-  const index = reports.findIndex(r => r.id === report.id);
-  if (index >= 0) {
-    reports[index] = report;
-  } else {
-    reports.push(report);
+// ============= USER FUNCTIONS =============
+export async function getUsers(): Promise<User[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('users');
+    return rows.map(mapUserFromDb);
   }
-  setItem(STORAGE_KEYS.dailyReports, reports);
+  return lsGet<User[]>(STORAGE_KEYS.users, getDefaultUsers());
 }
 
-export function getTodayReport(branchId: string): DailySummary | null {
-  const today = new Date().toISOString().split('T')[0];
-  const reports = getDailyReports(branchId);
-  return reports.find(r => r.date === today) || null;
-}
-
-export function generateDailyReport(branchId: string, date: string): DailySummary {
-  const sales = getSales(branchId).filter(s => 
-    s.createdAt.startsWith(date) && s.status === 'completed'
-  );
-  const branch = getBranches().find(b => b.id === branchId);
-  
-  const cashTotal = sales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
-  const cardTotal = sales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
-  const transferTotal = sales.filter(s => s.paymentMethod === 'transfer').reduce((sum, s) => sum + s.total, 0);
-  
-  return {
-    id: `report_${branchId}_${date}`,
-    date,
-    branchId,
-    branchName: branch?.name || '',
-    totalSales: sales.reduce((sum, s) => sum + s.total, 0),
-    totalTransactions: sales.length,
-    cashTotal,
-    cardTotal,
-    transferTotal,
-    taxCollected: sales.reduce((sum, s) => sum + s.taxAmount, 0),
-    openingBalance: 0,
-    closingBalance: cashTotal,
-    status: 'open',
-    createdAt: new Date().toISOString(),
-  };
-}
-
-// Client functions
-export function getClients(): Client[] {
-  return getItem<Client[]>(STORAGE_KEYS.clients, []);
-}
-
-export function saveClient(client: Client): void {
-  const clients = getClients();
-  const index = clients.findIndex(c => c.id === client.id);
-  if (index >= 0) {
-    clients[index] = { ...client, updatedAt: new Date().toISOString() };
-  } else {
-    clients.push(client);
+export async function saveUser(user: User): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('users', mapUserToDb(user));
+    return;
   }
-  setItem(STORAGE_KEYS.clients, clients);
-}
-
-export function deleteClient(clientId: string): void {
-  const clients = getClients().filter(c => c.id !== clientId);
-  setItem(STORAGE_KEYS.clients, clients);
-}
-
-// Stock Transfer functions
-export function getStockTransfers(branchId?: string): StockTransfer[] {
-  const transfers = getItem<StockTransfer[]>(STORAGE_KEYS.stockTransfers, []);
-  if (!branchId) return transfers;
-  return transfers.filter(t => t.fromBranchId === branchId || t.toBranchId === branchId);
-}
-
-export function saveStockTransfer(transfer: StockTransfer): void {
-  const transfers = getStockTransfers();
-  const index = transfers.findIndex(t => t.id === transfer.id);
-  if (index >= 0) {
-    transfers[index] = transfer;
-  } else {
-    transfers.push(transfer);
-  }
-  setItem(STORAGE_KEYS.stockTransfers, transfers);
-}
-
-export function processStockTransfer(transferId: string, action: 'approve' | 'receive' | 'cancel', userId: string): void {
-  const transfers = getStockTransfers();
-  const transfer = transfers.find(t => t.id === transferId);
-  if (!transfer) return;
-  
-  if (action === 'approve') {
-    transfer.status = 'in_transit';
-    transfer.approvedBy = userId;
-    transfer.approvedAt = new Date().toISOString();
-    
-    // Deduct from source branch
-    transfer.items.forEach(item => {
-      const products = getAllProducts();
-      const product = products.find(p => p.id === item.productId && p.branchId === transfer.fromBranchId);
-      if (product) {
-        updateProductStock(product.id, -item.quantity);
-      }
-    });
-  } else if (action === 'receive') {
-    transfer.status = 'received';
-    transfer.receivedBy = userId;
-    transfer.receivedAt = new Date().toISOString();
-    
-    // Add to destination branch
-    transfer.items.forEach(item => {
-      const products = getAllProducts();
-      let product = products.find(p => p.sku === item.sku && p.branchId === transfer.toBranchId);
-      
-      if (product) {
-        updateProductStock(product.id, item.receivedQuantity || item.quantity);
-      } else {
-        // Create new product entry for this branch
-        const sourceProduct = products.find(p => p.id === item.productId);
-        if (sourceProduct) {
-          const newProduct: Product = {
-            ...sourceProduct,
-            id: `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            branchId: transfer.toBranchId,
-            stock: item.receivedQuantity || item.quantity,
-            createdAt: new Date().toISOString(),
-          };
-          saveProduct(newProduct);
-        }
-      }
-    });
-  } else if (action === 'cancel') {
-    transfer.status = 'cancelled';
-  }
-  
-  saveStockTransfer(transfer);
-}
-
-export function generateTransferNumber(): string {
-  const transfers = getStockTransfers();
-  const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-  const sequence = String(transfers.length + 1).padStart(4, '0');
-  return `TRF${today}${sequence}`;
-}
-
-// ==================== STOCK MOVEMENTS ====================
-// Track every stock IN/OUT with reason for full traceability
-
-export function getStockMovements(branchId?: string): StockMovement[] {
-  const movements = getItem<StockMovement[]>(STORAGE_KEYS.stockMovements, []);
-  if (branchId) {
-    return movements.filter(m => m.branchId === branchId);
-  }
-  return movements;
-}
-
-export function saveStockMovement(movement: StockMovement): void {
-  const movements = getStockMovements();
-  movements.push(movement);
-  setItem(STORAGE_KEYS.stockMovements, movements);
-}
-
-export function createStockMovement(
-  productId: string,
-  branchId: string,
-  type: 'IN' | 'OUT',
-  quantity: number,
-  reason: StockMovement['reason'],
-  userId: string,
-  referenceId?: string,
-  referenceNumber?: string,
-  notes?: string
-): StockMovement {
-  const products = getAllProducts();
-  const product = products.find(p => p.id === productId);
-  
-  const movement: StockMovement = {
-    id: `mov_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    productId,
-    productName: product?.name || '',
-    sku: product?.sku || '',
-    branchId,
-    type,
-    quantity,
-    reason,
-    referenceId,
-    referenceNumber,
-    costAtTime: product?.lastCost || product?.cost,
-    notes,
-    createdBy: userId,
-    createdAt: new Date().toISOString(),
-  };
-  
-  saveStockMovement(movement);
-  return movement;
-}
-
-// ==================== DATA SYNC (FILIAL → HEAD OFFICE) ====================
-// Complete sync package for offline-first architecture
-
-export function createSyncPackage(branchId: string, dateFrom: string, dateTo: string): SyncPackage {
-  const branch = getBranches().find(b => b.id === branchId);
-  
-  // Filter function for date range
-  const isInDateRange = (dateStr: string) => {
-    const date = dateStr.split('T')[0];
-    return date >= dateFrom && date <= dateTo;
-  };
-  
-  // Get all data for this branch within date range
-  const products = getProducts(branchId);
-  const suppliers = getSuppliers();
-  const clients = getClients();
-  
-  const purchases = getPurchaseOrders(branchId).filter(p => isInDateRange(p.createdAt));
-  const sales = getSales(branchId).filter(s => isInDateRange(s.createdAt) && !s.syncedToMain);
-  const stockMovements = getStockMovements(branchId).filter(m => isInDateRange(m.createdAt));
-  const stockTransfers = getStockTransfers(branchId).filter(t => isInDateRange(t.requestedAt));
-  const dailyReports = getDailyReports(branchId).filter(r => r.date >= dateFrom && r.date <= dateTo);
-  
-  const totalRecords = products.length + suppliers.length + clients.length + 
-                       purchases.length + sales.length + stockMovements.length + 
-                       stockTransfers.length + dailyReports.length;
-  
-  return {
-    id: `sync_${branch?.code || branchId}_${Date.now()}`,
-    branchId,
-    branchCode: branch?.code || '',
-    branchName: branch?.name || '',
-    exportDate: new Date().toISOString(),
-    dateRange: { from: dateFrom, to: dateTo },
-    products,
-    suppliers,
-    clients,
-    purchases,
-    sales,
-    stockMovements,
-    stockTransfers,
-    dailyReports,
-    version: '2.0.0',
-    totalRecords,
-  };
-}
-
-// ==================== DATA SYNC (HEAD OFFICE → FILIAL) ====================
-// Price and code updates only - NO stock information
-
-export interface PriceUpdatePackage {
-  id: string;
-  fromBranchId: string;
-  fromBranchName: string;
-  exportDate: string;
-  products: Array<{
-    id: string;
-    sku: string;
-    barcode?: string;
-    name: string;
-    price: number;
-    cost: number;
-    taxRate: number;
-    category: string;
-    unit: string;
-    supplierName?: string;
-    // Explicitly NO stock field
-  }>;
-  categories: Array<{
-    id: string;
-    name: string;
-  }>;
-  version: string;
-  totalRecords: number;
-}
-
-export function createPriceUpdatePackage(): PriceUpdatePackage {
-  const mainBranch = getBranches().find(b => b.isMain);
-  const allProducts = getAllProducts();
-  const categories = getCategories();
-  
-  // Extract only pricing and identification data - NO STOCK
-  const priceProducts = allProducts.map(p => ({
-    id: p.id,
-    sku: p.sku,
-    barcode: p.barcode,
-    name: p.name,
-    price: p.price,
-    cost: p.cost,
-    taxRate: p.taxRate,
-    category: p.category,
-    unit: p.unit,
-    supplierName: p.supplierName,
-  }));
-  
-  return {
-    id: `price_update_${Date.now()}`,
-    fromBranchId: mainBranch?.id || '',
-    fromBranchName: mainBranch?.name || 'Sede',
-    exportDate: new Date().toISOString(),
-    products: priceProducts,
-    categories: categories.map(c => ({ id: c.id, name: c.name })),
-    version: '1.0.0',
-    totalRecords: priceProducts.length,
-  };
-}
-
-export interface PriceUpdateResult {
-  productsUpdated: number;
-  productsAdded: number;
-  categoriesUpdated: number;
-  totalProcessed: number;
-}
-
-export function importPriceUpdatePackage(pkg: PriceUpdatePackage): PriceUpdateResult {
-  const result: PriceUpdateResult = {
-    productsUpdated: 0,
-    productsAdded: 0,
-    categoriesUpdated: 0,
-    totalProcessed: 0,
-  };
-  
-  // Import categories
-  if (pkg.categories) {
-    const existingCategories = getCategories();
-    pkg.categories.forEach(cat => {
-      if (!existingCategories.find(c => c.id === cat.id || c.name === cat.name)) {
-        existingCategories.push({
-          id: cat.id,
-          name: cat.name,
-          description: '',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        result.categoriesUpdated++;
-      }
-    });
-    setItem(STORAGE_KEYS.categories, existingCategories);
-  }
-  
-  // Import/update products - PRESERVE LOCAL STOCK
-  if (pkg.products) {
-    const existingProducts = getAllProducts();
-    
-    pkg.products.forEach(newProduct => {
-      const existingIndex = existingProducts.findIndex(
-        p => p.id === newProduct.id || p.sku === newProduct.sku
-      );
-      
-      if (existingIndex >= 0) {
-        // Update existing product - KEEP LOCAL STOCK
-        const existing = existingProducts[existingIndex];
-        existingProducts[existingIndex] = {
-          ...existing,
-          // Update pricing and identification
-          sku: newProduct.sku,
-          barcode: newProduct.barcode,
-          name: newProduct.name,
-          price: newProduct.price,
-          cost: newProduct.cost,
-          taxRate: newProduct.taxRate,
-          category: newProduct.category,
-          unit: newProduct.unit,
-          supplierName: newProduct.supplierName,
-          updatedAt: new Date().toISOString(),
-          // KEEP LOCAL STOCK - do not override
-        };
-        result.productsUpdated++;
-      } else {
-        // Add new product with ZERO stock at filial
-        const newProd: Product = {
-          id: newProduct.id,
-          sku: newProduct.sku,
-          barcode: newProduct.barcode,
-          name: newProduct.name,
-          price: newProduct.price,
-          cost: newProduct.cost,
-          firstCost: newProduct.cost,
-          lastCost: newProduct.cost,
-          avgCost: newProduct.cost,
-          taxRate: newProduct.taxRate,
-          category: newProduct.category,
-          unit: newProduct.unit,
-          supplierName: newProduct.supplierName,
-          stock: 0, // New products start with ZERO stock at filial
-          branchId: '', // Will be set based on current branch
-          isActive: true,
-          createdAt: new Date().toISOString(),
-        };
-        existingProducts.push(newProd);
-        result.productsAdded++;
-      }
-    });
-    
-    setItem(STORAGE_KEYS.products, existingProducts);
-  }
-  
-  result.totalProcessed = result.productsUpdated + result.productsAdded + result.categoriesUpdated;
-  return result;
-}
-
-// Helper to check if current branch is a filial (not main office)
-export function isFilialBranch(branchId?: string): boolean {
-  const branches = getBranches();
-  if (!branchId) {
-    const currentBranch = branches.find(b => !b.isMain); // Default check
-    return currentBranch ? !currentBranch.isMain : false;
-  }
-  const branch = branches.find(b => b.id === branchId);
-  return branch ? !branch.isMain : false;
-}
-
-export interface ImportResult {
-  productsImported: number;
-  suppliersImported: number;
-  clientsImported: number;
-  purchasesImported: number;
-  salesImported: number;
-  stockMovementsImported: number;
-  stockTransfersImported: number;
-  reportsImported: number;
-  totalImported: number;
-}
-
-export function importSyncPackage(syncPackage: SyncPackage): ImportResult {
-  const result: ImportResult = {
-    productsImported: 0,
-    suppliersImported: 0,
-    clientsImported: 0,
-    purchasesImported: 0,
-    salesImported: 0,
-    stockMovementsImported: 0,
-    stockTransfersImported: 0,
-    reportsImported: 0,
-    totalImported: 0,
-  };
-  
-  // Import products (update existing or add new)
-  if (syncPackage.products) {
-    const existingProducts = getAllProducts();
-    syncPackage.products.forEach(product => {
-      const existing = existingProducts.find(p => p.id === product.id || p.sku === product.sku);
-      if (!existing) {
-        existingProducts.push(product);
-        result.productsImported++;
-      }
-    });
-    setItem(STORAGE_KEYS.products, existingProducts);
-  }
-  
-  // Import suppliers
-  if (syncPackage.suppliers) {
-    const existingSuppliers = getSuppliers();
-    syncPackage.suppliers.forEach(supplier => {
-      if (!existingSuppliers.find(s => s.id === supplier.id || s.nif === supplier.nif)) {
-        existingSuppliers.push(supplier);
-        result.suppliersImported++;
-      }
-    });
-    setItem(STORAGE_KEYS.suppliers, existingSuppliers);
-  }
-  
-  // Import clients
-  if (syncPackage.clients) {
-    const existingClients = getClients();
-    syncPackage.clients.forEach(client => {
-      if (!existingClients.find(c => c.id === client.id || c.nif === client.nif)) {
-        existingClients.push(client);
-        result.clientsImported++;
-      }
-    });
-    setItem(STORAGE_KEYS.clients, existingClients);
-  }
-  
-  // Import purchases
-  if (syncPackage.purchases) {
-    const existingPurchases = getPurchaseOrders();
-    syncPackage.purchases.forEach(purchase => {
-      if (!existingPurchases.find(p => p.id === purchase.id)) {
-        existingPurchases.push(purchase);
-        result.purchasesImported++;
-      }
-    });
-    setItem(STORAGE_KEYS.purchaseOrders, existingPurchases);
-  }
-  
-  // Import sales and DEDUCT STOCK from main office for each sale
-  if (syncPackage.sales) {
-    const existingSales = getAllSales();
-    syncPackage.sales.forEach(sale => {
-      if (!existingSales.find(s => s.id === sale.id)) {
-        sale.syncedToMain = true;
-        sale.syncedAt = new Date().toISOString();
-        existingSales.push(sale);
-        result.salesImported++;
-        
-        // CRITICAL: Deduct stock from main office for imported sales
-        // This ensures the main office stock reflects all branch sales
-        if (sale.items && Array.isArray(sale.items)) {
-          sale.items.forEach(item => {
-            updateProductStock(item.productId, -item.quantity);
-          });
-        }
-      }
-    });
-    setItem(STORAGE_KEYS.sales, existingSales);
-  }
-  
-  // Import stock movements
-  if (syncPackage.stockMovements) {
-    const existingMovements = getStockMovements();
-    syncPackage.stockMovements.forEach(movement => {
-      if (!existingMovements.find(m => m.id === movement.id)) {
-        existingMovements.push(movement);
-        result.stockMovementsImported++;
-      }
-    });
-    setItem(STORAGE_KEYS.stockMovements, existingMovements);
-  }
-  
-  // Import stock transfers
-  if (syncPackage.stockTransfers) {
-    const existingTransfers = getStockTransfers();
-    syncPackage.stockTransfers.forEach(transfer => {
-      if (!existingTransfers.find(t => t.id === transfer.id)) {
-        existingTransfers.push(transfer);
-        result.stockTransfersImported++;
-      }
-    });
-    setItem(STORAGE_KEYS.stockTransfers, existingTransfers);
-  }
-  
-  // Import daily reports
-  if (syncPackage.dailyReports) {
-    const existingReports = getDailyReports();
-    syncPackage.dailyReports.forEach(report => {
-      if (!existingReports.find(r => r.id === report.id)) {
-        existingReports.push(report);
-        result.reportsImported++;
-      }
-    });
-    setItem(STORAGE_KEYS.dailyReports, existingReports);
-  }
-  
-  result.totalImported = result.productsImported + result.suppliersImported + 
-                         result.clientsImported + result.purchasesImported + 
-                         result.salesImported + result.stockMovementsImported + 
-                         result.stockTransfersImported + result.reportsImported;
-  
-  return result;
-}
-
-// User functions
-export function getUsers(): User[] {
-  return getItem<User[]>(STORAGE_KEYS.users, getDefaultUsers());
-}
-
-export function getUserById(userId: string): User | null {
-  const users = getUsers();
-  return users.find(u => u.id === userId) || null;
-}
-
-export function saveUser(user: User): void {
-  const users = getUsers();
+  const users = lsGet<User[]>(STORAGE_KEYS.users, getDefaultUsers());
   const index = users.findIndex(u => u.id === user.id);
-  if (index >= 0) {
-    users[index] = { ...user, updatedAt: new Date().toISOString() };
-  } else {
-    users.push(user);
-  }
-  setItem(STORAGE_KEYS.users, users);
+  if (index >= 0) users[index] = { ...user, updatedAt: new Date().toISOString() };
+  else users.push(user);
+  lsSet(STORAGE_KEYS.users, users);
 }
 
-export function deleteUser(userId: string): void {
-  const users = getUsers().filter(u => u.id !== userId);
-  setItem(STORAGE_KEYS.users, users);
-}
-
-export function createUser(data: Omit<User, 'id' | 'createdAt'>): User {
-  const user: User = {
-    ...data,
-    id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    createdAt: new Date().toISOString(),
-  };
-  saveUser(user);
-  return user;
-}
-
-export function updateUserRole(userId: string, role: User['role']): void {
-  const users = getUsers();
-  const index = users.findIndex(u => u.id === userId);
-  if (index >= 0) {
-    users[index].role = role;
-    users[index].updatedAt = new Date().toISOString();
-    setItem(STORAGE_KEYS.users, users);
-  }
-}
-
-export function toggleUserActive(userId: string): void {
-  const users = getUsers();
-  const index = users.findIndex(u => u.id === userId);
-  if (index >= 0) {
-    users[index].isActive = !users[index].isActive;
-    users[index].updatedAt = new Date().toISOString();
-    setItem(STORAGE_KEYS.users, users);
-  }
+export async function deleteUser(userId: string): Promise<void> {
+  if (isElectronMode()) { await dbDelete('users', userId); return; }
+  const users = lsGet<User[]>(STORAGE_KEYS.users, []).filter(u => u.id !== userId);
+  lsSet(STORAGE_KEYS.users, users);
 }
 
 export function getCurrentUser(): User | null {
-  return getItem<User | null>(STORAGE_KEYS.currentUser, null);
+  return lsGet<User | null>(STORAGE_KEYS.currentUser, null);
 }
 
 export function setCurrentUser(user: User | null): void {
-  setItem(STORAGE_KEYS.currentUser, user);
+  lsSet(STORAGE_KEYS.currentUser, user);
 }
 
-// Default data
+// ============= CLIENT FUNCTIONS =============
+export async function getClients(): Promise<Client[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('clients');
+    return rows.map(mapClientFromDb);
+  }
+  return lsGet<Client[]>(STORAGE_KEYS.clients, []);
+}
+
+export async function saveClient(client: Client): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('clients', mapClientToDb(client));
+    return;
+  }
+  const clients = lsGet<Client[]>(STORAGE_KEYS.clients, []);
+  const index = clients.findIndex(c => c.id === client.id);
+  if (index >= 0) clients[index] = { ...client, updatedAt: new Date().toISOString() };
+  else clients.push(client);
+  lsSet(STORAGE_KEYS.clients, clients);
+}
+
+export async function deleteClient(clientId: string): Promise<void> {
+  if (isElectronMode()) { await dbDelete('clients', clientId); return; }
+  lsSet(STORAGE_KEYS.clients, lsGet<Client[]>(STORAGE_KEYS.clients, []).filter(c => c.id !== clientId));
+}
+
+// ============= SUPPLIER FUNCTIONS =============
+export async function getSuppliers(): Promise<Supplier[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('suppliers');
+    return rows.map(mapSupplierFromDb);
+  }
+  return lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []);
+}
+
+export async function saveSupplier(supplier: Supplier): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('suppliers', mapSupplierToDb(supplier));
+    return;
+  }
+  const suppliers = lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []);
+  const index = suppliers.findIndex(s => s.id === supplier.id);
+  if (index >= 0) suppliers[index] = supplier;
+  else suppliers.push(supplier);
+  lsSet(STORAGE_KEYS.suppliers, suppliers);
+}
+
+export async function deleteSupplier(supplierId: string): Promise<void> {
+  if (isElectronMode()) { await dbDelete('suppliers', supplierId); return; }
+  lsSet(STORAGE_KEYS.suppliers, lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []).filter(s => s.id !== supplierId));
+}
+
+// ============= CATEGORY FUNCTIONS =============
+export async function getCategories(): Promise<Category[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('categories');
+    return rows.map(mapCategoryFromDb);
+  }
+  return lsGet<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
+}
+
+export async function saveCategory(category: Category): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('categories', {
+      id: category.id,
+      name: category.name,
+      description: category.description || '',
+      parent_id: '',
+      is_active: category.isActive ? 1 : 0,
+    });
+    return;
+  }
+  const categories = lsGet<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
+  const index = categories.findIndex(c => c.id === category.id);
+  if (index >= 0) categories[index] = category;
+  else categories.push(category);
+  lsSet(STORAGE_KEYS.categories, categories);
+}
+
+export async function deleteCategory(categoryId: string): Promise<void> {
+  if (isElectronMode()) { await dbDelete('categories', categoryId); return; }
+  lsSet(STORAGE_KEYS.categories, lsGet<Category[]>(STORAGE_KEYS.categories, []).filter(c => c.id !== categoryId));
+}
+
+// ============= PURCHASE ORDER FUNCTIONS =============
+export async function getPurchaseOrders(branchId?: string): Promise<PurchaseOrder[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('purchase_orders');
+    const items = await dbGetAll<any>('purchase_order_items');
+    let orders = rows.map(r => ({
+      ...mapPurchaseOrderFromDb(r),
+      items: items.filter((i: any) => i.po_id === r.id).map(mapPOItemFromDb),
+    }));
+    if (branchId) orders = orders.filter(o => o.branchId === branchId);
+    return orders;
+  }
+  const orders = lsGet<PurchaseOrder[]>(STORAGE_KEYS.purchaseOrders, []);
+  return branchId ? orders.filter(o => o.branchId === branchId) : orders;
+}
+
+export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('purchase_orders', {
+      id: order.id,
+      po_number: order.orderNumber,
+      supplier_id: order.supplierId,
+      supplier_name: order.supplierName,
+      branch_id: order.branchId,
+      subtotal: order.subtotal,
+      freight: order.freightCost || 0,
+      other_costs: order.otherCosts || 0,
+      tax_amount: order.taxAmount,
+      total: order.total,
+      status: order.status,
+      expected_date: order.expectedDeliveryDate || '',
+      received_date: order.receivedAt || '',
+      received_by: order.receivedBy || '',
+      notes: order.notes || '',
+      created_at: order.createdAt,
+    });
+    // Save items
+    for (const item of order.items) {
+      await dbInsert('purchase_order_items', {
+        id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        po_id: order.id,
+        product_id: item.productId,
+        product_name: item.productName,
+        sku: item.sku,
+        quantity_ordered: item.quantity,
+        quantity_received: item.receivedQuantity || 0,
+        unit_cost: item.unitCost,
+        freight_allocation: item.freightAllocation || 0,
+        effective_cost: item.effectiveCost || item.unitCost,
+        tax_rate: item.taxRate,
+        total: item.subtotal,
+      });
+    }
+    return;
+  }
+  const orders = lsGet<PurchaseOrder[]>(STORAGE_KEYS.purchaseOrders, []);
+  const index = orders.findIndex(o => o.id === order.id);
+  if (index >= 0) orders[index] = order;
+  else orders.push(order);
+  lsSet(STORAGE_KEYS.purchaseOrders, orders);
+}
+
+export function generatePurchaseOrderNumber(): string {
+  const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const seq = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+  return `PO${today}${seq}`;
+}
+
+export async function processPurchaseOrderReceive(
+  orderId: string,
+  receivedQuantities: Record<string, number>,
+  userId: string
+): Promise<void> {
+  const orders = await getPurchaseOrders();
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+
+  const orderItemsTotal = order.items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
+  const totalLandingCosts = (order.freightCost || 0) + (order.otherCosts || 0);
+
+  order.items.forEach(item => {
+    item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
+  });
+
+  const allReceived = order.items.every(item => (item.receivedQuantity || 0) >= item.quantity);
+  const someReceived = order.items.some(item => (item.receivedQuantity || 0) > 0);
+
+  order.status = allReceived ? 'received' : someReceived ? 'partial' : order.status;
+  order.receivedBy = userId;
+  order.receivedAt = new Date().toISOString();
+  order.freightDistributed = true;
+
+  await savePurchaseOrder(order);
+
+  // Update product stock and costs using weighted average
+  const products = await getAllProducts();
+  for (const item of order.items) {
+    const received = receivedQuantities[item.productId] || 0;
+    if (received <= 0) continue;
+
+    const product = products.find(p => p.id === item.productId);
+    if (!product) continue;
+
+    let freightPerUnit = 0;
+    if (orderItemsTotal > 0 && totalLandingCosts > 0) {
+      const itemValue = item.quantity * item.unitCost;
+      const proportion = itemValue / orderItemsTotal;
+      freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
+    }
+
+    const effectiveCost = item.unitCost + freightPerUnit;
+    const previousTotalValue = product.stock * (product.cost || 0);
+    const newItemsTotalValue = received * effectiveCost;
+    const newTotalStock = product.stock + received;
+    const newAverageCost = newTotalStock > 0
+      ? (previousTotalValue + newItemsTotalValue) / newTotalStock
+      : effectiveCost;
+
+    const updatedProduct: Product = {
+      ...product,
+      stock: newTotalStock,
+      cost: newAverageCost,
+      avgCost: newAverageCost,
+      lastCost: effectiveCost,
+      firstCost: product.firstCost || effectiveCost,
+      updatedAt: new Date().toISOString(),
+    };
+    await saveProduct(updatedProduct);
+  }
+}
+
+// ============= STOCK TRANSFER FUNCTIONS =============
+export async function getStockTransfers(branchId?: string): Promise<StockTransfer[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('stock_transfers');
+    const items = await dbGetAll<any>('stock_transfer_items');
+    let transfers = rows.map(r => ({
+      ...mapStockTransferFromDb(r),
+      items: items.filter((i: any) => i.transfer_id === r.id).map((i: any) => ({
+        productId: i.product_id,
+        productName: i.product_name,
+        sku: i.sku,
+        quantity: i.quantity,
+        receivedQuantity: i.received_quantity,
+      })),
+    }));
+    if (branchId) transfers = transfers.filter(t => t.fromBranchId === branchId || t.toBranchId === branchId);
+    return transfers;
+  }
+  const transfers = lsGet<StockTransfer[]>(STORAGE_KEYS.stockTransfers, []);
+  return branchId ? transfers.filter(t => t.fromBranchId === branchId || t.toBranchId === branchId) : transfers;
+}
+
+export async function saveStockTransfer(transfer: StockTransfer): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('stock_transfers', {
+      id: transfer.id,
+      transfer_number: transfer.transferNumber,
+      from_branch_id: transfer.fromBranchId,
+      to_branch_id: transfer.toBranchId,
+      status: transfer.status,
+      requested_by: transfer.requestedBy,
+      approved_by: transfer.approvedBy || '',
+      received_by: transfer.receivedBy || '',
+      requested_at: transfer.requestedAt,
+      approved_at: transfer.approvedAt || '',
+      received_at: transfer.receivedAt || '',
+      notes: transfer.notes || '',
+    });
+    for (const item of transfer.items) {
+      await dbInsert('stock_transfer_items', {
+        id: `sti_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        transfer_id: transfer.id,
+        product_id: item.productId,
+        product_name: item.productName,
+        sku: item.sku,
+        quantity: item.quantity,
+        received_quantity: item.receivedQuantity || 0,
+      });
+    }
+    return;
+  }
+  const transfers = lsGet<StockTransfer[]>(STORAGE_KEYS.stockTransfers, []);
+  const index = transfers.findIndex(t => t.id === transfer.id);
+  if (index >= 0) transfers[index] = transfer;
+  else transfers.push(transfer);
+  lsSet(STORAGE_KEYS.stockTransfers, transfers);
+}
+
+export function generateTransferNumber(): string {
+  const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const seq = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+  return `TRF${today}${seq}`;
+}
+
+// ============= DAILY REPORT FUNCTIONS =============
+export async function getDailyReports(branchId?: string): Promise<DailySummary[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('daily_reports');
+    let reports = rows.map(mapDailyReportFromDb);
+    if (branchId) reports = reports.filter(r => r.branchId === branchId);
+    return reports;
+  }
+  const reports = lsGet<DailySummary[]>(STORAGE_KEYS.dailyReports, []);
+  return branchId ? reports.filter(r => r.branchId === branchId) : reports;
+}
+
+export async function saveDailyReport(report: DailySummary): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('daily_reports', {
+      id: report.id, date: report.date, branch_id: report.branchId,
+      branch_name: report.branchName, total_sales: report.totalSales,
+      total_transactions: report.totalTransactions, cash_total: report.cashTotal,
+      card_total: report.cardTotal, transfer_total: report.transferTotal,
+      tax_collected: report.taxCollected, opening_balance: report.openingBalance,
+      closing_balance: report.closingBalance, status: report.status,
+      closed_by: report.closedBy || '', closed_at: report.closedAt || '',
+    });
+    return;
+  }
+  const reports = lsGet<DailySummary[]>(STORAGE_KEYS.dailyReports, []);
+  const index = reports.findIndex(r => r.id === report.id);
+  if (index >= 0) reports[index] = report;
+  else reports.push(report);
+  lsSet(STORAGE_KEYS.dailyReports, reports);
+}
+
+export async function getTodayReport(branchId: string): Promise<DailySummary | null> {
+  const today = new Date().toISOString().split('T')[0];
+  const reports = await getDailyReports(branchId);
+  return reports.find(r => r.date === today) || null;
+}
+
+export async function generateDailyReport(branchId: string, date: string): Promise<DailySummary> {
+  const sales = (await getSales(branchId)).filter(s =>
+    s.createdAt.startsWith(date) && s.status === 'completed'
+  );
+  const branches = await getBranches();
+  const branch = branches.find(b => b.id === branchId);
+
+  const cashTotal = sales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
+  const cardTotal = sales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
+  const transferTotal = sales.filter(s => s.paymentMethod === 'transfer').reduce((sum, s) => sum + s.total, 0);
+
+  return {
+    id: `report_${branchId}_${date}`,
+    date, branchId, branchName: branch?.name || '',
+    totalSales: sales.reduce((sum, s) => sum + s.total, 0),
+    totalTransactions: sales.length,
+    cashTotal, cardTotal, transferTotal,
+    taxCollected: sales.reduce((sum, s) => sum + s.taxAmount, 0),
+    openingBalance: 0, closingBalance: cashTotal,
+    status: 'open', createdAt: new Date().toISOString(),
+  };
+}
+
+// ============= STOCK MOVEMENT FUNCTIONS =============
+export async function getStockMovements(branchId?: string): Promise<StockMovement[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('stock_movements');
+    let movements = rows.map((r: any) => ({
+      id: r.id, productId: r.product_id, productName: r.product_name,
+      sku: r.sku, branchId: r.branch_id, type: r.type, quantity: r.quantity,
+      reason: r.reason, referenceId: r.reference_id, referenceNumber: r.reference_number,
+      costAtTime: r.cost_at_time, notes: r.notes, createdBy: r.created_by,
+      createdAt: r.created_at,
+    }));
+    if (branchId) movements = movements.filter((m: any) => m.branchId === branchId);
+    return movements;
+  }
+  const movements = lsGet<StockMovement[]>(STORAGE_KEYS.stockMovements, []);
+  return branchId ? movements.filter(m => m.branchId === branchId) : movements;
+}
+
+export async function saveStockMovement(movement: StockMovement): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('stock_movements', {
+      id: movement.id, product_id: movement.productId, product_name: movement.productName,
+      sku: movement.sku, branch_id: movement.branchId, type: movement.type,
+      quantity: movement.quantity, reason: movement.reason,
+      reference_id: movement.referenceId || '', reference_number: movement.referenceNumber || '',
+      cost_at_time: movement.costAtTime || 0, notes: movement.notes || '',
+      created_by: movement.createdBy,
+    });
+    return;
+  }
+  const movements = lsGet<StockMovement[]>(STORAGE_KEYS.stockMovements, []);
+  movements.push(movement);
+  lsSet(STORAGE_KEYS.stockMovements, movements);
+}
+
+// ============= DB <-> FRONTEND MAPPING =============
+function mapBranchFromDb(row: any): Branch {
+  return {
+    id: row.id, name: row.name, code: row.code || '',
+    address: row.address || '', phone: row.phone || '',
+    isMain: !!(row.is_main ?? row.isMain),
+    createdAt: row.created_at ?? row.createdAt ?? '',
+  };
+}
+
+function mapBranchToDb(branch: Branch): any {
+  return {
+    id: branch.id, name: branch.name, code: branch.code,
+    address: branch.address, phone: branch.phone,
+    is_main: branch.isMain ? 1 : 0, is_active: 1,
+  };
+}
+
+function mapProductFromDb(row: any): Product {
+  const cost = Number(row.cost || 0);
+  return {
+    id: row.id, name: row.name, sku: row.sku || '', barcode: row.barcode,
+    category: row.category_id ?? row.category ?? '',
+    price: Number(row.price || 0), cost,
+    firstCost: Number(row.first_cost ?? row.firstCost ?? cost),
+    lastCost: Number(row.last_cost ?? row.lastCost ?? row.weighted_avg_cost ?? cost),
+    avgCost: Number(row.weighted_avg_cost ?? row.avg_cost ?? row.avgCost ?? cost),
+    stock: Number(row.stock || 0),
+    unit: row.unit || 'un',
+    taxRate: Number(row.tax_rate ?? row.taxRate ?? 14),
+    branchId: row.branch_id ?? row.branchId ?? '',
+    supplierId: row.supplier_id ?? row.supplierId,
+    supplierName: row.supplier_name ?? row.supplierName,
+    isActive: !!(row.is_active ?? row.isActive ?? true),
+    createdAt: row.created_at ?? row.createdAt ?? '',
+    updatedAt: row.updated_at ?? row.updatedAt,
+  };
+}
+
+function mapProductToDb(product: Product): any {
+  return {
+    id: product.id, sku: product.sku, barcode: product.barcode || '',
+    name: product.name, description: '', category_id: product.category,
+    unit: product.unit, price: product.price, cost: product.cost,
+    last_cost: product.lastCost || product.cost,
+    weighted_avg_cost: product.avgCost || product.cost,
+    stock: product.stock, min_stock: 0, max_stock: 0,
+    branch_id: product.branchId, supplier_id: product.supplierId || '',
+    tax_rate: product.taxRate, is_active: product.isActive ? 1 : 0,
+    image: '',
+  };
+}
+
+function mapSaleFromDb(row: any): Sale {
+  return {
+    id: row.id,
+    invoiceNumber: row.invoice_number ?? row.invoiceNumber ?? '',
+    branchId: row.branch_id ?? row.branchId ?? '',
+    cashierId: row.cashier_id ?? row.cashierId ?? '',
+    cashierName: row.cashier_name ?? row.cashierName,
+    items: [],
+    subtotal: Number(row.subtotal || 0),
+    taxAmount: Number(row.tax_amount ?? row.taxAmount ?? 0),
+    discount: Number(row.discount ?? 0),
+    total: Number(row.total || 0),
+    paymentMethod: row.payment_method ?? row.paymentMethod ?? 'cash',
+    amountPaid: Number(row.amount_paid ?? row.amountPaid ?? 0),
+    change: Number(row.change_amount ?? row.change ?? 0),
+    customerNif: row.client_nif ?? row.customerNif,
+    customerName: row.client_name ?? row.customerName,
+    status: row.status ?? 'completed',
+    saftHash: row.agt_hash ?? row.saftHash,
+    agtCode: row.agt_code ?? row.agtCode,
+    createdAt: row.created_at ?? row.createdAt ?? '',
+  };
+}
+
+function mapSaleItemFromDb(row: any): any {
+  return {
+    productId: row.product_id, productName: row.product_name, sku: row.sku || '',
+    quantity: Number(row.quantity || 0), unitPrice: Number(row.unit_price || 0),
+    discount: Number(row.discount || 0), taxRate: Number(row.tax_rate || 14),
+    taxAmount: Number(row.tax_amount || 0), subtotal: Number(row.total || 0),
+  };
+}
+
+function mapUserFromDb(row: any): User {
+  return {
+    id: row.id, email: row.email ?? `${row.username}@kwanzaerp.ao`,
+    name: row.name || row.username, username: row.username,
+    role: row.role ?? 'cashier', branchId: row.branch_id ?? row.branchId ?? '',
+    isActive: !!(row.is_active ?? row.isActive ?? true),
+    createdAt: row.created_at ?? row.createdAt ?? '',
+    updatedAt: row.updated_at ?? row.updatedAt,
+  };
+}
+
+function mapUserToDb(user: User): any {
+  return {
+    id: user.id, username: user.username || user.email?.split('@')[0] || user.name,
+    password: 'changeme', name: user.name, role: user.role,
+    branch_id: user.branchId, is_active: user.isActive ? 1 : 0,
+  };
+}
+
+function mapClientFromDb(row: any): Client {
+  return {
+    id: row.id, name: row.name, nif: row.nif || '',
+    email: row.email, phone: row.phone, address: row.address,
+    city: row.city, country: row.country ?? row.province ?? 'Angola',
+    creditLimit: Number(row.credit_limit ?? row.creditLimit ?? 0),
+    currentBalance: Number(row.balance ?? row.current_balance ?? row.currentBalance ?? 0),
+    isActive: !!(row.is_active ?? row.isActive ?? true),
+    createdAt: row.created_at ?? row.createdAt ?? '',
+    updatedAt: row.updated_at ?? row.updatedAt ?? '',
+  };
+}
+
+function mapClientToDb(client: Client): any {
+  return {
+    id: client.id, name: client.name, nif: client.nif,
+    email: client.email || '', phone: client.phone || '',
+    address: client.address || '', city: client.city || '',
+    province: client.country || 'Angola',
+    credit_limit: client.creditLimit, balance: client.currentBalance,
+    is_active: client.isActive ? 1 : 0,
+  };
+}
+
+function mapSupplierFromDb(row: any): Supplier {
+  return {
+    id: row.id, name: row.name, nif: row.nif || '',
+    email: row.email, phone: row.phone, address: row.address,
+    city: row.city, country: row.country ?? row.province ?? 'Angola',
+    contactPerson: row.contact_person ?? row.contactPerson,
+    paymentTerms: row.payment_terms ?? row.paymentTerms ?? '30_days',
+    isActive: !!(row.is_active ?? row.isActive ?? true),
+    notes: row.notes,
+    createdAt: row.created_at ?? row.createdAt ?? '',
+    updatedAt: row.updated_at ?? row.updatedAt ?? '',
+  };
+}
+
+function mapSupplierToDb(supplier: Supplier): any {
+  return {
+    id: supplier.id, name: supplier.name, nif: supplier.nif,
+    email: supplier.email || '', phone: supplier.phone || '',
+    address: supplier.address || '', city: supplier.city || '',
+    province: supplier.country || 'Angola',
+    contact_person: supplier.contactPerson || '',
+    payment_terms: supplier.paymentTerms, balance: 0,
+    is_active: supplier.isActive ? 1 : 0, notes: supplier.notes || '',
+  };
+}
+
+function mapCategoryFromDb(row: any): Category {
+  return {
+    id: row.id, name: row.name, description: row.description,
+    isActive: !!(row.is_active ?? row.isActive ?? true),
+    createdAt: row.created_at ?? row.createdAt ?? '',
+    updatedAt: row.updated_at ?? row.updatedAt ?? '',
+  };
+}
+
+function mapPurchaseOrderFromDb(row: any): PurchaseOrder {
+  return {
+    id: row.id,
+    orderNumber: row.po_number ?? row.order_number ?? row.orderNumber ?? '',
+    supplierId: row.supplier_id ?? row.supplierId ?? '',
+    supplierName: row.supplier_name ?? row.supplierName ?? '',
+    branchId: row.branch_id ?? row.branchId ?? '',
+    branchName: row.branch_name ?? row.branchName ?? '',
+    items: [],
+    subtotal: Number(row.subtotal ?? 0),
+    taxAmount: Number(row.tax_amount ?? row.taxAmount ?? 0),
+    total: Number(row.total ?? 0),
+    freightCost: Number(row.freight ?? row.freightCost ?? 0),
+    otherCosts: Number(row.other_costs ?? row.otherCosts ?? 0),
+    status: row.status ?? 'draft',
+    notes: row.notes,
+    createdBy: row.created_by ?? row.createdBy ?? '',
+    createdAt: row.created_at ?? row.createdAt ?? '',
+    approvedBy: row.approved_by ?? row.approvedBy,
+    approvedAt: row.approved_at ?? row.approvedAt,
+    receivedBy: row.received_by ?? row.receivedBy,
+    receivedAt: row.received_date ?? row.received_at ?? row.receivedAt,
+    expectedDeliveryDate: row.expected_date ?? row.expected_delivery_date ?? row.expectedDeliveryDate,
+  };
+}
+
+function mapPOItemFromDb(row: any): any {
+  return {
+    productId: row.product_id, productName: row.product_name, sku: row.sku || '',
+    quantity: Number(row.quantity_ordered || 0),
+    receivedQuantity: Number(row.quantity_received || 0),
+    unitCost: Number(row.unit_cost || 0),
+    freightAllocation: Number(row.freight_allocation || 0),
+    effectiveCost: Number(row.effective_cost || row.unit_cost || 0),
+    taxRate: Number(row.tax_rate || 14),
+    subtotal: Number(row.total || 0),
+  };
+}
+
+function mapStockTransferFromDb(row: any): StockTransfer {
+  return {
+    id: row.id,
+    transferNumber: row.transfer_number ?? row.transferNumber ?? '',
+    fromBranchId: row.from_branch_id ?? row.fromBranchId ?? '',
+    fromBranchName: row.from_branch_name ?? row.fromBranchName ?? '',
+    toBranchId: row.to_branch_id ?? row.toBranchId ?? '',
+    toBranchName: row.to_branch_name ?? row.toBranchName ?? '',
+    items: [],
+    status: row.status ?? 'pending',
+    requestedBy: row.requested_by ?? row.requestedBy ?? '',
+    requestedAt: row.requested_at ?? row.requestedAt ?? '',
+    approvedBy: row.approved_by ?? row.approvedBy,
+    approvedAt: row.approved_at ?? row.approvedAt,
+    receivedBy: row.received_by ?? row.receivedBy,
+    receivedAt: row.received_at ?? row.receivedAt,
+    notes: row.notes,
+  };
+}
+
+function mapDailyReportFromDb(row: any): DailySummary {
+  return {
+    id: row.id, date: row.date,
+    branchId: row.branch_id ?? row.branchId ?? '',
+    branchName: row.branch_name ?? row.branchName ?? '',
+    totalSales: Number(row.total_sales ?? row.totalSales ?? 0),
+    totalTransactions: Number(row.total_transactions ?? row.totalTransactions ?? 0),
+    cashTotal: Number(row.cash_total ?? row.cashTotal ?? 0),
+    cardTotal: Number(row.card_total ?? row.cardTotal ?? 0),
+    transferTotal: Number(row.transfer_total ?? row.transferTotal ?? 0),
+    taxCollected: Number(row.tax_collected ?? row.taxCollected ?? 0),
+    openingBalance: Number(row.opening_balance ?? row.openingBalance ?? 0),
+    closingBalance: Number(row.closing_balance ?? row.closingBalance ?? 0),
+    status: row.status ?? 'open',
+    closedBy: row.closed_by ?? row.closedBy,
+    closedAt: row.closed_at ?? row.closedAt,
+    createdAt: row.created_at ?? row.createdAt ?? '',
+  };
+}
+
+// ============= DEFAULT DATA (Web Preview / Demo) =============
 function getDefaultBranches(): Branch[] {
   return [
-    {
-      id: 'branch-001',
-      name: 'Sede Principal - Luanda',
-      code: 'LDA',
-      address: 'Rua Principal 123, Luanda',
-      phone: '+244 923 456 789',
-      isMain: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'branch-002',
-      name: 'Filial Viana',
-      code: 'VIA',
-      address: 'Av. Deolinda Rodrigues, Viana',
-      phone: '+244 923 456 790',
-      isMain: false,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'branch-003',
-      name: 'Filial Benguela',
-      code: 'BGL',
-      address: 'Rua 4 de Fevereiro, Benguela',
-      phone: '+244 923 456 791',
-      isMain: false,
-      createdAt: new Date().toISOString(),
-    },
+    { id: 'branch-001', name: 'Sede Principal - Luanda', code: 'LDA', address: 'Rua Principal 123, Luanda', phone: '+244 923 456 789', isMain: true, createdAt: new Date().toISOString() },
+    { id: 'branch-002', name: 'Filial Viana', code: 'VIA', address: 'Av. Deolinda Rodrigues, Viana', phone: '+244 923 456 790', isMain: false, createdAt: new Date().toISOString() },
   ];
 }
 
 function getDefaultProducts(): Product[] {
   return [
-    {
-      id: 'prod-001',
-      name: 'Arroz Tio João 1kg',
-      sku: 'ARR-001',
-      barcode: '7891234567890',
-      category: 'Alimentação',
-      price: 850,
-      cost: 650,
-      firstCost: 650,
-      lastCost: 650,
-      avgCost: 650,
-      stock: 100,
-      unit: 'un',
-      taxRate: 14,
-      branchId: 'all',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'prod-002',
-      name: 'Óleo Alimentar 1L',
-      sku: 'OLE-001',
-      barcode: '7891234567891',
-      category: 'Alimentação',
-      price: 1200,
-      cost: 900,
-      firstCost: 900,
-      lastCost: 900,
-      avgCost: 900,
-      stock: 80,
-      unit: 'un',
-      taxRate: 14,
-      branchId: 'all',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'prod-003',
-      name: 'Açúcar 1kg',
-      sku: 'ACU-001',
-      barcode: '7891234567892',
-      category: 'Alimentação',
-      price: 450,
-      cost: 320,
-      firstCost: 320,
-      lastCost: 320,
-      avgCost: 320,
-      stock: 150,
-      unit: 'un',
-      taxRate: 14,
-      branchId: 'all',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'prod-004',
-      name: 'Água Mineral 1.5L',
-      sku: 'AGU-001',
-      barcode: '7891234567893',
-      category: 'Bebidas',
-      price: 250,
-      cost: 150,
-      firstCost: 150,
-      lastCost: 150,
-      avgCost: 150,
-      stock: 200,
-      unit: 'un',
-      taxRate: 14,
-      branchId: 'all',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'prod-005',
-      name: 'Refrigerante Cola 2L',
-      sku: 'REF-001',
-      barcode: '7891234567894',
-      category: 'Bebidas',
-      price: 650,
-      cost: 450,
-      firstCost: 450,
-      lastCost: 450,
-      avgCost: 450,
-      stock: 120,
-      unit: 'un',
-      taxRate: 14,
-      branchId: 'all',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'prod-006',
-      name: 'Sabão em Pó 1kg',
-      sku: 'SAB-001',
-      barcode: '7891234567895',
-      category: 'Limpeza',
-      price: 980,
-      cost: 720,
-      firstCost: 720,
-      lastCost: 720,
-      avgCost: 720,
-      stock: 60,
-      unit: 'un',
-      taxRate: 14,
-      branchId: 'all',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
+    { id: 'prod-001', name: 'Arroz Tio João 1kg', sku: 'ARR-001', barcode: '7891234567890', category: 'Alimentação', price: 850, cost: 650, firstCost: 650, lastCost: 650, avgCost: 650, stock: 100, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'prod-002', name: 'Óleo Alimentar 1L', sku: 'OLE-001', barcode: '7891234567891', category: 'Alimentação', price: 1200, cost: 900, firstCost: 900, lastCost: 900, avgCost: 900, stock: 80, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'prod-003', name: 'Açúcar 1kg', sku: 'ACU-001', barcode: '7891234567892', category: 'Alimentação', price: 450, cost: 320, firstCost: 320, lastCost: 320, avgCost: 320, stock: 150, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'prod-004', name: 'Água Mineral 1.5L', sku: 'AGU-001', barcode: '7891234567893', category: 'Bebidas', price: 250, cost: 150, firstCost: 150, lastCost: 150, avgCost: 150, stock: 200, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'prod-005', name: 'Refrigerante Cola 2L', sku: 'REF-001', barcode: '7891234567894', category: 'Bebidas', price: 650, cost: 450, firstCost: 450, lastCost: 450, avgCost: 450, stock: 120, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'prod-006', name: 'Sabão em Pó 1kg', sku: 'SAB-001', barcode: '7891234567895', category: 'Limpeza', price: 980, cost: 720, firstCost: 720, lastCost: 720, avgCost: 720, stock: 60, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
   ];
 }
 
 function getDefaultUsers(): User[] {
   return [
-    {
-      id: 'user-001',
-      email: 'admin@kwanzaerp.ao',
-      username: 'admin',
-      name: 'Administrador',
-      role: 'admin',
-      branchId: 'branch-001',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'user-002',
-      email: 'caixa1@kwanzaerp.ao',
-      username: 'caixa1',
-      name: 'João Silva',
-      role: 'cashier',
-      branchId: 'branch-001',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'user-003',
-      email: 'gerente@kwanzaerp.ao',
-      username: 'gerente',
-      name: 'Maria Santos',
-      role: 'manager',
-      branchId: 'branch-001',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
+    { id: 'user-001', email: 'admin@kwanzaerp.ao', username: 'admin', name: 'Administrador', role: 'admin', branchId: 'branch-001', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'user-002', email: 'caixa1@kwanzaerp.ao', username: 'caixa1', name: 'João Silva', role: 'cashier', branchId: 'branch-001', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'user-003', email: 'gerente@kwanzaerp.ao', username: 'gerente', name: 'Maria Santos', role: 'manager', branchId: 'branch-001', isActive: true, createdAt: new Date().toISOString() },
   ];
-}
-
-
-// Supplier functions
-export function getSuppliers(): Supplier[] {
-  return getItem<Supplier[]>(STORAGE_KEYS.suppliers, []);
-}
-
-export function saveSupplier(supplier: Supplier): void {
-  const suppliers = getSuppliers();
-  const index = suppliers.findIndex(s => s.id === supplier.id);
-  if (index >= 0) {
-    suppliers[index] = supplier;
-  } else {
-    suppliers.push(supplier);
-  }
-  setItem(STORAGE_KEYS.suppliers, suppliers);
-}
-
-export function deleteSupplier(supplierId: string): void {
-  const suppliers = getSuppliers().filter(s => s.id !== supplierId);
-  setItem(STORAGE_KEYS.suppliers, suppliers);
-}
-
-// Purchase Order functions
-export function getPurchaseOrders(branchId?: string): PurchaseOrder[] {
-  const orders = getItem<PurchaseOrder[]>(STORAGE_KEYS.purchaseOrders, []);
-  if (branchId) {
-    return orders.filter(o => o.branchId === branchId);
-  }
-  return orders;
-}
-
-export function savePurchaseOrder(order: PurchaseOrder): void {
-  const orders = getPurchaseOrders();
-  const index = orders.findIndex(o => o.id === order.id);
-  if (index >= 0) {
-    orders[index] = order;
-  } else {
-    orders.push(order);
-  }
-  setItem(STORAGE_KEYS.purchaseOrders, orders);
-}
-
-export function generatePurchaseOrderNumber(): string {
-  const orders = getPurchaseOrders();
-  const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-  const sequence = String(orders.length + 1).padStart(4, '0');
-  return `PO${today}${sequence}`;
-}
-
-export function processPurchaseOrderReceive(orderId: string, receivedQuantities: Record<string, number>, userId: string): void {
-  const orders = getPurchaseOrders();
-  const order = orders.find(o => o.id === orderId);
-  if (!order) return;
-
-  // Calculate total order value for freight allocation
-  const orderItemsTotal = order.items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
-  const totalLandingCosts = (order.freightCost || 0) + (order.otherCosts || 0);
-
-  // Update received quantities
-  order.items.forEach(item => {
-    item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
-  });
-
-  // Check if partial or full receive
-  const allReceived = order.items.every(item => (item.receivedQuantity || 0) >= item.quantity);
-  const someReceived = order.items.some(item => (item.receivedQuantity || 0) > 0);
-
-  if (allReceived) {
-    order.status = 'received';
-  } else if (someReceived) {
-    order.status = 'partial';
-  }
-
-  order.receivedBy = userId;
-  order.receivedAt = new Date().toISOString();
-  order.freightDistributed = true; // Mark freight as distributed to costs
-
-  savePurchaseOrder(order);
-
-  // Update stock AND cost for each item using weighted average
-  order.items.forEach(item => {
-    const received = receivedQuantities[item.productId] || 0;
-    if (received > 0) {
-      const products = getAllProducts();
-      const product = products.find(p => p.id === item.productId);
-      
-      if (product) {
-        // Calculate freight allocation for this item (proportional to value)
-        let freightPerUnit = 0;
-        if (orderItemsTotal > 0 && totalLandingCosts > 0) {
-          const itemValue = item.quantity * item.unitCost;
-          const proportion = itemValue / orderItemsTotal;
-          freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
-        }
-        
-        // Effective cost = unit cost + freight allocation
-        const effectiveCost = item.unitCost + freightPerUnit;
-        
-        // Calculate weighted average cost
-        // WAC = (Previous Stock × Previous Cost + Received Qty × Landed Cost) / Total Stock
-        const previousTotalValue = product.stock * (product.cost || 0);
-        const newItemsTotalValue = received * effectiveCost;
-        const newTotalStock = product.stock + received;
-        
-        const newAverageCost = newTotalStock > 0 
-          ? (previousTotalValue + newItemsTotalValue) / newTotalStock
-          : effectiveCost;
-
-        // Update product with new stock AND cost
-        const updatedProduct: Product = {
-          ...product,
-          stock: newTotalStock,
-          cost: newAverageCost, // Update to weighted average cost
-          avgCost: newAverageCost, // Also update avgCost field
-          lastCost: effectiveCost, // Track last purchase cost (with freight)
-          // Set firstCost only if it's 0 (first purchase)
-          firstCost: product.firstCost || effectiveCost,
-          updatedAt: new Date().toISOString(),
-        };
-        
-        saveProduct(updatedProduct);
-      }
-    }
-  });
-}
-
-// Category functions
-export function getCategories(): Category[] {
-  return getItem<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
-}
-
-export function saveCategory(category: Category): void {
-  const categories = getCategories();
-  const index = categories.findIndex(c => c.id === category.id);
-  if (index >= 0) {
-    categories[index] = category;
-  } else {
-    categories.push(category);
-  }
-  setItem(STORAGE_KEYS.categories, categories);
-}
-
-export function deleteCategory(categoryId: string): void {
-  const categories = getCategories().filter(c => c.id !== categoryId);
-  setItem(STORAGE_KEYS.categories, categories);
 }
 
 function getDefaultCategories(): Category[] {
   return [
-    { id: 'cat-001', name: 'Alimentação', description: 'Produtos alimentares', color: '#22c55e', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-002', name: 'Bebidas', description: 'Bebidas e sumos', color: '#3b82f6', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-003', name: 'Limpeza', description: 'Produtos de limpeza', color: '#a855f7', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-004', name: 'Higiene', description: 'Higiene pessoal', color: '#ec4899', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-005', name: 'Electrónicos', description: 'Electrónicos e acessórios', color: '#f59e0b', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-006', name: 'Vestuário', description: 'Roupa e calçado', color: '#ef4444', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-007', name: 'Papelaria', description: 'Material de escritório', color: '#14b8a6', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-008', name: 'Outros', description: 'Outros produtos', color: '#6b7280', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-001', name: 'Alimentação', description: 'Produtos alimentares', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-002', name: 'Bebidas', description: 'Bebidas e sumos', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-003', name: 'Limpeza', description: 'Produtos de limpeza', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-004', name: 'Higiene', description: 'Higiene pessoal', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-005', name: 'Electrónicos', description: 'Electrónicos e acessórios', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'cat-006', name: 'Outros', description: 'Outros produtos', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   ];
 }
