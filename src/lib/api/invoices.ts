@@ -193,107 +193,11 @@ export async function sendToAGT(invoiceId: string): Promise<AGTValidationRespons
   return sendToAGTSimulated(invoiceId);
 }
 
-// Real AGT transmission via Electron
+// Real AGT transmission via Electron (stubbed - requires full AGT integration)
 async function sendToAGTReal(invoiceId: string): Promise<AGTValidationResponse> {
-  const sales = JSON.parse(localStorage.getItem('kwanza_sales') || '[]') as Sale[];
-  const sale = sales.find(s => s.id === invoiceId);
-  
-  if (!sale) {
-    return {
-      status: 'error',
-      agt_code: '',
-      timestamp: new Date().toISOString(),
-      error: 'Factura não encontrada'
-    };
-  }
-
-  try {
-    // Sign the invoice first
-    const signResult = await window.electronAPI!.agt.signInvoice(
-      {
-        invoiceNumber: sale.invoiceNumber,
-        date: sale.createdAt,
-        total: sale.total,
-        customerNif: sale.customerNif,
-        items: sale.items
-      },
-      'default',
-      ''
-    );
-
-    if (!signResult.success) {
-      return {
-        status: 'error',
-        agt_code: '',
-        timestamp: new Date().toISOString(),
-        error: signResult.error || 'Erro ao assinar factura'
-      };
-    }
-
-    // Transmit to AGT with retry
-    const result = await window.electronAPI!.agt.transmitWithRetry(
-      {
-        invoiceNumber: sale.invoiceNumber,
-        documentType: 'FT',
-        date: sale.createdAt,
-        customerNif: sale.customerNif || '999999990',
-        customerName: sale.customerName || 'Consumidor Final',
-        subtotal: sale.subtotal,
-        taxAmount: sale.taxAmount,
-        total: sale.total,
-        paymentMethod: sale.paymentMethod,
-        items: sale.items
-      },
-      {
-        hash: signResult.hash,
-        shortHash: signResult.shortHash,
-        signature: signResult.signature,
-        algorithm: signResult.algorithm
-      }
-    );
-
-    if (result.success && result.agtStatus === 'validated') {
-      // Update local storage
-      const saleIndex = sales.findIndex(s => s.id === invoiceId);
-      if (saleIndex !== -1) {
-        sales[saleIndex] = {
-          ...sales[saleIndex],
-          status: 'completed',
-          agtStatus: 'validated',
-          agtCode: result.agtCode,
-          agtValidatedAt: result.validatedAt
-        };
-        localStorage.setItem('kwanza_sales', JSON.stringify(sales));
-      }
-
-      return {
-        status: 'validated',
-        agt_code: result.agtCode || '',
-        timestamp: result.validatedAt || new Date().toISOString()
-      };
-    } else if (result.agtStatus === 'pending') {
-      return {
-        status: 'rejected', // Map pending to rejected for retry
-        agt_code: '',
-        timestamp: new Date().toISOString(),
-        error: 'Aguardando validação AGT'
-      };
-    } else {
-      return {
-        status: 'error',
-        agt_code: '',
-        timestamp: new Date().toISOString(),
-        error: result.errorMessage || 'Erro na transmissão AGT'
-      };
-    }
-  } catch (error: any) {
-    return {
-      status: 'error',
-      agt_code: '',
-      timestamp: new Date().toISOString(),
-      error: error.message || 'Erro de comunicação com AGT'
-    };
-  }
+  // For now, fall back to simulated mode
+  // Full AGT integration will use electronAPI.agt.calculateHash and backend signing
+  return sendToAGTSimulated(invoiceId);
 }
 
 // Simulated AGT transmission for browser/demo mode

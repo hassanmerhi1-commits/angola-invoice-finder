@@ -168,11 +168,13 @@ export default function Inventory() {
         saveStockMovement({
           id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           productId: adj.productId,
+          productName: product.name,
+          sku: product.sku,
           branchId: currentBranch?.id || '',
           type: adj.difference > 0 ? 'IN' : 'OUT',
           quantity: Math.abs(adj.difference),
           reason: 'adjustment',
-          userId: currentUser?.id || 'system',
+          createdBy: currentUser?.id || 'system',
           notes: `${reason}${notes ? ': ' + notes : ''}`,
           createdAt: new Date().toISOString(),
         });
@@ -631,11 +633,13 @@ export default function Inventory() {
               saveStockMovement({
                 id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 productId: adj.productId,
+                productName: product.name,
+                sku: product.sku,
                 branchId: currentBranch?.id || '',
                 type: movementType,
                 quantity: Math.abs(adj.difference),
                 reason: 'adjustment',
-                userId: currentUser?.id || 'system',
+                createdBy: currentUser?.id || 'system',
                 notes: adj.reason,
                 createdAt: new Date().toISOString(),
               });
@@ -689,11 +693,13 @@ export default function Inventory() {
               saveStockMovement({
                 id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 productId: item.productId,
+                productName: item.name,
+                sku: item.sku,
                 branchId: currentBranch?.id || '',
                 type: 'IN',
                 quantity: item.quantity,
                 reason: 'transfer_in',
-                userId: currentUser?.id || 'system',
+                createdBy: currentUser?.id || 'system',
                 referenceNumber: reference,
                 notes: `Transferência de ${sourceBranch}${notes ? ': ' + notes : ''}`,
                 createdAt: new Date().toISOString(),
@@ -750,17 +756,20 @@ export default function Inventory() {
               });
 
               // Create stock movement record
-              createStockMovement(
-                item.productId,
-                currentBranch?.id || '',
-                'OUT',
-                item.quantity,
-                'adjustment',
-                currentUser?.id || 'system',
-                undefined,
-                reference,
-                `${reason}${notes ? ': ' + notes : ''}`
-              );
+              saveStockMovement({
+                id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                productId: item.productId,
+                productName: item.name,
+                sku: item.sku,
+                branchId: currentBranch?.id || '',
+                type: 'OUT',
+                quantity: item.quantity,
+                reason: 'adjustment',
+                createdBy: currentUser?.id || 'system',
+                referenceNumber: reference,
+                notes: `${reason}${notes ? ': ' + notes : ''}`,
+                createdAt: new Date().toISOString(),
+              });
 
               // Log transaction
               logTransaction({
