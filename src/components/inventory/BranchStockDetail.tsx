@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Product } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -23,39 +23,39 @@ interface BranchStock {
 
 export function BranchStockDetail({ selectedProduct }: BranchStockDetailProps) {
   const { branches } = useBranchContext();
+  const [branchStocks, setBranchStocks] = useState<BranchStock[]>([]);
 
-  // Get all products from all branches with same SKU
-  const branchStocks = useMemo<BranchStock[]>(() => {
-    if (!selectedProduct) return [];
+  useEffect(() => {
+    if (!selectedProduct) {
+      setBranchStocks([]);
+      return;
+    }
 
-    const stocks: BranchStock[] = [];
-    
-    branches.forEach(branch => {
-      // Get products for this branch
-      const branchProducts = storage.getProducts(branch.id);
-      
-      // Find the matching product by SKU
-      const matchingProduct = branchProducts.find(
-        p => p.sku === selectedProduct.sku || p.id === selectedProduct.id
-      );
-
-      stocks.push({
-        branchId: branch.id,
-        branchName: branch.name,
-        branchCode: branch.code,
-        isMain: branch.isMain,
-        stock: matchingProduct?.stock || 0,
-        price: matchingProduct?.price || selectedProduct.price,
-        cost: matchingProduct?.cost || matchingProduct?.avgCost || selectedProduct.cost,
+    async function loadStocks() {
+      const stocks: BranchStock[] = [];
+      for (const branch of branches) {
+        const branchProducts = await storage.getProducts(branch.id);
+        const matchingProduct = branchProducts.find(
+          p => p.sku === selectedProduct!.sku || p.id === selectedProduct!.id
+        );
+        stocks.push({
+          branchId: branch.id,
+          branchName: branch.name,
+          branchCode: branch.code,
+          isMain: branch.isMain,
+          stock: matchingProduct?.stock || 0,
+          price: matchingProduct?.price || selectedProduct!.price,
+          cost: matchingProduct?.cost || matchingProduct?.avgCost || selectedProduct!.cost,
+        });
+      }
+      stocks.sort((a, b) => {
+        if (a.isMain && !b.isMain) return -1;
+        if (!a.isMain && b.isMain) return 1;
+        return a.branchName.localeCompare(b.branchName);
       });
-    });
-
-    // Sort: main branch first, then by name
-    return stocks.sort((a, b) => {
-      if (a.isMain && !b.isMain) return -1;
-      if (!a.isMain && b.isMain) return 1;
-      return a.branchName.localeCompare(b.branchName);
-    });
+      setBranchStocks(stocks);
+    }
+    loadStocks();
   }, [selectedProduct, branches]);
 
   const totalStock = branchStocks.reduce((sum, b) => sum + b.stock, 0);
@@ -81,7 +81,6 @@ export function BranchStockDetail({ selectedProduct }: BranchStockDetailProps) {
 
   return (
     <div className="space-y-4">
-      {/* Product Info Header */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
@@ -121,7 +120,6 @@ export function BranchStockDetail({ selectedProduct }: BranchStockDetailProps) {
         </CardContent>
       </Card>
 
-      {/* Branch Stock Table */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -199,7 +197,6 @@ export function BranchStockDetail({ selectedProduct }: BranchStockDetailProps) {
             </TableBody>
           </Table>
 
-          {/* Summary */}
           <div className="mt-4 pt-4 border-t flex justify-between items-center">
             <div className="text-sm text-muted-foreground">
               {branches.length} filiais • {branchStocks.filter(b => b.stock > 0).length} com stock disponível
