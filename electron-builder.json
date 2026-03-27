@@ -10,17 +10,11 @@
   "files": [
     "dist/**/*",
     "electron/**/*",
-    "!node_modules/**/*",
-    "node_modules/ws/**/*",
-    "node_modules/electron-updater/**/*",
-    "node_modules/builder-util-runtime/**/*",
-    "node_modules/lazy-val/**/*",
-    "node_modules/semver/**/*",
-    "node_modules/sax/**/*",
-    "node_modules/js-yaml/**/*",
-    "node_modules/argparse/**/*",
-    "node_modules/lodash.isequal/**/*",
-    "node_modules/electron-squirrel-startup/**/*"
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "asarUnpack": [
+    "node_modules/better-sqlite3/**/*"
   ],
   "extraResources": [
     {
