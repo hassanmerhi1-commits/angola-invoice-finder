@@ -27,7 +27,7 @@ try {
 }
 
 // Add main entry point for Electron
-packageJson.main = 'electron/main.js';
+packageJson.main = 'electron/main.cjs';
 console.log('✅ Added Electron main entry point');
 
 // Add Electron scripts
