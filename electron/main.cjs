@@ -18,8 +18,66 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
-const { WebSocketServer, WebSocket } = require('ws');
-const { autoUpdater } = require('electron-updater');
+
+function requireRuntimeModule(moduleName) {
+  const candidates = [
+    () => require(moduleName),
+    () => process.resourcesPath ? require(path.join(process.resourcesPath, 'runtime-deps', 'node_modules', moduleName)) : null,
+    () => process.resourcesPath ? require(path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', moduleName)) : null,
+    () => process.resourcesPath ? require(path.join(process.resourcesPath, 'app', 'node_modules', moduleName)) : null,
+    () => require(path.join(__dirname, '..', 'node_modules', moduleName)),
+  ];
+
+  let lastError = null;
+  for (const load of candidates) {
+    try {
+      const mod = load();
+      if (mod) return mod;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  console.error(`[Startup] Failed to load runtime module "${moduleName}":`, lastError?.message || 'Unknown error');
+  return null;
+}
+
+const wsModule = requireRuntimeModule('ws');
+
+class MissingWebSocket {
+  static CONNECTING = 0;
+  static OPEN = 1;
+
+  constructor() {
+    throw new Error('Missing "ws" module in this desktop build. Rebuild and reinstall the app.');
+  }
+}
+
+class MissingWebSocketServer {
+  constructor() {
+    throw new Error('Missing "ws" module in this desktop build. Rebuild and reinstall the app.');
+  }
+}
+
+const WebSocket = wsModule?.WebSocket || wsModule || MissingWebSocket;
+const WebSocketServer = wsModule?.WebSocketServer || MissingWebSocketServer;
+
+const updaterModule = requireRuntimeModule('electron-updater');
+
+function createNoopAutoUpdater() {
+  const fail = () => Promise.reject(new Error('Missing "electron-updater" module in this desktop build.'));
+  return {
+    autoDownload: false,
+    autoInstallOnAppQuit: false,
+    logger: console,
+    checkForUpdates: fail,
+    downloadUpdate: fail,
+    quitAndInstall: () => {},
+    on: () => {},
+  };
+}
+
+const autoUpdater = updaterModule?.autoUpdater || createNoopAutoUpdater();
 
 // ============= AUTO-UPDATER CONFIGURATION =============
 autoUpdater.autoDownload = false;
