@@ -18,6 +18,25 @@
   ],
   "extraResources": [
     {
+      "from": "node_modules",
+      "to": "runtime-deps/node_modules",
+      "filter": [
+        "ws/**/*",
+        "electron-updater/**/*",
+        "builder-util-runtime/**/*",
+        "lazy-val/**/*",
+        "semver/**/*",
+        "js-yaml/**/*",
+        "argparse/**/*",
+        "sax/**/*",
+        "lodash.isequal/**/*",
+        "fs-extra/**/*",
+        "graceful-fs/**/*",
+        "jsonfile/**/*",
+        "universalify/**/*"
+      ]
+    },
+    {
       "from": "backend",
       "to": "backend",
       "filter": ["**/*", "!node_modules/**/*"]
