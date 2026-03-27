@@ -61,7 +61,7 @@ Add these to your `package.json` scripts section:
     "electron:build:linux": "npm run build && electron-builder --linux",
     "electron:build:all": "npm run build && electron-builder --win --mac --linux"
   },
-  "main": "electron/main.js"
+  "main": "electron/main.cjs"
 }
 ```
 
