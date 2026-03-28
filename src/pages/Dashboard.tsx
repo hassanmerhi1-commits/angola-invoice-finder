@@ -1,4 +1,4 @@
-// Minerva ERP-style Dashboard (Inicio)
+// Kwanza ERP Dashboard (Inicio)
 // Flow diagram: Proforma → Fatura De Venda → Recibo → Pagamento → Extracto
 // BI Sidebar: Balancete, Faturas, Vendas/Lucro, Compras, Charts, Stock
 import { useMemo } from 'react';
@@ -18,13 +18,13 @@ export default function Dashboard() {
   const { currentBranch } = useBranchContext();
   const { language } = useTranslation();
 
-  // Document flow steps (like Minerva's arrow diagram)
+  // Document flow steps
   const documentFlow = useMemo(() => [
     { label: 'Proforma', icon: ClipboardList, path: '/proforma', color: 'bg-muted' },
     { label: 'Fatura De\nVenda', icon: FileText, path: '/invoices', color: 'bg-muted' },
     { label: 'Recibo', icon: Receipt, path: '/invoices', color: 'bg-muted' },
     { label: 'Pagamento', icon: DollarSign, path: '/expenses', color: 'bg-muted' },
-    { label: 'Extracto', icon: FileCheck, path: '/reports', color: 'bg-muted' },
+    { label: 'Extracto', icon: FileCheck, path: '/extracto', color: 'bg-muted' },
   ], []);
 
   // BI Sidebar items
@@ -47,9 +47,9 @@ export default function Dashboard() {
     <div className="h-full flex">
       {/* ====== MAIN CONTENT ====== */}
       <div className="flex-1 p-4 flex flex-col relative overflow-hidden">
-        {/* Smart ERP Branding */}
+        {/* Kwanza ERP Branding */}
         <div className="absolute top-3 left-3 flex items-center gap-2">
-          <span className="text-xl font-bold italic text-primary/60">Smart ERP</span>
+          <span className="text-xl font-bold italic text-primary/60">Kwanza ERP</span>
         </div>
 
         {/* Document Flow Diagram */}

@@ -27,6 +27,7 @@ import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import Journals from "./pages/Journals";
+import Extracto from "./pages/Extracto";
 import Branches from "./pages/Branches";
 import Settings from "./pages/Settings";
 import Expenses from "./pages/Expenses";
@@ -148,6 +149,7 @@ function AppRoutes() {
         <Route path="/users" element={<UserManagement />} />
         <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
         <Route path="/journals" element={<Journals />} />
+        <Route path="/extracto" element={<Extracto />} />
         <Route path="/accounting" element={<Branches />} />
         <Route path="/customers" element={<Clients />} />
         <Route path="/branches" element={<Branches />} />

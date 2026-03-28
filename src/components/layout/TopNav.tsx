@@ -1,4 +1,4 @@
-// Minerva ERP-style Top Navigation
+// Kwanza ERP - Top Navigation
 // Menu Bar → Tab Bar → Action Toolbar → Status Bar
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
@@ -169,7 +169,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
     },
   ];
 
-  // ========== MAIN TABS (Row 2) - Like Minerva ==========
+  // ========== MAIN TABS (Row 2) ==========
   const mainTabs = [
     { label: 'Inicio', path: '/', icon: LayoutDashboard },
     { label: 'Mapa De Contas', path: '/chart-of-accounts', icon: BookOpen },
@@ -242,7 +242,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
             <div className="w-5 h-5 rounded bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-[10px]">K</span>
             </div>
-            <span className="font-bold text-xs italic text-primary">Smart ERP</span>
+            <span className="font-bold text-xs italic text-primary">Kwanza ERP</span>
           </div>
 
           {menuItems.map((menu) => (
@@ -389,7 +389,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
           <div className="w-7 h-7 rounded bg-primary flex items-center justify-center">
             <span className="text-primary-foreground font-bold text-xs">K</span>
           </div>
-          <span className="font-bold text-sm">Smart ERP</span>
+          <span className="font-bold text-sm">Kwanza ERP</span>
         </div>
         <div className="flex items-center gap-1">
           <Select

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Minerva-style category tabs
+// Category tabs
 const CATEGORY_TABS = [
   { key: 'clientes', label: 'Clientes', filter: (a: Account) => a.code.startsWith('3.1') || a.code.startsWith('31') },
   { key: 'fornecedores', label: 'Fornecedores', filter: (a: Account) => a.code.startsWith('3.2') || a.code.startsWith('32') },
@@ -160,7 +160,7 @@ export default function ChartOfAccounts() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Action Toolbar - Minerva style */}
+      {/* Action Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 border-b flex-wrap">
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={openCreateDialog}>
           <Plus className="w-3 h-3" /> Nova Conta
@@ -173,7 +173,7 @@ export default function ChartOfAccounts() {
           <Trash2 className="w-3 h-3" /> Eliminar
         </Button>
         <div className="w-px h-5 bg-border mx-1" />
-        {/* Minerva action buttons */}
+        {/* Action buttons */}
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-blue-600 border-blue-200 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950/30" disabled={!selectedAccount}>
           <FileText className="w-3 h-3" /> Fatura De Venda
         </Button>
@@ -197,7 +197,7 @@ export default function ChartOfAccounts() {
         </div>
       </div>
 
-      {/* Category Tabs - Minerva style */}
+      {/* Category Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start rounded-none border-b bg-muted/30 h-auto p-0 overflow-x-auto">
           {CATEGORY_TABS.map(tab => (

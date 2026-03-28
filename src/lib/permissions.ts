@@ -1,4 +1,4 @@
-// User Roles & Permissions System - Enhanced for Minerva ERP
+// Kwanza ERP - User Roles & Permissions System
 // Every button, every tab, every action is permission-controlled
 
 export type UserRole = 'admin' | 'manager' | 'cashier' | 'viewer';

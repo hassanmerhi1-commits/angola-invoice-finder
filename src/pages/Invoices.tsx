@@ -1,4 +1,4 @@
-// Minerva-style Faturas/Vouchers workspace
+// Kwanza ERP Faturas/Vouchers workspace
 // Multi-tab document browser with linked conversion flow
 
 import { useState, useMemo, useCallback } from 'react';

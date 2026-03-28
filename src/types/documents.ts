@@ -1,4 +1,4 @@
-// Minerva-style Document Types for the linked document flow
+// Kwanza ERP Document Types for the linked document flow
 // Proforma → Fatura De Venda → Recibo → Pagamento → Extracto
 
 export type DocumentType = 
