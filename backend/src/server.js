@@ -3,6 +3,7 @@
 
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -136,6 +137,7 @@ const dailyReportRoutes = require('./routes/dailyReports');
 const stockTransferRoutes = require('./routes/stockTransfers');
 const purchaseOrderRoutes = require('./routes/purchaseOrders');
 const chartOfAccountsRoutes = require('./routes/chartOfAccounts');
+const journalEntryRoutes = require('./routes/journalEntries');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -150,6 +152,7 @@ app.use('/api/daily-reports', dailyReportRoutes(broadcastTable));
 app.use('/api/stock-transfers', stockTransferRoutes(broadcastTable));
 app.use('/api/purchase-orders', purchaseOrderRoutes(broadcastTable));
 app.use('/api/chart-of-accounts', chartOfAccountsRoutes(broadcastTable));
+app.use('/api/journal-entries', journalEntryRoutes(broadcastTable));
 
 // Health check with extended info
 app.get('/api/health', (req, res) => {

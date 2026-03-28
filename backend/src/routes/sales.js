@@ -1,6 +1,7 @@
 // Sales API routes
 const express = require('express');
 const db = require('../db');
+const { recordSaleJournal } = require('../accounting');
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
@@ -83,6 +84,13 @@ module.exports = function(broadcastTable) {
         );
       }
       
+      // Create automatic journal entry for this sale
+      try {
+        await recordSaleJournal(client, { ...sale, items: req.body.items }, branchId, cashierId);
+      } catch (jeError) {
+        console.warn('[SALES] Journal entry creation failed (non-fatal):', jeError.message);
+      }
+
       await client.query('COMMIT');
       
       // Broadcast updates

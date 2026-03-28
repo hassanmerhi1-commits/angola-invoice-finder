@@ -75,6 +75,7 @@ const STORAGE_KEYS = {
   purchaseOrders: 'kwanzaerp_purchase_orders',
   categories: 'kwanzaerp_categories',
   stockMovements: 'kwanzaerp_stock_movements',
+  journalEntries: 'kwanzaerp_journal_entries',
 };
 
 function lsGet<T>(key: string, defaultValue: T): T {
@@ -252,7 +253,35 @@ export async function saveSale(sale: Sale): Promise<void> {
   // Update stock in localStorage
   for (const item of sale.items) {
     await updateProductStock(item.productId, -item.quantity);
+    // Record stock movement
+    await saveStockMovement({
+      id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.sku,
+      branchId: sale.branchId,
+      type: 'OUT',
+      quantity: item.quantity,
+      reason: 'sale',
+      referenceId: sale.id,
+      referenceNumber: sale.invoiceNumber,
+      costAtTime: 0,
+      createdBy: sale.cashierId,
+      createdAt: sale.createdAt,
+    });
   }
+  // Auto-create journal entry for the sale
+  await createLocalJournalEntry({
+    description: `Venda ${sale.invoiceNumber}`,
+    referenceType: 'sale',
+    referenceId: sale.id,
+    branchId: sale.branchId,
+    lines: [
+      { accountCode: sale.paymentMethod === 'cash' ? '4.1.1' : '4.2.1', debit: sale.total, credit: 0 },
+      { accountCode: '7.1.1', debit: 0, credit: sale.subtotal },
+      ...(sale.taxAmount > 0 ? [{ accountCode: '3.3.1', debit: 0, credit: sale.taxAmount }] : []),
+    ],
+  });
 }
 
 export function generateInvoiceNumber(branchCode: string): string {
@@ -511,7 +540,38 @@ export async function processPurchaseOrderReceive(
       updatedAt: new Date().toISOString(),
     };
     await saveProduct(updatedProduct);
+
+    // Record stock movement for this purchase receipt
+    await saveStockMovement({
+      id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.sku,
+      branchId: order.branchId,
+      type: 'IN',
+      quantity: received,
+      reason: 'purchase',
+      referenceId: order.id,
+      referenceNumber: order.orderNumber,
+      costAtTime: effectiveCost,
+      createdBy: userId,
+      createdAt: new Date().toISOString(),
+    });
   }
+
+  // Auto-create journal entry for the purchase
+  const totalWithTax = order.subtotal + order.taxAmount + (order.freightCost || 0);
+  await createLocalJournalEntry({
+    description: `Compra ${order.orderNumber} - ${order.supplierName}`,
+    referenceType: 'purchase',
+    referenceId: order.id,
+    branchId: order.branchId,
+    lines: [
+      { accountCode: '2.1.1', debit: order.subtotal + (order.freightCost || 0), credit: 0 },
+      ...(order.taxAmount > 0 ? [{ accountCode: '3.3.1', debit: order.taxAmount, credit: 0 }] : []),
+      { accountCode: '3.2.1', debit: 0, credit: totalWithTax },
+    ],
+  });
 }
 
 // ============= STOCK TRANSFER FUNCTIONS =============
@@ -672,6 +732,58 @@ export async function saveStockMovement(movement: StockMovement): Promise<void> 
   const movements = lsGet<StockMovement[]>(STORAGE_KEYS.stockMovements, []);
   movements.push(movement);
   lsSet(STORAGE_KEYS.stockMovements, movements);
+}
+
+// ============= LOCAL JOURNAL ENTRY (Web Preview) =============
+interface LocalJournalEntry {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  description: string;
+  referenceType: string;
+  referenceId: string;
+  branchId: string;
+  totalDebit: number;
+  totalCredit: number;
+  lines: { accountCode: string; debit: number; credit: number }[];
+  createdAt: string;
+}
+
+export async function createLocalJournalEntry(params: {
+  description: string;
+  referenceType: string;
+  referenceId: string;
+  branchId: string;
+  lines: { accountCode: string; debit: number; credit: number }[];
+}): Promise<void> {
+  if (isElectronMode()) return; // Electron uses backend accounting engine
+  
+  const entries = lsGet<LocalJournalEntry[]>(STORAGE_KEYS.journalEntries, []);
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const seq = (entries.length + 1).toString().padStart(4, '0');
+  
+  const totalDebit = params.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
+  const totalCredit = params.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
+
+  entries.push({
+    id: `je_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    entryNumber: `JE${today}${seq}`,
+    entryDate: new Date().toISOString().split('T')[0],
+    description: params.description,
+    referenceType: params.referenceType,
+    referenceId: params.referenceId,
+    branchId: params.branchId,
+    totalDebit,
+    totalCredit,
+    lines: params.lines,
+    createdAt: new Date().toISOString(),
+  });
+  lsSet(STORAGE_KEYS.journalEntries, entries);
+}
+
+export async function getLocalJournalEntries(branchId?: string): Promise<LocalJournalEntry[]> {
+  const entries = lsGet<LocalJournalEntry[]>(STORAGE_KEYS.journalEntries, []);
+  return branchId ? entries.filter(e => e.branchId === branchId) : entries;
 }
 
 // ============= DB <-> FRONTEND MAPPING =============
