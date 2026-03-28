@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useTranslation } from '@/i18n';
+import { useCompanyLogo } from '@/hooks/useCompanyLogo';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { currentBranch } = useBranchContext();
   const { language } = useTranslation();
+  const { companyName, logo } = useCompanyLogo();
 
   // Document flow steps
   const documentFlow = useMemo(() => [
@@ -47,9 +49,12 @@ export default function Dashboard() {
     <div className="h-full flex">
       {/* ====== MAIN CONTENT ====== */}
       <div className="flex-1 p-4 flex flex-col relative overflow-hidden">
-        {/* Kwanza ERP Branding */}
+        {/* Company Branding */}
         <div className="absolute top-3 left-3 flex items-center gap-2">
-          <span className="text-xl font-bold italic text-primary/60">Kwanza ERP</span>
+          {logo ? (
+            <img src={logo} alt={companyName} className="h-8 object-contain" />
+          ) : null}
+          <span className="text-xl font-bold italic text-primary/60">{companyName}</span>
         </div>
 
         {/* Document Flow Diagram */}
@@ -88,10 +93,10 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Center area: Kwanza ERP branding + illustrations */}
+        {/* Center area: Company branding + illustrations */}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-6xl font-black text-primary/20 tracking-wider">KWANZA ERP</h1>
+            <h1 className="text-6xl font-black text-primary/20 tracking-wider">{companyName.toUpperCase()}</h1>
             <div className="mt-8 flex items-center justify-center gap-8">
               {/* Growth chart illustration */}
               <div className="flex items-end gap-1">

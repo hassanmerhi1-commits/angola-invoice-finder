@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useERP';
+import { useCompanyLogo } from '@/hooks/useCompanyLogo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
   const { login } = useAuth();
+  const { companyName, logo } = useCompanyLogo();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -75,11 +77,15 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-primary/5 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-3xl">K</span>
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-primary flex items-center justify-center overflow-hidden">
+            {logo ? (
+              <img src={logo} alt={companyName} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-primary-foreground font-bold text-3xl">K</span>
+            )}
           </div>
           <div>
-            <CardTitle className="text-2xl">Kwanza ERP</CardTitle>
+            <CardTitle className="text-2xl">{companyName}</CardTitle>
             <CardDescription>Enterprise Management System</CardDescription>
           </div>
         </CardHeader>

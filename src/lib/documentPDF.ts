@@ -91,7 +91,7 @@ export function generateDocumentHTML(doc: ERPDocument, options: PDFOptions = {})
   <!-- HEADER -->
   <div class="header">
     <div class="company-info">
-      <h1>${company.name || 'Kwanza ERP'}</h1>
+      <h1>${company.name || company.tradeName || 'Kwanza ERP'}</h1>
       <p>${company.address || ''}</p>
       <p>NIF: ${company.nif || ''} ${company.phone ? '| Tel: ' + company.phone : ''}</p>
       <p>${company.email || ''}</p>
@@ -195,7 +195,7 @@ export function generateDocumentHTML(doc: ERPDocument, options: PDFOptions = {})
   </div>
   
   <div style="text-align: center; margin-top: 20px; font-size: 7px; color: #aaa;">
-    Documento gerado por Kwanza ERP — Software de Gestão Empresarial
+    Documento gerado por ${company.tradeName || company.name || 'Kwanza ERP'} — Software de Gestão Empresarial
   </div>
 </body>
 </html>`;
