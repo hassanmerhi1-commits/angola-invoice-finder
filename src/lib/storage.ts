@@ -540,7 +540,38 @@ export async function processPurchaseOrderReceive(
       updatedAt: new Date().toISOString(),
     };
     await saveProduct(updatedProduct);
+
+    // Record stock movement for this purchase receipt
+    await saveStockMovement({
+      id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.sku,
+      branchId: order.branchId,
+      type: 'IN',
+      quantity: received,
+      reason: 'purchase',
+      referenceId: order.id,
+      referenceNumber: order.orderNumber,
+      costAtTime: effectiveCost,
+      createdBy: userId,
+      createdAt: new Date().toISOString(),
+    });
   }
+
+  // Auto-create journal entry for the purchase
+  const totalWithTax = order.subtotal + order.taxAmount + (order.freightCost || 0);
+  await createLocalJournalEntry({
+    description: `Compra ${order.orderNumber} - ${order.supplierName}`,
+    referenceType: 'purchase',
+    referenceId: order.id,
+    branchId: order.branchId,
+    lines: [
+      { accountCode: '2.1.1', debit: order.subtotal + (order.freightCost || 0), credit: 0 },
+      ...(order.taxAmount > 0 ? [{ accountCode: '3.3.1', debit: order.taxAmount, credit: 0 }] : []),
+      { accountCode: '3.2.1', debit: 0, credit: totalWithTax },
+    ],
+  });
 }
 
 // ============= STOCK TRANSFER FUNCTIONS =============
