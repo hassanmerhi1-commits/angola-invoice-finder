@@ -76,6 +76,18 @@ export default function Inventory() {
     loadBranchProducts();
   }, [loadBranchProducts, products]);
   
+  // For head office: deduplicate products by SKU (show unique items with aggregated total)
+  const displayProducts = useMemo(() => {
+    if (!isHeadOffice) return products;
+    const seen = new Map<string, Product>();
+    for (const p of products) {
+      if (!seen.has(p.sku)) {
+        seen.set(p.sku, { ...p });
+      }
+    }
+    return Array.from(seen.values());
+  }, [products, isHeadOffice]);
+  
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
