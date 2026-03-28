@@ -174,7 +174,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
     { label: 'Inicio', path: '/', icon: LayoutDashboard },
     { label: 'Mapa De Contas', path: '/chart-of-accounts', icon: BookOpen },
     { label: 'Stock', path: '/inventory', icon: Package },
-    { label: 'Diarios', path: '/daily-reports', icon: Calendar },
+    { label: 'Diarios', path: '/journals', icon: Calendar },
     { label: 'Faturas / Vouchers', path: '/invoices', icon: FileText },
     { label: 'Produção', path: '/purchase-orders', icon: Factory },
     { label: 'Importação', path: '/suppliers', icon: Globe },

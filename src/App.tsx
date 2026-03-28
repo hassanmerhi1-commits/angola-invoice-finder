@@ -26,6 +26,7 @@ import ProForma from "./pages/ProForma";
 import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
+import Journals from "./pages/Journals";
 import Branches from "./pages/Branches";
 import Settings from "./pages/Settings";
 import Expenses from "./pages/Expenses";
@@ -146,6 +147,7 @@ function AppRoutes() {
         <Route path="/proforma" element={<ProForma />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
+        <Route path="/journals" element={<Journals />} />
         <Route path="/accounting" element={<Branches />} />
         <Route path="/customers" element={<Clients />} />
         <Route path="/branches" element={<Branches />} />
