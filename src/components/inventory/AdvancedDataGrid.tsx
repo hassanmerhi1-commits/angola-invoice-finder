@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Product } from '@/types/erp';
+import { Product, Branch } from '@/types/erp';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,15 +17,27 @@ interface ColumnFilter {
   type: 'all' | 'custom' | 'blanks' | 'nonblanks';
 }
 
+interface ColumnDef {
+  key: string;
+  label: string;
+  width: string;
+  type?: string;
+  computed?: boolean;
+  hiddenForFilial?: boolean;
+}
+
 interface AdvancedDataGridProps {
   products: Product[];
   onSelectProduct: (product: Product) => void;
   selectedProductId?: string;
-  hideStock?: boolean; // Hide stock column for filials
+  hideStock?: boolean;
+  isHeadOffice?: boolean;
+  branches?: Branch[];
+  allBranchProducts?: Record<string, Product[]>;
 }
 
 // Base columns definition
-const BASE_COLUMNS = [
+const BASE_COLUMNS: ColumnDef[] = [
   { key: 'sku', label: 'Produto', width: 'w-24' },
   { key: 'name', label: 'Descrição', width: 'w-48' },
   { key: 'price', label: 'Preço', width: 'w-20', type: 'number' },
@@ -33,32 +45,47 @@ const BASE_COLUMNS = [
   { key: 'lastCost', label: 'Últ. Custo', width: 'w-24', type: 'number' },
   { key: 'avgCost', label: 'Custo Médio', width: 'w-24', type: 'number' },
   { key: 'profitMargin', label: 'Lucro %', width: 'w-20', type: 'number', computed: true },
-  { key: 'stock', label: 'Qty', width: 'w-16', type: 'number', hiddenForFilial: true },
+  { key: 'stock', label: 'Qty Total', width: 'w-16', type: 'number', hiddenForFilial: true },
   { key: 'taxRate', label: 'IVA %', width: 'w-16', type: 'number' },
   { key: 'unit', label: 'Unidade', width: 'w-16' },
   { key: 'category', label: 'Categoria', width: 'w-28' },
   { key: 'supplierName', label: 'Fornecedor', width: 'w-28' },
-  { key: 'branchId', label: 'Filial', width: 'w-20' },
-] as const;
-
-type ColumnKey = typeof BASE_COLUMNS[number]['key'];
+];
 
 // Helper to get columns based on visibility
-const getVisibleColumns = (hideStock: boolean) => {
-  if (hideStock) {
-    return BASE_COLUMNS.filter(col => !('hiddenForFilial' in col && col.hiddenForFilial));
+const getVisibleColumns = (hideStock: boolean, isHeadOffice: boolean, branches: Branch[]) => {
+  let cols = BASE_COLUMNS.filter(col => {
+    if (hideStock && col.hiddenForFilial) return false;
+    return true;
+  });
+  
+  // For head office: add per-branch stock columns after the total Qty column
+  if (isHeadOffice && branches.length > 0) {
+    const stockIdx = cols.findIndex(c => c.key === 'stock');
+    const branchCols: ColumnDef[] = branches.map(b => ({
+      key: `branch_stock_${b.id}`,
+      label: b.code || b.name.substring(0, 6),
+      width: 'w-16',
+      type: 'number',
+    }));
+    // Insert branch columns after the total stock column
+    cols.splice(stockIdx + 1, 0, ...branchCols);
   }
-  return [...BASE_COLUMNS];
+  
+  return cols;
 };
 
-export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId, hideStock = false }: AdvancedDataGridProps) {
-  const [columnFilters, setColumnFilters] = useState<Record<ColumnKey, ColumnFilter>>({} as Record<ColumnKey, ColumnFilter>);
-  const [columnSearches, setColumnSearches] = useState<Record<ColumnKey, string>>({} as Record<ColumnKey, string>);
-  const [sortColumn, setSortColumn] = useState<ColumnKey>('sku');
+export function AdvancedDataGrid({ 
+  products, onSelectProduct, selectedProductId, hideStock = false,
+  isHeadOffice = false, branches = [], allBranchProducts = {}
+}: AdvancedDataGridProps) {
+  const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilter>>({});
+  const [columnSearches, setColumnSearches] = useState<Record<string, string>>({});
+  const [sortColumn, setSortColumn] = useState<string>('sku');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  // Get visible columns based on hideStock prop
-  const COLUMNS = useMemo(() => getVisibleColumns(hideStock), [hideStock]);
+  // Get visible columns based on mode
+  const COLUMNS = useMemo(() => getVisibleColumns(hideStock, isHeadOffice, branches), [hideStock, isHeadOffice, branches]);
 
   // Get unique values for each column
   const uniqueValues = useMemo(() => {
