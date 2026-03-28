@@ -28,6 +28,9 @@ import Reports from "./pages/Reports";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import Journals from "./pages/Journals";
 import Extracto from "./pages/Extracto";
+import HRModule from "./pages/HRModule";
+import ProductionModule from "./pages/ProductionModule";
+import ImportModule from "./pages/ImportModule";
 import Branches from "./pages/Branches";
 import Settings from "./pages/Settings";
 import Expenses from "./pages/Expenses";
@@ -158,6 +161,9 @@ function AppRoutes() {
         <Route path="/bank-accounts" element={<BankAccounts />} />
         <Route path="/caixa" element={<CaixaManagement />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/hr" element={<HRModule />} />
+        <Route path="/production" element={<ProductionModule />} />
+        <Route path="/import" element={<ImportModule />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -176,9 +176,9 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
     { label: 'Stock', path: '/inventory', icon: Package },
     { label: 'Diarios', path: '/journals', icon: Calendar },
     { label: 'Faturas / Vouchers', path: '/invoices', icon: FileText },
-    { label: 'Produção', path: '/purchase-orders', icon: Factory },
-    { label: 'Importação', path: '/suppliers', icon: Globe },
-    { label: 'HR', path: '/users', icon: Users },
+    { label: 'Produção', path: '/production', icon: Factory },
+    { label: 'Importação', path: '/import', icon: Globe },
+    { label: 'HR', path: '/hr', icon: Users },
   ];
 
   // ========== ACTION TOOLBAR (Row 3) ==========
