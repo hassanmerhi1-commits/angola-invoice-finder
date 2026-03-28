@@ -1,6 +1,7 @@
 // Purchase Orders API routes
 const express = require('express');
 const db = require('../db');
+const { recordPurchaseJournal } = require('../accounting');
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
@@ -176,6 +177,13 @@ module.exports = function(broadcastTable) {
         'UPDATE purchase_orders SET status = $1, received_by = $2, received_at = CURRENT_TIMESTAMP, freight_distributed = true WHERE id = $3',
         ['received', receivedBy, id]
       );
+
+      // Create automatic journal entry for this purchase
+      try {
+        await recordPurchaseJournal(client, order, order.branch_id, receivedBy);
+      } catch (jeError) {
+        console.warn('[PURCHASE] Journal entry creation failed (non-fatal):', jeError.message);
+      }
       
       await client.query('COMMIT');
       await broadcastTable('purchase_orders');

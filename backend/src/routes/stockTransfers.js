@@ -1,6 +1,7 @@
 // Stock Transfers API routes
 const express = require('express');
 const db = require('../db');
+const { recordTransferJournal } = require('../accounting');
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
@@ -153,6 +154,21 @@ module.exports = function(broadcastTable) {
         'UPDATE stock_transfers SET status = $1, received_by = $2, received_at = CURRENT_TIMESTAMP WHERE id = $3',
         ['received', receivedBy, id]
       );
+
+      // Create automatic journal entry for this transfer
+      try {
+        let totalTransferValue = 0;
+        for (const item of itemsResult.rows) {
+          const productResult = await client.query('SELECT cost FROM products WHERE id = $1', [item.product_id]);
+          if (productResult.rows.length > 0) {
+            const receivedQty = receivedQuantities?.[item.product_id] ?? item.quantity;
+            totalTransferValue += parseFloat(productResult.rows[0].cost) * receivedQty;
+          }
+        }
+        await recordTransferJournal(client, transfer, totalTransferValue, receivedBy);
+      } catch (jeError) {
+        console.warn('[TRANSFER] Journal entry creation failed (non-fatal):', jeError.message);
+      }
       
       await client.query('COMMIT');
       await broadcastTable('stock_transfers');
