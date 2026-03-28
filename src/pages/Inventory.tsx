@@ -254,26 +254,25 @@ export default function Inventory() {
     <div className="flex flex-col h-full bg-background">
       {/* Head Office Notice */}
       {isHeadOffice && (
-        <Alert className="mx-2 mt-2 bg-primary/5 border-primary/20">
+        <Alert className="mx-3 mt-3 rounded-xl bg-accent border-primary/20">
           <Building2 className="h-4 w-4 text-primary" />
           <AlertDescription className="text-foreground">
             <strong>Sede - Visão Global:</strong> A visualizar inventário de todas as filiais com quantidades separadas por filial.
           </AlertDescription>
         </Alert>
       )}
-      {/* Filial Notice - Stock hidden for branches */}
+      {/* Filial Notice */}
       {isFilial && (
-        <Alert className="mx-2 mt-2 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
-          <AlertCircle className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-amber-800 dark:text-amber-200">
+        <Alert className="mx-3 mt-3 rounded-xl bg-warning/10 border-warning/20">
+          <AlertCircle className="h-4 w-4 text-warning" />
+          <AlertDescription className="text-foreground">
             <strong>Modo Filial:</strong> Informações de stock não disponíveis. Apenas preços e códigos de produtos são exibidos.
-            Receba atualizações de preços da sede via sincronização.
           </AlertDescription>
         </Alert>
       )}
       
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 border-b">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-card/50 border-b backdrop-blur-sm">
         <BranchSelector compact />
         <div className="w-px h-5 bg-border mx-1" />
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => handleOpenDialog()}>
