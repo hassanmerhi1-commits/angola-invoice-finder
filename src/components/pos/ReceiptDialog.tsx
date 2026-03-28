@@ -109,10 +109,17 @@ export function ReceiptDialog({
         {/* Receipt Preview */}
         <div className="bg-white text-black rounded-lg p-4 font-mono text-xs space-y-2 print:block">
           <div className="text-center space-y-1">
-            <h3 className="font-bold text-sm">{branch.name}</h3>
-            <p>{branch.address}</p>
-            <p>Tel: {branch.phone}</p>
+            {company.logo && (
+              <div className="flex justify-center mb-2">
+                <img src={company.logo} alt={company.tradeName || company.name} className="max-h-12 object-contain" />
+              </div>
+            )}
+            <h3 className="font-bold text-sm">{company.tradeName || company.name}</h3>
+            <p>{company.address}</p>
+            <p>{company.city}{company.province ? `, ${company.province}` : ''}</p>
+            <p>Tel: {company.phone}</p>
             <p className="text-[10px]">NIF: {company.nif}</p>
+            <p className="text-[10px] text-gray-500">{branch.name}</p>
           </div>
 
           <Separator className="border-dashed" />
@@ -210,9 +217,9 @@ export function ReceiptDialog({
           <Separator className="border-dashed" />
 
           <div className="text-center text-[10px] space-y-1">
-            <p>Documento processado por Kwanza ERP</p>
+            <p>Documento processado por {company.tradeName || company.name}</p>
             <p>Software certificado AGT</p>
-            <p>Obrigado pela preferência!</p>
+            <p>{company.footerText || 'Obrigado pela preferência!'}</p>
           </div>
         </div>
 
