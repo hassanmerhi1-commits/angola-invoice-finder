@@ -477,7 +477,7 @@ export default function Inventory() {
 
         <TabsContent value="lista" className="flex-1 m-0 p-2" onDoubleClick={handleDoubleClickProduct}>
           <AdvancedDataGrid 
-            products={products}
+            products={displayProducts}
             onSelectProduct={handleSelectProduct}
             selectedProductId={selectedProduct?.id}
             hideStock={!!isFilial}
