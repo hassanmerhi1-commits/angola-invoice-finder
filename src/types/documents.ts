@@ -26,6 +26,7 @@ export interface DocumentLine {
   productSku?: string;
   description: string;
   quantity: number;
+  unit?: string;           // UN, SC, CX, KG, LT, etc.
   unitPrice: number;
   discount: number;        // percentage
   discountAmount: number;  // calculated
@@ -50,6 +51,27 @@ export interface ERPDocument {
   entityAddress?: string;
   entityPhone?: string;
   entityEmail?: string;
+  entityCode?: string;        // entity reference code (e.g. 0000201)
+  
+  // Payment terms
+  paymentCondition?: string;  // e.g. "Factura 15 Dias", "Pronto Pagamento"
+  requisition?: string;       // requisition reference
+  
+  // Shipping / Transport
+  loadAddress?: string;       // Carga address
+  loadDate?: string;          // Carga date
+  unloadAddress?: string;     // Descarga address
+  transportRef?: string;      // e.g. LOAD VM2, GUIA-272
+  
+  // Bank details for payment
+  bankDetails?: Array<{
+    bank: string;
+    account: string;
+    iban: string;
+  }>;
+  
+  // Copy label
+  copyLabel?: string;         // "Original", "Duplicado", "Triplicado"
   
   // Lines
   lines: DocumentLine[];
