@@ -48,8 +48,44 @@ import { saveStockMovement } from '@/lib/storage';
 
 export default function Inventory() {
   const navigate = useNavigate();
-  const { currentBranch } = useBranchContext();
-  const { products, refreshProducts, updateProduct, addProduct, deleteProduct } = useProducts(currentBranch?.id);
+  const { currentBranch, branches } = useBranchContext();
+  
+  // Head office (Sede) sees ALL inventory; filials see only their own
+  const isHeadOffice = currentBranch?.isMain === true;
+  const isFilial = currentBranch && !currentBranch.isMain;
+  
+  // For head office: load all products (no branch filter)
+  // For filial: load only that branch's products
+  const { products, refreshProducts, updateProduct, addProduct, deleteProduct } = useProducts(isHeadOffice ? undefined : currentBranch?.id);
+  
+  // For head office: load all products per branch for qty breakdown
+  const [allBranchProducts, setAllBranchProducts] = useState<Record<string, Product[]>>({});
+  
+  useState(() => {
+    if (isHeadOffice) {
+      const loadAllBranches = async () => {
+        const branchProducts: Record<string, Product[]> = {};
+        for (const branch of branches) {
+          const prods = await storage.getProducts(branch.id);
+          branchProducts[branch.id] = prods;
+        }
+        setAllBranchProducts(branchProducts);
+      };
+      loadAllBranches();
+    }
+  });
+  
+  // Reload branch products when products change
+  const loadBranchProducts = async () => {
+    if (!isHeadOffice) return;
+    const branchProducts: Record<string, Product[]> = {};
+    for (const branch of branches) {
+      const prods = await storage.getProducts(branch.id);
+      branchProducts[branch.id] = prods;
+    }
+    setAllBranchProducts(branchProducts);
+  };
+  
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
