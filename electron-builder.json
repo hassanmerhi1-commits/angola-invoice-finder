@@ -53,7 +53,7 @@
   "publish": {
     "provider": "github",
     "owner": "hassanmerhi1-commits",
-    "repo": "angola-invoice-finder",
+    "repo": "friendly-companion",
     "releaseType": "release"
   },
   "win": {
