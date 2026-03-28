@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '@/i18n';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useCompanyLogo } from '@/hooks/useCompanyLogo';
+import defaultLogo from '/favicon.png?url';
 
 interface TopNavProps {
   user: User | null;
@@ -51,6 +53,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
   const [searchQuery, setSearchQuery] = useState('');
   const [now, setNow] = useState(new Date());
   const [dbInfo, setDbInfo] = useState({ mode: '', path: '', ip: '' });
+  const { logo, companyName } = useCompanyLogo();
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30000);
@@ -239,10 +242,10 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
         <div className="flex items-center">
           {/* Logo */}
           <div className="flex items-center gap-1.5 pr-3 border-r mr-1">
-            <div className="w-5 h-5 rounded bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-[10px]">K</span>
+            <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center overflow-hidden">
+              <img src={logo || defaultLogo} alt={companyName} className="w-full h-full object-contain" />
             </div>
-            <span className="font-bold text-xs italic text-primary">Kwanza ERP</span>
+            <span className="font-bold text-xs italic text-primary">{companyName}</span>
           </div>
 
           {menuItems.map((menu) => (
@@ -386,10 +389,10 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
       {/* ====== Mobile Header ====== */}
       <div className="h-11 px-3 flex lg:hidden items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xs">K</span>
+          <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center overflow-hidden">
+            <img src={logo || defaultLogo} alt={companyName} className="w-full h-full object-contain" />
           </div>
-          <span className="font-bold text-sm">Kwanza ERP</span>
+          <span className="font-bold text-sm">{companyName}</span>
         </div>
         <div className="flex items-center gap-1">
           <Select
