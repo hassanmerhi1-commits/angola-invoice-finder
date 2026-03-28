@@ -20,6 +20,7 @@ import {
   Clock, ChevronDown, ArrowRightLeft
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { printDocument, downloadDocumentHTML } from '@/lib/documentPDF';
 import { DocumentType, ERPDocument, DOCUMENT_TYPE_CONFIG, DocumentStatus } from '@/types/documents';
 import { getDocuments, convertDocument } from '@/lib/documentStorage';
 import { DocumentFormDialog } from '@/components/documents/DocumentFormDialog';
@@ -167,10 +168,12 @@ export default function Invoices() {
         )}
 
         <div className="w-px h-5 bg-border mx-1" />
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedDoc}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedDoc}
+          onClick={() => selectedDoc && printDocument(selectedDoc)}>
           <Printer className="w-3 h-3" /> Imprimir
         </Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedDoc}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedDoc}
+          onClick={() => selectedDoc && downloadDocumentHTML(selectedDoc)}>
           <Download className="w-3 h-3" /> PDF
         </Button>
         <Button variant="outline" size="icon" className="h-7 w-7" onClick={refresh}>
