@@ -24,7 +24,7 @@ export default function Dashboard() {
     { label: 'Fatura De\nVenda', icon: FileText, path: '/invoices', color: 'bg-muted' },
     { label: 'Recibo', icon: Receipt, path: '/invoices', color: 'bg-muted' },
     { label: 'Pagamento', icon: DollarSign, path: '/expenses', color: 'bg-muted' },
-    { label: 'Extracto', icon: FileCheck, path: '/reports', color: 'bg-muted' },
+    { label: 'Extracto', icon: FileCheck, path: '/extracto', color: 'bg-muted' },
   ], []);
 
   // BI Sidebar items
