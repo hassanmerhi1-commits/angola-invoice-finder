@@ -703,6 +703,58 @@ export async function saveStockMovement(movement: StockMovement): Promise<void> 
   lsSet(STORAGE_KEYS.stockMovements, movements);
 }
 
+// ============= LOCAL JOURNAL ENTRY (Web Preview) =============
+interface LocalJournalEntry {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  description: string;
+  referenceType: string;
+  referenceId: string;
+  branchId: string;
+  totalDebit: number;
+  totalCredit: number;
+  lines: { accountCode: string; debit: number; credit: number }[];
+  createdAt: string;
+}
+
+export async function createLocalJournalEntry(params: {
+  description: string;
+  referenceType: string;
+  referenceId: string;
+  branchId: string;
+  lines: { accountCode: string; debit: number; credit: number }[];
+}): Promise<void> {
+  if (isElectronMode()) return; // Electron uses backend accounting engine
+  
+  const entries = lsGet<LocalJournalEntry[]>(STORAGE_KEYS.journalEntries, []);
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const seq = (entries.length + 1).toString().padStart(4, '0');
+  
+  const totalDebit = params.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
+  const totalCredit = params.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
+
+  entries.push({
+    id: `je_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    entryNumber: `JE${today}${seq}`,
+    entryDate: new Date().toISOString().split('T')[0],
+    description: params.description,
+    referenceType: params.referenceType,
+    referenceId: params.referenceId,
+    branchId: params.branchId,
+    totalDebit,
+    totalCredit,
+    lines: params.lines,
+    createdAt: new Date().toISOString(),
+  });
+  lsSet(STORAGE_KEYS.journalEntries, entries);
+}
+
+export async function getLocalJournalEntries(branchId?: string): Promise<LocalJournalEntry[]> {
+  const entries = lsGet<LocalJournalEntry[]>(STORAGE_KEYS.journalEntries, []);
+  return branchId ? entries.filter(e => e.branchId === branchId) : entries;
+}
+
 // ============= DB <-> FRONTEND MAPPING =============
 function mapBranchFromDb(row: any): Branch {
   return {
