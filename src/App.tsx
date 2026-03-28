@@ -92,6 +92,14 @@ function AppRoutes() {
           return;
         }
 
+        // Non-Electron (web preview): auto-enable demo mode
+        if (!isElectron) {
+          localStorage.setItem('kwanza_setup_complete', 'true');
+          localStorage.setItem('kwanza_connection_mode', 'demo');
+          if (isMounted) setSetupComplete(true);
+          return;
+        }
+
         const flag = localStorage.getItem('kwanza_setup_complete');
         if (isMounted) setSetupComplete(flag === 'true');
       } catch {
