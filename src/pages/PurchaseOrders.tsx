@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useProducts, useSuppliers, usePurchaseOrders, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -31,7 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Eye, CheckCircle, Package, ShoppingCart, Trash2, Barcode, ScanLine } from 'lucide-react';
+import { Search, Plus, Eye, CheckCircle, Package, ShoppingCart, Trash2, Barcode, ScanLine, Truck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -46,6 +48,7 @@ const STATUS_LABELS: Record<PurchaseOrder['status'], { label: string; variant: '
 };
 
 export default function PurchaseOrders() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { branches, currentBranch } = useBranchContext();
   const { products } = useProducts(currentBranch?.id);
@@ -64,6 +67,7 @@ export default function PurchaseOrders() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const activeSuppliers = useMemo(() => suppliers.filter((s) => s.isActive), [suppliers]);
   const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({});
 
   // Create order form state
@@ -361,17 +365,23 @@ export default function PurchaseOrders() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Compras / Faturas de Compra</h1>
           <p className="text-muted-foreground">
             Gestão de compras a fornecedores e recepção de mercadoria
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nova Fatura de Compra
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => navigate('/suppliers')}>
+            <Truck className="w-4 h-4 mr-2" />
+            Gerir Fornecedores
+          </Button>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Fatura de Compra
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -538,9 +548,26 @@ export default function PurchaseOrders() {
           </DialogHeader>
 
           <div className="space-y-6">
+            {activeSuppliers.length === 0 && (
+              <Alert>
+                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>Não há fornecedores activos. Crie um fornecedor primeiro para emitir fatura de compra.</span>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/suppliers')}>
+                    <Truck className="w-4 h-4 mr-2" />
+                    Criar Fornecedor
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Fornecedor *</Label>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <Label>Fornecedor *</Label>
+                  <Button variant="link" className="h-auto p-0" onClick={() => navigate('/suppliers')}>
+                    Novo fornecedor
+                  </Button>
+                </div>
                 <Select
                   value={orderForm.supplierId}
                   onValueChange={(value) => setOrderForm({ ...orderForm, supplierId: value })}
@@ -549,7 +576,7 @@ export default function PurchaseOrders() {
                     <SelectValue placeholder="Seleccione o fornecedor" />
                   </SelectTrigger>
                   <SelectContent>
-                    {suppliers.filter(s => s.isActive).map((supplier) => (
+                    {activeSuppliers.map((supplier) => (
                       <SelectItem key={supplier.id} value={supplier.id}>
                         {supplier.name}
                       </SelectItem>
