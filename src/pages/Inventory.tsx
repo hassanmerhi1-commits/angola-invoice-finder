@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useProducts } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Product } from '@/types/erp';
-import { saveProduct } from '@/lib/storage';
+import { saveProduct, getProducts as storageGetProducts } from '@/lib/storage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,8 @@ import {
   Printer,
   Calculator,
   PackagePlus,
-  PackageMinus
+  PackageMinus,
+  Building2
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
@@ -48,8 +49,45 @@ import { saveStockMovement } from '@/lib/storage';
 
 export default function Inventory() {
   const navigate = useNavigate();
-  const { currentBranch } = useBranchContext();
-  const { products, refreshProducts, updateProduct, addProduct, deleteProduct } = useProducts(currentBranch?.id);
+  const { currentBranch, branches } = useBranchContext();
+  
+  // Head office (Sede) sees ALL inventory; filials see only their own
+  const isHeadOffice = currentBranch?.isMain === true;
+  const isFilial = currentBranch && !currentBranch.isMain;
+  
+  // For head office: load all products (no branch filter)
+  // For filial: load only that branch's products
+  const { products, refreshProducts, updateProduct, addProduct, deleteProduct } = useProducts(isHeadOffice ? undefined : currentBranch?.id);
+  
+  // For head office: load all products per branch for qty breakdown
+  const [allBranchProducts, setAllBranchProducts] = useState<Record<string, Product[]>>({});
+  
+  const loadBranchProducts = useCallback(async () => {
+    if (!isHeadOffice) return;
+    const branchProducts: Record<string, Product[]> = {};
+    for (const branch of branches) {
+      const prods = await storageGetProducts(branch.id);
+      branchProducts[branch.id] = prods;
+    }
+    setAllBranchProducts(branchProducts);
+  }, [isHeadOffice, branches]);
+  
+  useEffect(() => {
+    loadBranchProducts();
+  }, [loadBranchProducts, products]);
+  
+  // For head office: deduplicate products by SKU (show unique items with aggregated total)
+  const displayProducts = useMemo(() => {
+    if (!isHeadOffice) return products;
+    const seen = new Map<string, Product>();
+    for (const p of products) {
+      if (!seen.has(p.sku)) {
+        seen.set(p.sku, { ...p });
+      }
+    }
+    return Array.from(seen.values());
+  }, [products, isHeadOffice]);
+  
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -59,9 +97,6 @@ export default function Inventory() {
   const [stockEntryDialogOpen, setStockEntryDialogOpen] = useState(false);
   const [stockExitDialogOpen, setStockExitDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
-
-  // Check if current branch is a filial (not main office)
-  const isFilial = currentBranch && !currentBranch.isMain;
 
   const handleOpenDialog = (product?: Product) => {
     setSelectedProduct(product || null);
@@ -217,6 +252,15 @@ export default function Inventory() {
 
   return (
     <div className="flex flex-col h-full bg-background">
+      {/* Head Office Notice */}
+      {isHeadOffice && (
+        <Alert className="mx-2 mt-2 bg-primary/5 border-primary/20">
+          <Building2 className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-foreground">
+            <strong>Sede - Visão Global:</strong> A visualizar inventário de todas as filiais com quantidades separadas por filial.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Filial Notice - Stock hidden for branches */}
       {isFilial && (
         <Alert className="mx-2 mt-2 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
@@ -433,10 +477,13 @@ export default function Inventory() {
 
         <TabsContent value="lista" className="flex-1 m-0 p-2" onDoubleClick={handleDoubleClickProduct}>
           <AdvancedDataGrid 
-            products={products}
+            products={displayProducts}
             onSelectProduct={handleSelectProduct}
             selectedProductId={selectedProduct?.id}
-            hideStock={isFilial}
+            hideStock={!!isFilial}
+            isHeadOffice={isHeadOffice}
+            branches={branches}
+            allBranchProducts={allBranchProducts}
           />
         </TabsContent>
 
@@ -570,10 +617,12 @@ export default function Inventory() {
       {/* Status bar */}
       <div className="flex items-center justify-between px-3 py-1 bg-muted/50 border-t text-xs text-muted-foreground">
         <div className="flex items-center gap-4">
-          <span className="text-red-600">Qtd &lt; 0</span>
-          <span className="bg-yellow-200 text-yellow-800 px-2 rounded">Qtd Minima</span>
+          {isHeadOffice && <span className="text-primary font-medium">📊 Sede - Todas as Filiais ({branches.length})</span>}
+          {isFilial && <span>📍 {currentBranch?.name}</span>}
+          <span className="text-destructive">Qtd &lt; 0</span>
+          <span className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 px-2 rounded">Qtd Minima</span>
         </div>
-        <span>{products.length} produtos</span>
+        <span>{displayProducts.length} produtos</span>
       </div>
 
       <ProductDetailDialog

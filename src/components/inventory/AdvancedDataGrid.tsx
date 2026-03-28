@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Product } from '@/types/erp';
+import { Product, Branch } from '@/types/erp';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,15 +17,27 @@ interface ColumnFilter {
   type: 'all' | 'custom' | 'blanks' | 'nonblanks';
 }
 
+interface ColumnDef {
+  key: string;
+  label: string;
+  width: string;
+  type?: string;
+  computed?: boolean;
+  hiddenForFilial?: boolean;
+}
+
 interface AdvancedDataGridProps {
   products: Product[];
   onSelectProduct: (product: Product) => void;
   selectedProductId?: string;
-  hideStock?: boolean; // Hide stock column for filials
+  hideStock?: boolean;
+  isHeadOffice?: boolean;
+  branches?: Branch[];
+  allBranchProducts?: Record<string, Product[]>;
 }
 
 // Base columns definition
-const BASE_COLUMNS = [
+const BASE_COLUMNS: ColumnDef[] = [
   { key: 'sku', label: 'Produto', width: 'w-24' },
   { key: 'name', label: 'Descrição', width: 'w-48' },
   { key: 'price', label: 'Preço', width: 'w-20', type: 'number' },
@@ -33,32 +45,47 @@ const BASE_COLUMNS = [
   { key: 'lastCost', label: 'Últ. Custo', width: 'w-24', type: 'number' },
   { key: 'avgCost', label: 'Custo Médio', width: 'w-24', type: 'number' },
   { key: 'profitMargin', label: 'Lucro %', width: 'w-20', type: 'number', computed: true },
-  { key: 'stock', label: 'Qty', width: 'w-16', type: 'number', hiddenForFilial: true },
+  { key: 'stock', label: 'Qty Total', width: 'w-16', type: 'number', hiddenForFilial: true },
   { key: 'taxRate', label: 'IVA %', width: 'w-16', type: 'number' },
   { key: 'unit', label: 'Unidade', width: 'w-16' },
   { key: 'category', label: 'Categoria', width: 'w-28' },
   { key: 'supplierName', label: 'Fornecedor', width: 'w-28' },
-  { key: 'branchId', label: 'Filial', width: 'w-20' },
-] as const;
-
-type ColumnKey = typeof BASE_COLUMNS[number]['key'];
+];
 
 // Helper to get columns based on visibility
-const getVisibleColumns = (hideStock: boolean) => {
-  if (hideStock) {
-    return BASE_COLUMNS.filter(col => !('hiddenForFilial' in col && col.hiddenForFilial));
+const getVisibleColumns = (hideStock: boolean, isHeadOffice: boolean, branches: Branch[]) => {
+  let cols = BASE_COLUMNS.filter(col => {
+    if (hideStock && col.hiddenForFilial) return false;
+    return true;
+  });
+  
+  // For head office: add per-branch stock columns after the total Qty column
+  if (isHeadOffice && branches.length > 0) {
+    const stockIdx = cols.findIndex(c => c.key === 'stock');
+    const branchCols: ColumnDef[] = branches.map(b => ({
+      key: `branch_stock_${b.id}`,
+      label: b.code || b.name.substring(0, 6),
+      width: 'w-16',
+      type: 'number',
+    }));
+    // Insert branch columns after the total stock column
+    cols.splice(stockIdx + 1, 0, ...branchCols);
   }
-  return [...BASE_COLUMNS];
+  
+  return cols;
 };
 
-export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId, hideStock = false }: AdvancedDataGridProps) {
-  const [columnFilters, setColumnFilters] = useState<Record<ColumnKey, ColumnFilter>>({} as Record<ColumnKey, ColumnFilter>);
-  const [columnSearches, setColumnSearches] = useState<Record<ColumnKey, string>>({} as Record<ColumnKey, string>);
-  const [sortColumn, setSortColumn] = useState<ColumnKey>('sku');
+export function AdvancedDataGrid({ 
+  products, onSelectProduct, selectedProductId, hideStock = false,
+  isHeadOffice = false, branches = [], allBranchProducts = {}
+}: AdvancedDataGridProps) {
+  const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilter>>({});
+  const [columnSearches, setColumnSearches] = useState<Record<string, string>>({});
+  const [sortColumn, setSortColumn] = useState<string>('sku');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  // Get visible columns based on hideStock prop
-  const COLUMNS = useMemo(() => getVisibleColumns(hideStock), [hideStock]);
+  // Get visible columns based on mode
+  const COLUMNS = useMemo(() => getVisibleColumns(hideStock, isHeadOffice, branches), [hideStock, isHeadOffice, branches]);
 
   // Get unique values for each column
   const uniqueValues = useMemo(() => {
@@ -123,7 +150,7 @@ export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId,
     return result;
   }, [products, columnFilters, columnSearches, sortColumn, sortDirection]);
 
-  const handleSort = (column: ColumnKey) => {
+  const handleSort = (column: string) => {
     if (sortColumn === column) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -132,11 +159,11 @@ export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId,
     }
   };
 
-  const setFilter = (column: ColumnKey, filter: ColumnFilter) => {
+  const setFilter = (column: string, filter: ColumnFilter) => {
     setColumnFilters(prev => ({ ...prev, [column]: filter }));
   };
 
-  const clearFilter = (column: ColumnKey) => {
+  const clearFilter = (column: string) => {
     setColumnFilters(prev => {
       const next = { ...prev };
       delete next[column];
@@ -144,7 +171,7 @@ export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId,
     });
   };
 
-  const setSearch = (column: ColumnKey, value: string) => {
+  const setSearch = (column: string, value: string) => {
     setColumnSearches(prev => ({ ...prev, [column]: value }));
   };
 
@@ -158,12 +185,31 @@ export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId,
     return ((product.price - cost) / cost) * 100;
   };
 
-  const formatValue = (product: Product, key: ColumnKey) => {
+  const formatValue = (product: Product, key: string) => {
     // Handle computed columns
     if (key === 'profitMargin') {
       const margin = calculateProfitMargin(product);
       const color = margin > 0 ? 'text-green-600' : margin < 0 ? 'text-red-600' : '';
       return <span className={color}>{margin.toFixed(1)}%</span>;
+    }
+    
+    // Handle per-branch stock columns
+    if (key.startsWith('branch_stock_')) {
+      const branchId = key.replace('branch_stock_', '');
+      const branchProds = allBranchProducts[branchId] || [];
+      const match = branchProds.find(p => p.sku === product.sku || p.id === product.id);
+      const qty = match?.stock || 0;
+      return <span className={qty <= 0 ? 'text-destructive font-bold' : qty <= 10 ? 'text-amber-600' : ''}>{qty}</span>;
+    }
+
+    // For head office: compute total stock across all branches
+    if (key === 'stock' && isHeadOffice && Object.keys(allBranchProducts).length > 0) {
+      let totalQty = 0;
+      Object.values(allBranchProducts).forEach(prods => {
+        const match = prods.find(p => p.sku === product.sku || p.id === product.id);
+        if (match) totalQty += match.stock || 0;
+      });
+      return <span className="font-bold">{totalQty}</span>;
     }
     
     const val = product[key as keyof Product];
@@ -191,8 +237,8 @@ export function AdvancedDataGrid({ products, onSelectProduct, selectedProductId,
             size="sm" 
             className="h-6 text-xs"
             onClick={() => {
-              setColumnFilters({} as Record<ColumnKey, ColumnFilter>);
-              setColumnSearches({} as Record<ColumnKey, string>);
+              setColumnFilters({} as Record<string, ColumnFilter>);
+              setColumnSearches({} as Record<string, string>);
             }}
           >
             <X className="w-3 h-3 mr-1" />
