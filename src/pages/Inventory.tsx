@@ -458,7 +458,10 @@ export default function Inventory() {
             products={products}
             onSelectProduct={handleSelectProduct}
             selectedProductId={selectedProduct?.id}
-            hideStock={isFilial}
+            hideStock={!!isFilial}
+            isHeadOffice={isHeadOffice}
+            branches={branches}
+            allBranchProducts={allBranchProducts}
           />
         </TabsContent>
 
