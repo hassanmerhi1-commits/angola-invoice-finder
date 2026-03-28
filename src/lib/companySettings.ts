@@ -91,6 +91,7 @@ export function saveCompanySettings(settings: Partial<CompanySettings>): Company
       updatedAt: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new Event('company-settings-updated'));
     return updated;
   } catch (error) {
     console.error('Error saving company settings:', error);
