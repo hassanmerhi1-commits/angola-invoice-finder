@@ -1,5 +1,4 @@
-// Kwanza ERP - Top Navigation
-// Menu Bar → Tab Bar → Action Toolbar → Status Bar
+// Kwanza ERP - Modern Top Navigation
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Branch, User } from '@/types/erp';
@@ -18,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { 
   Building2, User as UserIcon, LogOut, Settings, Menu,
@@ -30,7 +28,7 @@ import {
   Database, Calculator, Receipt, Factory, Import, UserCog,
   FolderOpen, BookOpen, Landmark, CreditCard, DollarSign,
   Shield, Wallet, PieChart, TrendingUp, Globe, Keyboard,
-  Monitor,
+  Monitor, Bell,
 } from 'lucide-react';
 import { useTranslation } from '@/i18n';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
@@ -50,34 +48,9 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [now, setNow] = useState(new Date());
-  const [dbInfo, setDbInfo] = useState({ mode: '', path: '', ip: '' });
   const { logo, companyName } = useCompanyLogo();
 
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30000);
-    // Try to get DB status for status bar
-    if (window.electronAPI?.db?.getStatus) {
-      window.electronAPI.db.getStatus().then((s: any) => {
-        setDbInfo({ mode: s.mode || '', path: s.path || '', ip: s.serverAddress || '' });
-      }).catch(() => {});
-    }
-    return () => clearInterval(id);
-  }, []);
-
-  const formatDateTime = () => {
-    const d = now;
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, '0');
-    const min = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
-  };
-
-  // ========== MENU BAR (Row 1) ==========
+  // ========== MENU BAR ==========
   const menuItems = [
     {
       label: 'Ficheiro',
@@ -127,7 +100,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
       ],
     },
     {
-      label: 'Special Transactions',
+      label: 'Transações',
       items: [
         { label: 'Transferência de Stock', icon: ArrowRightLeft, path: '/stock-transfer' },
         { label: 'Ajuste de Inventário', icon: RefreshCw, path: '/inventory' },
@@ -135,7 +108,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
       ],
     },
     {
-      label: 'Relatórios Financeiros',
+      label: 'Relatórios',
       items: [
         { label: 'Balancete', icon: PieChart, path: '/reports' },
         { label: 'Demonstração de Resultados', icon: TrendingUp, path: '/reports' },
@@ -143,11 +116,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
         { label: 'separator' },
         { label: 'Relatórios Diários', icon: Calendar, path: '/daily-reports' },
         { label: 'Extracto de Conta', icon: FileText, path: '/reports' },
-      ],
-    },
-    {
-      label: 'Relatórios de Stock',
-      items: [
+        { label: 'separator' },
         { label: 'Movimento de Stock', icon: ArrowRightLeft, path: '/reports' },
         { label: 'Valorização de Stock', icon: DollarSign, path: '/reports' },
         { label: 'Stock por Filial', icon: Building2, path: '/reports' },
@@ -172,7 +141,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
     },
   ];
 
-  // ========== MAIN TABS (Row 2) ==========
+  // ========== MAIN TABS ==========
   const mainTabs = [
     { label: 'Inicio', path: '/', icon: LayoutDashboard },
     { label: 'Mapa De Contas', path: '/chart-of-accounts', icon: BookOpen },
@@ -184,10 +153,9 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
     { label: 'HR', path: '/hr', icon: Users },
   ];
 
-  // ========== ACTION TOOLBAR (Row 3) ==========
+  // ========== ACTION TOOLBAR ==========
   const getActionButtons = () => {
     const p = location.pathname;
-
     if (p === '/' || p === '') return [];
 
     const base = [
@@ -236,26 +204,28 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
   const actionButtons = getActionButtons();
 
   return (
-    <header className="border-b bg-card sticky top-0 z-50">
+    <header className="sticky top-0 z-50">
       {/* ====== ROW 1: Menu Bar ====== */}
-      <div className="h-7 px-1 bg-gradient-to-b from-[hsl(var(--muted)/0.6)] to-[hsl(var(--muted))] hidden lg:flex items-center justify-between border-b text-xs">
-        <div className="flex items-center">
+      <div className="h-10 px-3 bg-sidebar text-sidebar-foreground hidden lg:flex items-center justify-between">
+        <div className="flex items-center gap-1">
           {/* Logo */}
-          <div className="flex items-center gap-1.5 pr-3 border-r mr-1">
-            <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center overflow-hidden">
+          <div className="flex items-center gap-2 pr-4 mr-2 border-r border-sidebar-border">
+            <div className="w-6 h-6 rounded-lg overflow-hidden bg-sidebar-accent flex items-center justify-center">
               <img src={logo || defaultLogo} alt={companyName} className="w-full h-full object-contain" />
             </div>
-            <span className="font-bold text-xs italic text-primary">{companyName}</span>
+            <span className="font-bold text-sm tracking-tight text-sidebar-primary">
+              {companyName}
+            </span>
           </div>
 
           {menuItems.map((menu) => (
             <DropdownMenu key={menu.label}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-5 px-2 text-[11px] font-normal hover:bg-accent/50">
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs font-medium text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-md">
                   {menu.label}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-[200px]">
+              <DropdownMenuContent align="start" className="min-w-[220px] animate-scale-in">
                 {menu.items.map((item, idx) =>
                   item.label === 'separator' ? (
                     <DropdownMenuSeparator key={idx} />
@@ -266,13 +236,10 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
                         if ((item as any).action) (item as any).action();
                         else if ((item as any).path) navigate((item as any).path);
                       }}
-                      className="text-xs"
+                      className="text-xs gap-2"
                     >
-                      {item.icon && <item.icon className="w-3.5 h-3.5 mr-2" />}
+                      {item.icon && <item.icon className="w-3.5 h-3.5 text-muted-foreground" />}
                       {item.label}
-                      {(item as any).shortcut && (
-                        <span className="ml-auto text-muted-foreground text-[10px]">{(item as any).shortcut}</span>
-                      )}
                     </DropdownMenuItem>
                   )
                 )}
@@ -281,21 +248,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
           ))}
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <div className="relative">
-            <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-5 w-32 pl-6 text-[10px] rounded-sm"
-            />
-          </div>
-
-          <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" title="FTP">
-            Ftp
-          </Button>
-
+        <div className="flex items-center gap-2">
           <LanguageSwitcher />
 
           <Select
@@ -305,8 +258,8 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
               if (branch) onBranchChange(branch);
             }}
           >
-            <SelectTrigger className="h-5 w-[130px] text-[10px]">
-              <Building2 className="w-3 h-3 mr-1" />
+            <SelectTrigger className="h-7 w-[140px] text-xs bg-sidebar-accent border-sidebar-border text-sidebar-foreground">
+              <Building2 className="w-3.5 h-3.5 mr-1.5 text-sidebar-primary" />
               <SelectValue placeholder="Filial" />
             </SelectTrigger>
             <SelectContent>
@@ -320,19 +273,29 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] gap-1">
-                <UserIcon className="w-3 h-3" />
-                {user?.name}
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1.5 text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent">
+                <div className="w-6 h-6 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-[10px] font-bold">
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+                <span className="hidden xl:inline">{user?.name}</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem className="text-xs">
-                <Shield className="w-3.5 h-3.5 mr-2" />
+            <DropdownMenuContent align="end" className="w-52 animate-scale-in">
+              <div className="px-3 py-2 border-b">
+                <p className="font-semibold text-sm">{user?.name}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </div>
+              <DropdownMenuItem className="text-xs gap-2 mt-1">
+                <Shield className="w-3.5 h-3.5" />
                 Perfil
               </DropdownMenuItem>
+              <DropdownMenuItem className="text-xs gap-2" onClick={() => navigate('/settings')}>
+                <Settings className="w-3.5 h-3.5" />
+                Configurações
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLogout} className="text-destructive text-xs">
-                <LogOut className="w-3.5 h-3.5 mr-2" />
+              <DropdownMenuItem onClick={onLogout} className="text-destructive text-xs gap-2">
+                <LogOut className="w-3.5 h-3.5" />
                 Sair
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -341,19 +304,20 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
       </div>
 
       {/* ====== ROW 2: Main Tabs ====== */}
-      <div className="h-8 px-1 bg-muted/30 hidden lg:flex items-end gap-0 border-b overflow-x-auto">
+      <div className="h-10 px-2 bg-card hidden lg:flex items-end gap-0.5 border-b overflow-x-auto">
         {mainTabs.map((tab) => (
           <NavLink
             key={tab.path}
             to={tab.path}
             end={tab.path === '/'}
             className={({ isActive }) => cn(
-              "flex items-center gap-1 px-3 py-1 text-[11px] font-medium border border-b-0 rounded-t-md transition-colors relative -mb-px",
+              "flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-t-lg transition-all relative",
               isActive
-                ? "bg-background border-border text-primary z-10"
-                : "bg-muted/50 border-transparent hover:bg-muted text-muted-foreground hover:text-foreground"
+                ? "bg-background text-primary border-t-2 border-x border-t-primary border-x-border -mb-px shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
             )}
           >
+            <tab.icon className="w-3.5 h-3.5" />
             {tab.label}
           </NavLink>
         ))}
@@ -361,40 +325,34 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
 
       {/* ====== ROW 3: Action Toolbar ====== */}
       {actionButtons.length > 0 && (
-        <div className="h-9 px-2 bg-gradient-to-b from-background to-muted/20 hidden lg:flex items-center gap-1 border-b overflow-x-auto">
+        <div className="h-10 px-3 bg-background hidden lg:flex items-center gap-1.5 border-b overflow-x-auto">
           {actionButtons.map((btn, idx) => (
-            <Button key={idx} variant={btn.variant} size="sm" className="h-6 text-[11px] gap-1 px-2">
-              <btn.icon className="w-3 h-3" />
+            <Button key={idx} variant={btn.variant} size="sm" className="h-7 text-xs gap-1.5 px-3 rounded-lg">
+              <btn.icon className="w-3.5 h-3.5" />
               {btn.label}
             </Button>
           ))}
-
           <div className="flex-1" />
-
-          <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1 px-2">
-            <Filter className="w-3 h-3" />
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 px-3 rounded-lg">
+            <Filter className="w-3.5 h-3.5" />
             Filtro
           </Button>
-          <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1 px-2">
-            <Download className="w-3 h-3" />
-            Importar
-          </Button>
-          <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1 px-2">
-            <FileSpreadsheet className="w-3 h-3" />
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 px-3 rounded-lg">
+            <FileSpreadsheet className="w-3.5 h-3.5" />
             Excel
           </Button>
         </div>
       )}
 
       {/* ====== Mobile Header ====== */}
-      <div className="h-11 px-3 flex lg:hidden items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center overflow-hidden">
+      <div className="h-14 px-4 flex lg:hidden items-center justify-between bg-sidebar text-sidebar-foreground">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg overflow-hidden bg-sidebar-accent flex items-center justify-center">
             <img src={logo || defaultLogo} alt={companyName} className="w-full h-full object-contain" />
           </div>
-          <span className="font-bold text-sm">{companyName}</span>
+          <span className="font-bold text-sm tracking-tight">{companyName}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <Select
             value={currentBranch?.id}
             onValueChange={(id) => {
@@ -402,7 +360,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
               if (branch) onBranchChange(branch);
             }}
           >
-            <SelectTrigger className="h-7 w-[100px] text-[10px]">
+            <SelectTrigger className="h-8 w-[110px] text-xs bg-sidebar-accent border-sidebar-border text-sidebar-foreground">
               <Building2 className="w-3 h-3 mr-1" />
               <SelectValue />
             </SelectTrigger>
@@ -414,35 +372,35 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
               ))}
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-            <Menu className="w-4 h-4" />
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-sidebar-foreground" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <Menu className="w-5 h-5" />
           </Button>
         </div>
       </div>
 
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
-        <nav className="lg:hidden border-t bg-card p-2 max-h-[70vh] overflow-y-auto">
-          <div className="grid grid-cols-4 gap-1.5">
+        <nav className="lg:hidden border-t bg-card p-3 max-h-[70vh] overflow-y-auto animate-fade-in">
+          <div className="grid grid-cols-4 gap-2">
             {mainTabs.map((tab) => (
               <NavLink
                 key={tab.path}
                 to={tab.path}
                 onClick={() => setMobileMenuOpen(false)}
                 className={({ isActive }) => cn(
-                  "flex flex-col items-center gap-1 p-2 rounded text-[10px]",
-                  isActive ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
+                  "flex flex-col items-center gap-1.5 p-3 rounded-xl text-[10px] font-medium transition-all",
+                  isActive ? "gradient-primary text-primary-foreground shadow-glow" : "bg-muted hover:bg-accent"
                 )}
               >
-                <tab.icon className="w-4 h-4" />
+                <tab.icon className="w-5 h-5" />
                 {tab.label}
               </NavLink>
             ))}
           </div>
-          <div className="pt-2 mt-2 border-t flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{user?.name}</span>
-            <Button variant="ghost" size="sm" onClick={onLogout} className="text-destructive text-xs h-6">
-              <LogOut className="w-3 h-3 mr-1" /> Sair
+          <div className="pt-3 mt-3 border-t flex items-center justify-between">
+            <span className="text-xs text-muted-foreground font-medium">{user?.name}</span>
+            <Button variant="ghost" size="sm" onClick={onLogout} className="text-destructive text-xs h-7 gap-1">
+              <LogOut className="w-3.5 h-3.5" /> Sair
             </Button>
           </div>
         </nav>
