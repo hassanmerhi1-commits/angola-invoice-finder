@@ -230,23 +230,23 @@ export default function Suppliers() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Fornecedores</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight">Fornecedores</h1>
+          <p className="text-sm text-muted-foreground font-medium">
             Gestão de fornecedores e compras
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-xl" onClick={() => setImportDialogOpen(true)}>
             <Upload className="w-4 h-4 mr-2" />
             Importar Excel
           </Button>
-          <Button variant="outline" onClick={() => exportSuppliersToExcel(suppliers)}>
+          <Button variant="outline" className="rounded-xl" onClick={() => exportSuppliersToExcel(suppliers)}>
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Exportar Excel
           </Button>
-          <Button onClick={() => handleOpenDialog()}>
+          <Button className="rounded-xl gradient-primary shadow-glow" onClick={() => handleOpenDialog()}>
             <Plus className="w-4 h-4 mr-2" />
             Novo Fornecedor
           </Button>
@@ -255,43 +255,43 @@ export default function Suppliers() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-hidden">
+          <CardContent className="p-5">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <Truck className="w-6 h-6 text-primary" />
+              <div className="p-3 rounded-2xl gradient-primary shadow-md">
+                <Truck className="w-6 h-6 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Fornecedores</p>
-                <p className="text-2xl font-bold">{suppliers.length}</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Fornecedores</p>
+                <p className="text-3xl font-extrabold tracking-tight">{suppliers.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-hidden">
+          <CardContent className="p-5">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-500/10 rounded-lg">
-                <Truck className="w-6 h-6 text-green-500" />
+              <div className="p-3 rounded-2xl gradient-success shadow-md">
+                <Truck className="w-6 h-6 text-success-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Activos</p>
-                <p className="text-2xl font-bold">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Activos</p>
+                <p className="text-3xl font-extrabold tracking-tight">
                   {suppliers.filter(s => s.isActive).length}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-hidden">
+          <CardContent className="p-5">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-orange-500/10 rounded-lg">
-                <Truck className="w-6 h-6 text-orange-500" />
+              <div className="p-3 rounded-2xl gradient-warm shadow-md">
+                <Truck className="w-6 h-6 text-warning-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Inactivos</p>
-                <p className="text-2xl font-bold">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Inactivos</p>
+                <p className="text-3xl font-extrabold tracking-tight">
                   {suppliers.filter(s => !s.isActive).length}
                 </p>
               </div>

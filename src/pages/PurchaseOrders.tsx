@@ -367,17 +367,17 @@ export default function PurchaseOrders() {
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Compras / Faturas de Compra</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight">Compras / Faturas de Compra</h1>
+          <p className="text-sm text-muted-foreground font-medium">
             Gestão de compras a fornecedores e recepção de mercadoria
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => navigate('/suppliers')}>
+          <Button variant="outline" className="rounded-xl" onClick={() => navigate('/suppliers')}>
             <Truck className="w-4 h-4 mr-2" />
             Gerir Fornecedores
           </Button>
-          <Button onClick={() => setCreateDialogOpen(true)}>
+          <Button className="rounded-xl gradient-primary shadow-glow" onClick={() => setCreateDialogOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Nova Fatura de Compra
           </Button>
@@ -386,54 +386,54 @@ export default function PurchaseOrders() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-hidden">
+          <CardContent className="p-5">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <ShoppingCart className="w-6 h-6 text-primary" />
+              <div className="p-3 rounded-2xl gradient-primary shadow-md">
+                <ShoppingCart className="w-6 h-6 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Encomendas</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Encomendas</p>
+                <p className="text-3xl font-extrabold tracking-tight">{stats.total}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-hidden">
+          <CardContent className="p-5">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-orange-500/10 rounded-lg">
-                <Package className="w-6 h-6 text-orange-500" />
+              <div className="p-3 rounded-2xl gradient-warm shadow-md">
+                <Package className="w-6 h-6 text-warning-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Pendentes</p>
-                <p className="text-2xl font-bold">{stats.pending}</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pendentes</p>
+                <p className="text-3xl font-extrabold tracking-tight">{stats.pending}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-hidden">
+          <CardContent className="p-5">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-500/10 rounded-lg">
-                <CheckCircle className="w-6 h-6 text-green-500" />
+              <div className="p-3 rounded-2xl gradient-success shadow-md">
+                <CheckCircle className="w-6 h-6 text-success-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Recebidas</p>
-                <p className="text-2xl font-bold">{stats.received}</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recebidas</p>
+                <p className="text-3xl font-extrabold tracking-tight">{stats.received}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-hidden">
+          <CardContent className="p-5">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-500/10 rounded-lg">
-                <ShoppingCart className="w-6 h-6 text-blue-500" />
+              <div className="p-3 rounded-2xl gradient-accent shadow-md">
+                <ShoppingCart className="w-6 h-6 text-info-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Valor Total Recebido</p>
-                <p className="text-2xl font-bold">{stats.totalValue.toLocaleString('pt-AO')} Kz</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Valor Total</p>
+                <p className="text-2xl font-extrabold tracking-tight">{stats.totalValue.toLocaleString('pt-AO')} Kz</p>
               </div>
             </div>
           </CardContent>
