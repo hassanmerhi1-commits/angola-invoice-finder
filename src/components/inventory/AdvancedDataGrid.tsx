@@ -193,6 +193,25 @@ export function AdvancedDataGrid({
       return <span className={color}>{margin.toFixed(1)}%</span>;
     }
     
+    // Handle per-branch stock columns
+    if (key.startsWith('branch_stock_')) {
+      const branchId = key.replace('branch_stock_', '');
+      const branchProds = allBranchProducts[branchId] || [];
+      const match = branchProds.find(p => p.sku === product.sku || p.id === product.id);
+      const qty = match?.stock || 0;
+      return <span className={qty <= 0 ? 'text-destructive font-bold' : qty <= 10 ? 'text-amber-600' : ''}>{qty}</span>;
+    }
+
+    // For head office: compute total stock across all branches
+    if (key === 'stock' && isHeadOffice && Object.keys(allBranchProducts).length > 0) {
+      let totalQty = 0;
+      Object.values(allBranchProducts).forEach(prods => {
+        const match = prods.find(p => p.sku === product.sku || p.id === product.id);
+        if (match) totalQty += match.stock || 0;
+      });
+      return <span className="font-bold">{totalQty}</span>;
+    }
+    
     const val = product[key as keyof Product];
     
     if (key === 'price' || key === 'firstCost' || key === 'lastCost' || key === 'avgCost') {
