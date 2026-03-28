@@ -582,7 +582,9 @@ export function useSuppliers() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    console.log('[Suppliers] Creating supplier:', supplier.id, supplier.name);
     await storage.saveSupplier(supplier);
+    console.log('[Suppliers] Supplier saved, refreshing list...');
     await refreshSuppliers();
     return supplier;
   }, [refreshSuppliers]);
