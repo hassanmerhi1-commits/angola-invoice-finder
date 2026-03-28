@@ -28,7 +28,8 @@ import {
   Printer,
   Calculator,
   PackagePlus,
-  PackageMinus
+  PackageMinus,
+  Building2
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
