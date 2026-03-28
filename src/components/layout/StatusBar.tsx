@@ -1,4 +1,4 @@
-// Minerva-style Status Bar - Bottom of screen
+// Kwanza ERP Status Bar - Bottom of screen
 // Shows: IP:DB_PATH@USER | Version | Date/Time | Keyboard shortcuts
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useERP';
@@ -48,7 +48,7 @@ export function StatusBar() {
     return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
   };
 
-  // Build status text like Minerva: "Smart ERP : 10.0.0.10:C:\minerva\SOYO.DOL@HASSAN"
+  // Build status text: "Kwanza ERP : IP:DB_PATH@USER"
   const getConnectionInfo = () => {
     if (dbStatus.mode === 'server') {
       return `${dbStatus.path}@${user?.name || 'Unknown'}`;

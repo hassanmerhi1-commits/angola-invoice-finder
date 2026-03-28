@@ -1,4 +1,4 @@
-// App Layout with Minerva-style navigation
+// Kwanza ERP App Layout
 import { Outlet } from 'react-router-dom';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
