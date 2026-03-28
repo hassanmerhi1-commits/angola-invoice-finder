@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n';
+import { CompanyLogo } from '@/components/layout/CompanyLogo';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -74,15 +75,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         )}
       >
         <div className="h-16 border-b flex items-center px-4 lg:hidden">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">K</span>
-            </div>
-            <div>
-              <h1 className="font-bold text-lg leading-none">Kwanza ERP</h1>
-              <p className="text-xs text-muted-foreground">Management System</p>
-            </div>
-          </div>
+          <CompanyLogo size="md" />
         </div>
 
         <nav className="p-4 space-y-1">

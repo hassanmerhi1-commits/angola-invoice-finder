@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Building2, User as UserIcon, LogOut, Settings, Menu, Database, Server, Monitor, RefreshCw } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { CompanyLogo } from '@/components/layout/CompanyLogo';
 import { useTranslation } from '@/i18n';
 import { useDatabaseStatus } from '@/hooks/useDatabaseStatus';
 
@@ -51,15 +52,7 @@ export function Header({
           </Button>
         )}
         
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-lg">K</span>
-          </div>
-          <div className="hidden sm:block">
-            <h1 className="font-bold text-lg leading-none">Kwanza ERP</h1>
-            <p className="text-xs text-muted-foreground">Management System</p>
-          </div>
-        </div>
+        <CompanyLogo size="md" />
       </div>
 
       <div className="flex items-center gap-3">
