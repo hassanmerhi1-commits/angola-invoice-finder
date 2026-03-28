@@ -239,6 +239,15 @@ export default function Inventory() {
 
   return (
     <div className="flex flex-col h-full bg-background">
+      {/* Head Office Notice */}
+      {isHeadOffice && (
+        <Alert className="mx-2 mt-2 bg-primary/5 border-primary/20">
+          <Building2 className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-foreground">
+            <strong>Sede - Visão Global:</strong> A visualizar inventário de todas as filiais com quantidades separadas por filial.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Filial Notice - Stock hidden for branches */}
       {isFilial && (
         <Alert className="mx-2 mt-2 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
