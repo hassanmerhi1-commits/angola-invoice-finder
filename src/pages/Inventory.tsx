@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useProducts } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Product } from '@/types/erp';
