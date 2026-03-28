@@ -1,10 +1,8 @@
-// Kwanza ERP Status Bar - Bottom of screen
-// Shows: IP:DB_PATH@USER | Version | Date/Time | Keyboard shortcuts
+// Kwanza ERP Status Bar - Modern
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
-import { Database, Wifi, WifiOff, Monitor, Keyboard } from 'lucide-react';
-import * as storage from '@/lib/storage';
+import { Database, Wifi, WifiOff, Keyboard } from 'lucide-react';
 
 export function StatusBar() {
   const { user } = useAuth();
@@ -16,7 +14,6 @@ export function StatusBar() {
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
 
-    // Get DB status
     if (window.electronAPI?.db?.getStatus) {
       window.electronAPI.db.getStatus().then((s: any) => {
         setDbStatus({
@@ -48,53 +45,44 @@ export function StatusBar() {
     return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
   };
 
-  // Build status text: "Kwanza ERP : IP:DB_PATH@USER"
   const getConnectionInfo = () => {
-    if (dbStatus.mode === 'server') {
-      return `${dbStatus.path}@${user?.name || 'Unknown'}`;
-    }
-    if (dbStatus.mode === 'client') {
-      return `${dbStatus.serverAddress}@${user?.name || 'Unknown'}`;
-    }
-    return `Demo Mode@${user?.name || 'Unknown'}`;
+    if (dbStatus.mode === 'server') return `${dbStatus.path}@${user?.name || 'Unknown'}`;
+    if (dbStatus.mode === 'client') return `${dbStatus.serverAddress}@${user?.name || 'Unknown'}`;
+    return `Demo@${user?.name || 'Unknown'}`;
   };
 
   return (
-    <div className="h-6 bg-muted/80 border-t flex items-center justify-between px-2 text-[10px] text-muted-foreground select-none">
-      {/* Left: Keyboard shortcuts hint */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1">
+    <div className="h-7 bg-sidebar text-sidebar-foreground/70 flex items-center justify-between px-3 text-[10px] font-medium select-none">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5">
           <Keyboard className="w-3 h-3" />
-          <span>Ctrl + F5 para Reconectar</span>
+          <span>Ctrl+F5 Reconectar</span>
         </div>
-        <span>Ctrl + Alt + D para Conceber</span>
       </div>
 
-      {/* Center: Version & Connection */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
           {dbStatus.connected ? (
-            <Wifi className="w-3 h-3 text-primary" />
+            <Wifi className="w-3 h-3 text-success" />
           ) : (
             <WifiOff className="w-3 h-3 text-destructive" />
           )}
-          <span className="font-medium">{getConnectionInfo()}</span>
+          <span>{getConnectionInfo()}</span>
         </div>
-        <span className="px-2 py-0.5 bg-primary/20 text-primary rounded text-[9px] font-bold">
-          Full Version ERP {version}
+        <span className="px-2 py-0.5 rounded-full bg-sidebar-primary/20 text-sidebar-primary text-[9px] font-bold">
+          ERP {version}
         </span>
-        <span>{formatDate()}</span>
+        <span className="font-mono">{formatDate()}</span>
       </div>
 
-      {/* Right: Branch + Credits */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {currentBranch && (
           <span className="flex items-center gap-1">
             <Database className="w-3 h-3" />
             {currentBranch.name}
           </span>
         )}
-        <span className="italic opacity-60">By Hassan Merhi</span>
+        <span className="opacity-50">By Hassan Merhi</span>
       </div>
     </div>
   );
