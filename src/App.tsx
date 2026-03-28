@@ -56,17 +56,52 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   const { user } = useAuth();
   const [setupComplete, setSetupComplete] = React.useState<boolean | null>(null);
+  const isElectron = typeof window !== "undefined" && !!window.electronAPI?.isElectron;
 
   React.useEffect(() => {
-    const check = () => {
-      const flag = localStorage.getItem('kwanza_setup_complete');
-      setSetupComplete(flag === 'true');
+    let isMounted = true;
+
+    const check = async () => {
+      try {
+        if (isElectron && window.electronAPI?.ipfile?.parse) {
+          const parsed = await window.electronAPI.ipfile.parse();
+          const complete = !!parsed?.valid;
+
+          if (!isMounted) return;
+
+          // Keep local flags in sync for legacy screens (Settings/status cards)
+          localStorage.setItem('kwanza_setup_complete', complete ? 'true' : 'false');
+
+          if (complete) {
+            localStorage.setItem('kwanza_is_server', parsed.isServer ? 'true' : 'false');
+            if (parsed.isServer && parsed.path) {
+              localStorage.setItem('kwanza_server_config', JSON.stringify({ databasePath: parsed.path }));
+              localStorage.removeItem('kwanza_client_config');
+            } else if (!parsed.isServer && parsed.serverAddress) {
+              localStorage.setItem('kwanza_client_config', JSON.stringify({ serverIp: parsed.serverAddress, serverPort: 4546 }));
+              localStorage.removeItem('kwanza_server_config');
+            }
+          }
+
+          setSetupComplete(complete);
+          return;
+        }
+
+        const flag = localStorage.getItem('kwanza_setup_complete');
+        if (isMounted) setSetupComplete(flag === 'true');
+      } catch {
+        const flag = localStorage.getItem('kwanza_setup_complete');
+        if (isMounted) setSetupComplete(flag === 'true');
+      }
     };
+
     check();
-    // Poll for changes (setup page sets this)
-    const interval = setInterval(check, 500);
-    return () => clearInterval(interval);
-  }, []);
+    const interval = setInterval(check, 700);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isElectron]);
 
   if (setupComplete === null) {
     return (
