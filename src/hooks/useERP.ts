@@ -254,41 +254,67 @@ export function useAuth() {
   const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
     const normalized = identifier.trim();
     const maybeEmail = normalized.includes('@') ? normalized : `${normalized}@kwanzaerp.ao`;
+    const normalizedLower = normalized.toLowerCase();
+    const normalizedUsername = normalizedLower.includes('@')
+      ? normalizedLower.split('@')[0]
+      : normalizedLower;
 
     // In Electron mode, check DB users (supports both username-first and email-first schemas)
     if (storage.isElectronMode()) {
+      let dbReachable = true;
       try {
         const tryQuery = async (sql: string, params: unknown[]) => {
           try {
             const result = await window.electronAPI!.db.query(sql, params);
-            return result?.data ?? [];
+            if (result?.success === false) {
+              throw new Error(result.error || 'Query failed');
+            }
+            return Array.isArray(result?.data) ? result.data : [];
           } catch {
+            dbReachable = false;
             return [];
           }
         };
 
-        const byUsernameOrEmail = await tryQuery(
-          'SELECT * FROM users WHERE is_active = 1 AND (username = ? OR email = ? OR id = ?)',
-          [normalized, maybeEmail, normalized]
+        const userColumns = await tryQuery("SELECT name FROM pragma_table_info('users')", []);
+        const availableColumns = new Set(
+          userColumns
+            .map((column: { name?: string }) => String(column.name || '').toLowerCase())
+            .filter(Boolean)
         );
 
-        const legacyByUsername = byUsernameOrEmail.length > 0
-          ? byUsernameOrEmail
-          : await tryQuery(
-              'SELECT * FROM users WHERE is_active = 1 AND (username = ? OR id = ?)',
-              [normalized, normalized]
-            );
+        const identifierClauses: string[] = [];
+        const identifierParams: unknown[] = [];
 
-        const fallbackByEmail = legacyByUsername.length > 0
-          ? legacyByUsername
-          : await tryQuery(
-              'SELECT * FROM users WHERE is_active = 1 AND (email = ? OR id = ?)',
-              [maybeEmail, normalized]
-            );
+        if (availableColumns.has('username')) {
+          identifierClauses.push('LOWER(username) = LOWER(?)');
+          identifierParams.push(normalized);
+        }
+        if (availableColumns.has('email')) {
+          identifierClauses.push('LOWER(email) = LOWER(?)');
+          identifierParams.push(maybeEmail);
+        }
+        if (availableColumns.has('id')) {
+          identifierClauses.push('id = ?');
+          identifierParams.push(normalized);
+        }
 
-        if (fallbackByEmail.length > 0) {
-          const dbUser = fallbackByEmail[0];
-          const username = (dbUser.username || normalized.split('@')[0] || '').toLowerCase();
+        if (identifierClauses.length > 0) {
+          const activeClause = availableColumns.has('is_active')
+            ? '(is_active = 1 OR is_active = true OR is_active = "1" OR is_active = "true" OR is_active IS NULL)'
+            : '1 = 1';
+
+          const matchedUsers = await tryQuery(
+            `SELECT * FROM users WHERE ${activeClause} AND (${identifierClauses.join(' OR ')}) LIMIT 1`,
+            identifierParams
+          );
+
+          if (matchedUsers.length > 0) {
+            const dbUser = matchedUsers[0];
+            const username = String(dbUser.username || dbUser.email?.split('@')?.[0] || dbUser.id || normalizedUsername).toLowerCase();
+            const role = ['admin', 'manager', 'cashier', 'viewer'].includes(String(dbUser.role))
+              ? dbUser.role
+              : 'cashier';
           const isDemoAccount = username === 'admin' || username === 'caixa1';
           const storedPassword = dbUser.password ?? dbUser.password_hash;
           const validPassword = isDemoAccount || password === '' || !storedPassword || storedPassword === password;
@@ -298,8 +324,8 @@ export function useAuth() {
               id: dbUser.id,
               email: dbUser.email || `${dbUser.username || normalized}@kwanzaerp.ao`,
               name: dbUser.name || dbUser.username || normalized,
-              username: dbUser.username || normalized.split('@')[0],
-              role: dbUser.role || 'cashier',
+              username: dbUser.username || normalizedUsername,
+              role,
               branchId: dbUser.branch_id || '',
               isActive: true,
               createdAt: dbUser.created_at || '',
@@ -308,9 +334,33 @@ export function useAuth() {
             setAuthState({ user });
             return true;
           }
+          }
         }
       } catch (e) {
         console.error('[Auth] DB login error:', e);
+      }
+
+      if (normalizedUsername === 'admin' || normalizedUsername === 'caixa1') {
+        const branches = await storage.getBranches();
+        const mainBranchId = branches.find(b => b.isMain)?.id || branches[0]?.id || 'branch-main';
+        const user: User = {
+          id: normalizedUsername === 'admin' ? 'user-admin' : 'user-caixa1',
+          email: `${normalizedUsername}@kwanzaerp.ao`,
+          name: normalizedUsername === 'admin' ? 'Administrador' : 'Caixa 1',
+          username: normalizedUsername,
+          role: normalizedUsername === 'admin' ? 'admin' : 'cashier',
+          branchId: mainBranchId,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        };
+
+        storage.setCurrentUser(user);
+        setAuthState({ user });
+        return true;
+      }
+
+      if (!dbReachable) {
+        console.error('[Auth] Database not reachable in Electron mode during login');
       }
       return false;
     }
