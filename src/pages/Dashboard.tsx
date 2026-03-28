@@ -88,10 +88,10 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Center area: SMART POS branding + illustrations */}
+        {/* Center area: Kwanza ERP branding + illustrations */}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-6xl font-black text-primary/20 tracking-wider">SMART POS</h1>
+            <h1 className="text-6xl font-black text-primary/20 tracking-wider">KWANZA ERP</h1>
             <div className="mt-8 flex items-center justify-center gap-8">
               {/* Growth chart illustration */}
               <div className="flex items-end gap-1">
