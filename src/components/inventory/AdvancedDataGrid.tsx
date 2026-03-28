@@ -150,7 +150,7 @@ export function AdvancedDataGrid({
     return result;
   }, [products, columnFilters, columnSearches, sortColumn, sortDirection]);
 
-  const handleSort = (column: ColumnKey) => {
+  const handleSort = (column: string) => {
     if (sortColumn === column) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -159,11 +159,11 @@ export function AdvancedDataGrid({
     }
   };
 
-  const setFilter = (column: ColumnKey, filter: ColumnFilter) => {
+  const setFilter = (column: string, filter: ColumnFilter) => {
     setColumnFilters(prev => ({ ...prev, [column]: filter }));
   };
 
-  const clearFilter = (column: ColumnKey) => {
+  const clearFilter = (column: string) => {
     setColumnFilters(prev => {
       const next = { ...prev };
       delete next[column];
@@ -171,7 +171,7 @@ export function AdvancedDataGrid({
     });
   };
 
-  const setSearch = (column: ColumnKey, value: string) => {
+  const setSearch = (column: string, value: string) => {
     setColumnSearches(prev => ({ ...prev, [column]: value }));
   };
 
@@ -185,7 +185,7 @@ export function AdvancedDataGrid({
     return ((product.price - cost) / cost) * 100;
   };
 
-  const formatValue = (product: Product, key: ColumnKey) => {
+  const formatValue = (product: Product, key: string) => {
     // Handle computed columns
     if (key === 'profitMargin') {
       const margin = calculateProfitMargin(product);
@@ -218,8 +218,8 @@ export function AdvancedDataGrid({
             size="sm" 
             className="h-6 text-xs"
             onClick={() => {
-              setColumnFilters({} as Record<ColumnKey, ColumnFilter>);
-              setColumnSearches({} as Record<ColumnKey, string>);
+              setColumnFilters({} as Record<string, ColumnFilter>);
+              setColumnSearches({} as Record<string, string>);
             }}
           >
             <X className="w-3 h-3 mr-1" />
