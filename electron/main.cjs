@@ -267,8 +267,13 @@ function parseIPFile() {
 
 // ============= WEBSOCKET SERVER (SERVER MODE) =============
 const ERP_TABLES = [
-  'users', 'branches', 'categories', 'products', 'clients', 'suppliers',
-  'sales', 'sale_items', 'purchase_orders', 'purchase_order_items',
+  'users', 'user_permissions', 'user_sessions', 'branches', 'categories', 'products',
+  'clients', 'suppliers',
+  'chart_of_accounts', 'journal_entries', 'journal_entry_lines',
+  'sales', 'sale_items', 'proformas', 'proforma_items',
+  'purchase_orders', 'purchase_order_items',
+  'credit_notes', 'credit_note_items', 'debit_notes', 'debit_note_items',
+  'receipts', 'payments',
   'stock_movements', 'stock_transfers', 'stock_transfer_items',
   'invoices', 'daily_reports', 'caixas', 'caixa_transactions',
   'bank_accounts', 'bank_transactions', 'expenses',
@@ -510,6 +515,15 @@ function dbInsert(table, data, targetDb = null, companyId = null) {
     const placeholders = keys.map(() => '?').join(', ');
     database.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
     database.pragma('wal_checkpoint(TRUNCATE)');
+    // Audit trail - log every insert (except audit_logs itself to prevent recursion)
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try {
+        const auditId = 'audit-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        database.prepare(
+          `INSERT INTO audit_logs (id, action, entity_type, entity_id, new_value, timestamp) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+        ).run(auditId, 'INSERT', table, data.id || '', JSON.stringify(data));
+      } catch (e) { /* audit table might not exist yet */ }
+    }
     broadcastUpdate(table, 'insert', data.id, companyId, database);
     return { success: true };
   } catch (error) {
@@ -521,10 +535,24 @@ function dbUpdate(table, id, data, targetDb = null, companyId = null) {
   const database = targetDb || db;
   if (!database) return { success: false, error: 'Database not connected' };
   try {
+    // Capture previous value for audit
+    let previousValue = null;
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try { previousValue = database.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id); } catch (e) {}
+    }
     const updates = Object.keys(data).map(key => `${key} = ?`).join(', ');
     const values = [...Object.values(data), id];
     database.prepare(`UPDATE ${table} SET ${updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
     database.pragma('wal_checkpoint(TRUNCATE)');
+    // Audit trail
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try {
+        const auditId = 'audit-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        database.prepare(
+          `INSERT INTO audit_logs (id, action, entity_type, entity_id, previous_value, new_value, timestamp) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+        ).run(auditId, 'UPDATE', table, id, previousValue ? JSON.stringify(previousValue) : null, JSON.stringify(data));
+      } catch (e) {}
+    }
     broadcastUpdate(table, 'update', id, companyId, database);
     return { success: true };
   } catch (error) {
@@ -536,8 +564,22 @@ function dbDelete(table, id, targetDb = null, companyId = null) {
   const database = targetDb || db;
   if (!database) return { success: false, error: 'Database not connected' };
   try {
+    // Capture value before delete for audit
+    let previousValue = null;
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try { previousValue = database.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id); } catch (e) {}
+    }
     database.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
     database.pragma('wal_checkpoint(TRUNCATE)');
+    // Audit trail
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try {
+        const auditId = 'audit-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        database.prepare(
+          `INSERT INTO audit_logs (id, action, entity_type, entity_id, previous_value, timestamp) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+        ).run(auditId, 'DELETE', table, id, previousValue ? JSON.stringify(previousValue) : null);
+      } catch (e) {}
+    }
     broadcastUpdate(table, 'delete', id, companyId, database);
     return { success: true };
   } catch (error) {
@@ -966,26 +1008,299 @@ function createNewDatabaseInternal(targetPath) {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- ==================== AUDIT LOG ====================
+      -- ==================== USER PERMISSIONS ====================
+      CREATE TABLE IF NOT EXISTS user_permissions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        permission TEXT NOT NULL,
+        granted INTEGER DEFAULT 1,
+        granted_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, permission)
+      );
+
+      -- ==================== USER SESSIONS ====================
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        user_name TEXT,
+        login_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        logout_at TEXT,
+        ip_address TEXT,
+        computer_name TEXT,
+        branch_id TEXT,
+        is_active INTEGER DEFAULT 1
+      );
+
+      -- ==================== CHART OF ACCOUNTS ====================
+      CREATE TABLE IF NOT EXISTS chart_of_accounts (
+        id TEXT PRIMARY KEY,
+        account_number TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL, -- asset, liability, equity, revenue, expense
+        category TEXT, -- Clientes, Fornecedores, Caixa, Bancos, Ativos, Recebimentos, Custos, Funcionarios, Capital
+        parent_id TEXT,
+        currency TEXT DEFAULT 'KZ',
+        is_active INTEGER DEFAULT 1,
+        balance REAL DEFAULT 0,
+        debit_total REAL DEFAULT 0,
+        credit_total REAL DEFAULT 0,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- ==================== JOURNAL ENTRIES ====================
+      CREATE TABLE IF NOT EXISTS journal_entries (
+        id TEXT PRIMARY KEY,
+        entry_number TEXT,
+        date TEXT NOT NULL,
+        type TEXT DEFAULT 'VENDA', -- VENDA, COMPRA, RECIBO, PAGAMENTO, AJUSTE, ABERTURA
+        reference TEXT,
+        reference_id TEXT,
+        description TEXT,
+        currency TEXT DEFAULT 'KZ',
+        exchange_rate REAL DEFAULT 1,
+        total_debit REAL DEFAULT 0,
+        total_credit REAL DEFAULT 0,
+        is_balanced INTEGER DEFAULT 1,
+        status TEXT DEFAULT 'posted', -- draft, posted, reversed
+        branch_id TEXT,
+        created_by TEXT,
+        user_name TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS journal_entry_lines (
+        id TEXT PRIMARY KEY,
+        journal_entry_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        account_number TEXT,
+        account_name TEXT,
+        debit REAL DEFAULT 0,
+        credit REAL DEFAULT 0,
+        description TEXT,
+        project TEXT,
+        department TEXT,
+        contact TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- ==================== PROFORMAS ====================
+      CREATE TABLE IF NOT EXISTS proformas (
+        id TEXT PRIMARY KEY,
+        proforma_number TEXT,
+        client_id TEXT,
+        client_name TEXT,
+        client_nif TEXT,
+        branch_id TEXT,
+        account_id TEXT,
+        subtotal REAL DEFAULT 0,
+        tax_amount REAL DEFAULT 0,
+        discount REAL DEFAULT 0,
+        total REAL DEFAULT 0,
+        currency TEXT DEFAULT 'KZ',
+        status TEXT DEFAULT 'draft', -- draft, sent, converted, cancelled
+        converted_to_sale_id TEXT,
+        valid_until TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS proforma_items (
+        id TEXT PRIMARY KEY,
+        proforma_id TEXT NOT NULL,
+        product_id TEXT,
+        product_name TEXT,
+        description TEXT,
+        quantity REAL DEFAULT 0,
+        unit_price REAL DEFAULT 0,
+        discount REAL DEFAULT 0,
+        tax_rate REAL DEFAULT 14,
+        tax_amount REAL DEFAULT 0,
+        total REAL DEFAULT 0,
+        branch_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- ==================== CREDIT NOTES ====================
+      CREATE TABLE IF NOT EXISTS credit_notes (
+        id TEXT PRIMARY KEY,
+        document_number TEXT,
+        branch_id TEXT,
+        original_invoice_id TEXT,
+        original_invoice_number TEXT,
+        client_id TEXT,
+        client_name TEXT,
+        client_nif TEXT,
+        reason TEXT,
+        reason_description TEXT,
+        subtotal REAL DEFAULT 0,
+        tax_amount REAL DEFAULT 0,
+        total REAL DEFAULT 0,
+        status TEXT DEFAULT 'draft',
+        agt_hash TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS credit_note_items (
+        id TEXT PRIMARY KEY,
+        credit_note_id TEXT NOT NULL,
+        product_id TEXT,
+        product_name TEXT,
+        quantity REAL DEFAULT 0,
+        unit_price REAL DEFAULT 0,
+        tax_rate REAL DEFAULT 14,
+        tax_amount REAL DEFAULT 0,
+        total REAL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- ==================== DEBIT NOTES ====================
+      CREATE TABLE IF NOT EXISTS debit_notes (
+        id TEXT PRIMARY KEY,
+        document_number TEXT,
+        branch_id TEXT,
+        original_invoice_id TEXT,
+        original_invoice_number TEXT,
+        client_id TEXT,
+        client_name TEXT,
+        client_nif TEXT,
+        reason TEXT,
+        reason_description TEXT,
+        subtotal REAL DEFAULT 0,
+        tax_amount REAL DEFAULT 0,
+        total REAL DEFAULT 0,
+        status TEXT DEFAULT 'draft',
+        agt_hash TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS debit_note_items (
+        id TEXT PRIMARY KEY,
+        debit_note_id TEXT NOT NULL,
+        description TEXT,
+        quantity REAL DEFAULT 0,
+        unit_price REAL DEFAULT 0,
+        tax_rate REAL DEFAULT 14,
+        tax_amount REAL DEFAULT 0,
+        total REAL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- ==================== RECEIPTS (Recibos) ====================
+      CREATE TABLE IF NOT EXISTS receipts (
+        id TEXT PRIMARY KEY,
+        receipt_number TEXT,
+        invoice_id TEXT,
+        invoice_number TEXT,
+        client_id TEXT,
+        client_name TEXT,
+        amount REAL DEFAULT 0,
+        payment_method TEXT DEFAULT 'cash',
+        bank_account_id TEXT,
+        reference TEXT,
+        branch_id TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- ==================== PAYMENTS (Pagamentos) ====================
+      CREATE TABLE IF NOT EXISTS payments (
+        id TEXT PRIMARY KEY,
+        payment_number TEXT,
+        supplier_id TEXT,
+        supplier_name TEXT,
+        purchase_order_id TEXT,
+        po_number TEXT,
+        amount REAL DEFAULT 0,
+        payment_method TEXT DEFAULT 'cash',
+        bank_account_id TEXT,
+        cheque_number TEXT,
+        reference TEXT,
+        branch_id TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- ==================== AUDIT LOG (Enhanced) ====================
       CREATE TABLE IF NOT EXISTS audit_logs (
         id TEXT PRIMARY KEY,
         timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-        action TEXT,
+        action TEXT NOT NULL,
         user_id TEXT,
         user_name TEXT,
         entity_type TEXT,
         entity_id TEXT,
         previous_value TEXT,
         new_value TEXT,
-        ip_address TEXT
+        ip_address TEXT,
+        computer_name TEXT,
+        branch_id TEXT,
+        session_id TEXT
       );
+
+      -- ==================== INDEXES ====================
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(date);
+      CREATE INDEX IF NOT EXISTS idx_journal_entry_lines_journal ON journal_entry_lines(journal_entry_id);
+      CREATE INDEX IF NOT EXISTS idx_chart_of_accounts_number ON chart_of_accounts(account_number);
+      CREATE INDEX IF NOT EXISTS idx_chart_of_accounts_category ON chart_of_accounts(category);
+      CREATE INDEX IF NOT EXISTS idx_proformas_client ON proformas(client_id);
+      CREATE INDEX IF NOT EXISTS idx_receipts_invoice ON receipts(invoice_id);
+      CREATE INDEX IF NOT EXISTS idx_payments_supplier ON payments(supplier_id);
+      CREATE INDEX IF NOT EXISTS idx_user_permissions_user ON user_permissions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+      CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
+      CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(created_at);
+      CREATE INDEX IF NOT EXISTS idx_sales_branch ON sales(branch_id);
 
       -- ==================== DEFAULT DATA ====================
       INSERT OR IGNORE INTO users (id, username, password, name, role) 
       VALUES ('user-admin', 'admin', 'admin123', 'Administrador', 'admin');
 
+      INSERT OR IGNORE INTO users (id, username, password, name, role)
+      VALUES ('user-caixa1', 'caixa1', 'caixa123', 'Caixa 1', 'cashier');
+
       INSERT OR IGNORE INTO branches (id, name, code, is_main) 
       VALUES ('branch-main', 'Sede Principal', 'SEDE', 1);
+
+      -- Default Chart of Accounts (Angolan standard)
+      INSERT OR IGNORE INTO chart_of_accounts (id, account_number, name, type, category) VALUES
+        ('coa-11', '11', 'Caixa', 'asset', 'Caixa'),
+        ('coa-12', '12', 'Depósitos à Ordem', 'asset', 'Bancos'),
+        ('coa-21', '21', 'Clientes', 'asset', 'Clientes'),
+        ('coa-22', '22', 'Fornecedores', 'liability', 'Fornecedores'),
+        ('coa-31', '31', 'Compras', 'expense', 'Custos'),
+        ('coa-32', '32', 'Mercadorias', 'asset', 'Ativos'),
+        ('coa-34', '34', 'IVA', 'liability', 'Custos'),
+        ('coa-43', '43', 'Activos Tangíveis', 'asset', 'Ativos'),
+        ('coa-51', '51', 'Capital Social', 'equity', 'Capital'),
+        ('coa-61', '61', 'CMVMC', 'expense', 'Custos'),
+        ('coa-62', '62', 'Fornecimentos e Serviços', 'expense', 'Custos'),
+        ('coa-63', '63', 'Gastos com Pessoal', 'expense', 'Funcionarios'),
+        ('coa-69', '69', 'Outros Gastos', 'expense', 'Custos'),
+        ('coa-71', '71', 'Vendas', 'revenue', 'Recebimentos'),
+        ('coa-72', '72', 'Prestação de Serviços', 'revenue', 'Recebimentos'),
+        ('coa-78', '78', 'Outros Rendimentos', 'revenue', 'Recebimentos'),
+        ('coa-81', '81', 'Resultado Líquido', 'equity', 'Capital');
+
+      -- Default permissions for admin
+      INSERT OR IGNORE INTO user_permissions (id, user_id, permission, granted, granted_by) VALUES
+        ('perm-admin-all', 'user-admin', 'all', 1, 'system');
     `);
 
     newDb.close();
@@ -999,9 +1314,136 @@ function createNewDatabaseInternal(targetPath) {
 // ============= MIGRATIONS =============
 function runMigrations() {
   if (!db) return;
-  // Future migrations go here
-  // Example: ALTER TABLE products ADD COLUMN new_field TEXT;
-  // Use try/catch per migration so already-applied ones don't fail
+
+  const migrate = (sql) => { try { db.exec(sql); } catch (e) { /* already applied */ } };
+
+  // Migration 1: Add new tables for existing databases upgraded from older versions
+  migrate(`CREATE TABLE IF NOT EXISTS user_permissions (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, permission TEXT NOT NULL,
+    granted INTEGER DEFAULT 1, granted_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, permission)
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS user_sessions (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, user_name TEXT,
+    login_at TEXT DEFAULT CURRENT_TIMESTAMP, logout_at TEXT,
+    ip_address TEXT, computer_name TEXT, branch_id TEXT, is_active INTEGER DEFAULT 1
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS chart_of_accounts (
+    id TEXT PRIMARY KEY, account_number TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
+    type TEXT NOT NULL, category TEXT, parent_id TEXT, currency TEXT DEFAULT 'KZ',
+    is_active INTEGER DEFAULT 1, balance REAL DEFAULT 0, debit_total REAL DEFAULT 0,
+    credit_total REAL DEFAULT 0, notes TEXT, created_by TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS journal_entries (
+    id TEXT PRIMARY KEY, entry_number TEXT, date TEXT NOT NULL, type TEXT DEFAULT 'VENDA',
+    reference TEXT, reference_id TEXT, description TEXT, currency TEXT DEFAULT 'KZ',
+    exchange_rate REAL DEFAULT 1, total_debit REAL DEFAULT 0, total_credit REAL DEFAULT 0,
+    is_balanced INTEGER DEFAULT 1, status TEXT DEFAULT 'posted', branch_id TEXT,
+    created_by TEXT, user_name TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS journal_entry_lines (
+    id TEXT PRIMARY KEY, journal_entry_id TEXT NOT NULL, account_id TEXT NOT NULL,
+    account_number TEXT, account_name TEXT, debit REAL DEFAULT 0, credit REAL DEFAULT 0,
+    description TEXT, project TEXT, department TEXT, contact TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS proformas (
+    id TEXT PRIMARY KEY, proforma_number TEXT, client_id TEXT, client_name TEXT,
+    client_nif TEXT, branch_id TEXT, account_id TEXT, subtotal REAL DEFAULT 0,
+    tax_amount REAL DEFAULT 0, discount REAL DEFAULT 0, total REAL DEFAULT 0,
+    currency TEXT DEFAULT 'KZ', status TEXT DEFAULT 'draft', converted_to_sale_id TEXT,
+    valid_until TEXT, notes TEXT, created_by TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS proforma_items (
+    id TEXT PRIMARY KEY, proforma_id TEXT NOT NULL, product_id TEXT, product_name TEXT,
+    description TEXT, quantity REAL DEFAULT 0, unit_price REAL DEFAULT 0,
+    discount REAL DEFAULT 0, tax_rate REAL DEFAULT 14, tax_amount REAL DEFAULT 0,
+    total REAL DEFAULT 0, branch_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS credit_notes (
+    id TEXT PRIMARY KEY, document_number TEXT, branch_id TEXT, original_invoice_id TEXT,
+    original_invoice_number TEXT, client_id TEXT, client_name TEXT, client_nif TEXT,
+    reason TEXT, reason_description TEXT, subtotal REAL DEFAULT 0, tax_amount REAL DEFAULT 0,
+    total REAL DEFAULT 0, status TEXT DEFAULT 'draft', agt_hash TEXT, created_by TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS credit_note_items (
+    id TEXT PRIMARY KEY, credit_note_id TEXT NOT NULL, product_id TEXT, product_name TEXT,
+    quantity REAL DEFAULT 0, unit_price REAL DEFAULT 0, tax_rate REAL DEFAULT 14,
+    tax_amount REAL DEFAULT 0, total REAL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS debit_notes (
+    id TEXT PRIMARY KEY, document_number TEXT, branch_id TEXT, original_invoice_id TEXT,
+    original_invoice_number TEXT, client_id TEXT, client_name TEXT, client_nif TEXT,
+    reason TEXT, reason_description TEXT, subtotal REAL DEFAULT 0, tax_amount REAL DEFAULT 0,
+    total REAL DEFAULT 0, status TEXT DEFAULT 'draft', agt_hash TEXT, created_by TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS debit_note_items (
+    id TEXT PRIMARY KEY, debit_note_id TEXT NOT NULL, description TEXT,
+    quantity REAL DEFAULT 0, unit_price REAL DEFAULT 0, tax_rate REAL DEFAULT 14,
+    tax_amount REAL DEFAULT 0, total REAL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS receipts (
+    id TEXT PRIMARY KEY, receipt_number TEXT, invoice_id TEXT, invoice_number TEXT,
+    client_id TEXT, client_name TEXT, amount REAL DEFAULT 0, payment_method TEXT DEFAULT 'cash',
+    bank_account_id TEXT, reference TEXT, branch_id TEXT, notes TEXT, created_by TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY, payment_number TEXT, supplier_id TEXT, supplier_name TEXT,
+    purchase_order_id TEXT, po_number TEXT, amount REAL DEFAULT 0,
+    payment_method TEXT DEFAULT 'cash', bank_account_id TEXT, cheque_number TEXT,
+    reference TEXT, branch_id TEXT, notes TEXT, created_by TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Migration 2: Add missing columns to audit_logs
+  migrate(`ALTER TABLE audit_logs ADD COLUMN computer_name TEXT`);
+  migrate(`ALTER TABLE audit_logs ADD COLUMN branch_id TEXT`);
+  migrate(`ALTER TABLE audit_logs ADD COLUMN session_id TEXT`);
+
+  // Migration 3: Add caixa1 default user
+  migrate(`INSERT OR IGNORE INTO users (id, username, password, name, role) VALUES ('user-caixa1', 'caixa1', 'caixa123', 'Caixa 1', 'cashier')`);
+
+  // Migration 4: Default chart of accounts
+  const defaultAccounts = [
+    ['coa-11', '11', 'Caixa', 'asset', 'Caixa'],
+    ['coa-12', '12', 'Depósitos à Ordem', 'asset', 'Bancos'],
+    ['coa-21', '21', 'Clientes', 'asset', 'Clientes'],
+    ['coa-22', '22', 'Fornecedores', 'liability', 'Fornecedores'],
+    ['coa-31', '31', 'Compras', 'expense', 'Custos'],
+    ['coa-32', '32', 'Mercadorias', 'asset', 'Ativos'],
+    ['coa-34', '34', 'IVA', 'liability', 'Custos'],
+    ['coa-43', '43', 'Activos Tangíveis', 'asset', 'Ativos'],
+    ['coa-51', '51', 'Capital Social', 'equity', 'Capital'],
+    ['coa-61', '61', 'CMVMC', 'expense', 'Custos'],
+    ['coa-62', '62', 'Fornecimentos e Serviços', 'expense', 'Custos'],
+    ['coa-63', '63', 'Gastos com Pessoal', 'expense', 'Funcionarios'],
+    ['coa-69', '69', 'Outros Gastos', 'expense', 'Custos'],
+    ['coa-71', '71', 'Vendas', 'revenue', 'Recebimentos'],
+    ['coa-72', '72', 'Prestação de Serviços', 'revenue', 'Recebimentos'],
+    ['coa-78', '78', 'Outros Rendimentos', 'revenue', 'Recebimentos'],
+    ['coa-81', '81', 'Resultado Líquido', 'equity', 'Capital'],
+  ];
+  for (const [id, num, name, type, cat] of defaultAccounts) {
+    migrate(`INSERT OR IGNORE INTO chart_of_accounts (id, account_number, name, type, category) VALUES ('${id}', '${num}', '${name}', '${type}', '${cat}')`);
+  }
+
+  // Indexes
+  migrate(`CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id)`);
+  migrate(`CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)`);
+  migrate(`CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp)`);
+  migrate(`CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(date)`);
+  migrate(`CREATE INDEX IF NOT EXISTS idx_journal_entry_lines_journal ON journal_entry_lines(journal_entry_id)`);
+  migrate(`CREATE INDEX IF NOT EXISTS idx_chart_of_accounts_number ON chart_of_accounts(account_number)`);
+  migrate(`CREATE INDEX IF NOT EXISTS idx_chart_of_accounts_category ON chart_of_accounts(category)`);
+  migrate(`CREATE INDEX IF NOT EXISTS idx_user_permissions_user ON user_permissions(user_id)`);
+
+  console.log('[Migrations] All migrations applied successfully');
 }
 
 // ============= DATABASE INITIALIZATION =============

@@ -1,6 +1,7 @@
-// App Layout with Top Navigation (no sidebar)
+// App Layout with Minerva-style navigation
 import { Outlet } from 'react-router-dom';
 import { TopNav } from './TopNav';
+import { StatusBar } from './StatusBar';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useAuth } from '@/hooks/useERP';
 
@@ -9,7 +10,7 @@ export function AppLayout() {
   const { user, logout } = useAuth();
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       <TopNav
         user={user}
         branches={branches}
@@ -17,14 +18,10 @@ export function AppLayout() {
         onBranchChange={setCurrentBranch}
         onLogout={logout}
       />
-      <main className="flex-1">
+      <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
-      <footer className="border-t bg-muted/30 py-3 px-4">
-        <div className="container mx-auto flex items-center justify-center text-sm text-muted-foreground">
-          <span>© {new Date().getFullYear()} Kwanza ERP. Developed by Hassan Merhi. All rights reserved.</span>
-        </div>
-      </footer>
+      <StatusBar />
     </div>
   );
 }
