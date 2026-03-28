@@ -617,10 +617,12 @@ export default function Inventory() {
       {/* Status bar */}
       <div className="flex items-center justify-between px-3 py-1 bg-muted/50 border-t text-xs text-muted-foreground">
         <div className="flex items-center gap-4">
-          <span className="text-red-600">Qtd &lt; 0</span>
-          <span className="bg-yellow-200 text-yellow-800 px-2 rounded">Qtd Minima</span>
+          {isHeadOffice && <span className="text-primary font-medium">📊 Sede - Todas as Filiais ({branches.length})</span>}
+          {isFilial && <span>📍 {currentBranch?.name}</span>}
+          <span className="text-destructive">Qtd &lt; 0</span>
+          <span className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 px-2 rounded">Qtd Minima</span>
         </div>
-        <span>{products.length} produtos</span>
+        <span>{displayProducts.length} produtos</span>
       </div>
 
       <ProductDetailDialog
