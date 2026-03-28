@@ -312,7 +312,7 @@ export default function Inventory() {
         <Button 
           variant="outline" 
           size="sm" 
-          className="h-7 text-xs gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-950/30"
+          className="h-7 text-xs gap-1 text-success border-success/30 hover:bg-success/10"
           onClick={() => setStockEntryDialogOpen(true)}
         >
           <PackagePlus className="w-3 h-3" />
@@ -321,7 +321,7 @@ export default function Inventory() {
         <Button 
           variant="outline" 
           size="sm" 
-          className="h-7 text-xs gap-1 text-destructive border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/30"
+          className="h-7 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
           onClick={() => setStockExitDialogOpen(true)}
         >
           <PackageMinus className="w-3 h-3" />
