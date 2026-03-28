@@ -214,4 +214,26 @@ export const api = {
     delete: (id: string) =>
       apiFetch<any>(`/chart-of-accounts/${id}`, { method: 'DELETE' }),
   },
+
+  // Journal Entries
+  journalEntries: {
+    list: (params?: { branchId?: string; referenceType?: string; startDate?: string; endDate?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.branchId) searchParams.append('branchId', params.branchId);
+      if (params?.referenceType) searchParams.append('referenceType', params.referenceType);
+      if (params?.startDate) searchParams.append('startDate', params.startDate);
+      if (params?.endDate) searchParams.append('endDate', params.endDate);
+      return apiFetch<any[]>(`/journal-entries?${searchParams}`);
+    },
+    get: (id: string) => apiFetch<any>(`/journal-entries/${id}`),
+    getByReference: (type: string, id: string) => 
+      apiFetch<any[]>(`/journal-entries/reference/${type}/${id}`),
+    summary: (params?: { branchId?: string; startDate?: string; endDate?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.branchId) searchParams.append('branchId', params.branchId);
+      if (params?.startDate) searchParams.append('startDate', params.startDate);
+      if (params?.endDate) searchParams.append('endDate', params.endDate);
+      return apiFetch<any[]>(`/journal-entries/reports/summary?${searchParams}`);
+    },
+  },
 };
