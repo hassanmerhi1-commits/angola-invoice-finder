@@ -77,6 +77,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
       label: 'Invoicing',
       items: [
         { label: 'POS / Ponto de Venda', icon: ShoppingCart, path: '/pos' },
+        { label: 'Vendas (Histórico)', icon: Receipt, path: '/vendas' },
         { label: 'Facturas', icon: FileText, path: '/invoices' },
         { label: 'Pro-forma', icon: ClipboardList, path: '/proforma' },
         { label: 'separator' },

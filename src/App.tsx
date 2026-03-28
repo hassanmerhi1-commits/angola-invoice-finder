@@ -36,6 +36,7 @@ import Settings from "./pages/Settings";
 import Expenses from "./pages/Expenses";
 import BankAccounts from "./pages/BankAccounts";
 import CaixaManagement from "./pages/CaixaManagement";
+import Vendas from "./pages/Vendas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -146,6 +147,7 @@ function AppRoutes() {
       >
         <Route path="/" element={!setupComplete ? <Navigate to="/setup" replace /> : <Dashboard />} />
         <Route path="/pos" element={<POS />} />
+        <Route path="/vendas" element={<Vendas />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/categories" element={<Categories />} />
