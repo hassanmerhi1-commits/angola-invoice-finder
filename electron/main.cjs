@@ -267,8 +267,13 @@ function parseIPFile() {
 
 // ============= WEBSOCKET SERVER (SERVER MODE) =============
 const ERP_TABLES = [
-  'users', 'branches', 'categories', 'products', 'clients', 'suppliers',
-  'sales', 'sale_items', 'purchase_orders', 'purchase_order_items',
+  'users', 'user_permissions', 'user_sessions', 'branches', 'categories', 'products',
+  'clients', 'suppliers',
+  'chart_of_accounts', 'journal_entries', 'journal_entry_lines',
+  'sales', 'sale_items', 'proformas', 'proforma_items',
+  'purchase_orders', 'purchase_order_items',
+  'credit_notes', 'credit_note_items', 'debit_notes', 'debit_note_items',
+  'receipts', 'payments',
   'stock_movements', 'stock_transfers', 'stock_transfer_items',
   'invoices', 'daily_reports', 'caixas', 'caixa_transactions',
   'bank_accounts', 'bank_transactions', 'expenses',
@@ -510,6 +515,15 @@ function dbInsert(table, data, targetDb = null, companyId = null) {
     const placeholders = keys.map(() => '?').join(', ');
     database.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
     database.pragma('wal_checkpoint(TRUNCATE)');
+    // Audit trail - log every insert (except audit_logs itself to prevent recursion)
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try {
+        const auditId = 'audit-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        database.prepare(
+          `INSERT INTO audit_logs (id, action, entity_type, entity_id, new_value, timestamp) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+        ).run(auditId, 'INSERT', table, data.id || '', JSON.stringify(data));
+      } catch (e) { /* audit table might not exist yet */ }
+    }
     broadcastUpdate(table, 'insert', data.id, companyId, database);
     return { success: true };
   } catch (error) {
@@ -521,10 +535,24 @@ function dbUpdate(table, id, data, targetDb = null, companyId = null) {
   const database = targetDb || db;
   if (!database) return { success: false, error: 'Database not connected' };
   try {
+    // Capture previous value for audit
+    let previousValue = null;
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try { previousValue = database.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id); } catch (e) {}
+    }
     const updates = Object.keys(data).map(key => `${key} = ?`).join(', ');
     const values = [...Object.values(data), id];
     database.prepare(`UPDATE ${table} SET ${updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
     database.pragma('wal_checkpoint(TRUNCATE)');
+    // Audit trail
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try {
+        const auditId = 'audit-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        database.prepare(
+          `INSERT INTO audit_logs (id, action, entity_type, entity_id, previous_value, new_value, timestamp) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+        ).run(auditId, 'UPDATE', table, id, previousValue ? JSON.stringify(previousValue) : null, JSON.stringify(data));
+      } catch (e) {}
+    }
     broadcastUpdate(table, 'update', id, companyId, database);
     return { success: true };
   } catch (error) {
@@ -536,8 +564,22 @@ function dbDelete(table, id, targetDb = null, companyId = null) {
   const database = targetDb || db;
   if (!database) return { success: false, error: 'Database not connected' };
   try {
+    // Capture value before delete for audit
+    let previousValue = null;
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try { previousValue = database.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id); } catch (e) {}
+    }
     database.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
     database.pragma('wal_checkpoint(TRUNCATE)');
+    // Audit trail
+    if (table !== 'audit_logs' && table !== 'user_sessions') {
+      try {
+        const auditId = 'audit-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        database.prepare(
+          `INSERT INTO audit_logs (id, action, entity_type, entity_id, previous_value, timestamp) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+        ).run(auditId, 'DELETE', table, id, previousValue ? JSON.stringify(previousValue) : null);
+      } catch (e) {}
+    }
     broadcastUpdate(table, 'delete', id, companyId, database);
     return { success: true };
   } catch (error) {
