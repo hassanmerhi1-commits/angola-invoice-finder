@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useProducts } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Product } from '@/types/erp';
-import { saveProduct } from '@/lib/storage';
+import { saveProduct, getProducts as storageGetProducts } from '@/lib/storage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -61,30 +61,19 @@ export default function Inventory() {
   // For head office: load all products per branch for qty breakdown
   const [allBranchProducts, setAllBranchProducts] = useState<Record<string, Product[]>>({});
   
-  useState(() => {
-    if (isHeadOffice) {
-      const loadAllBranches = async () => {
-        const branchProducts: Record<string, Product[]> = {};
-        for (const branch of branches) {
-          const prods = await storage.getProducts(branch.id);
-          branchProducts[branch.id] = prods;
-        }
-        setAllBranchProducts(branchProducts);
-      };
-      loadAllBranches();
-    }
-  });
-  
-  // Reload branch products when products change
-  const loadBranchProducts = async () => {
+  const loadBranchProducts = useCallback(async () => {
     if (!isHeadOffice) return;
     const branchProducts: Record<string, Product[]> = {};
     for (const branch of branches) {
-      const prods = await storage.getProducts(branch.id);
+      const prods = await storageGetProducts(branch.id);
       branchProducts[branch.id] = prods;
     }
     setAllBranchProducts(branchProducts);
-  };
+  }, [isHeadOffice, branches]);
+  
+  useEffect(() => {
+    loadBranchProducts();
+  }, [loadBranchProducts, products]);
   
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -95,9 +84,6 @@ export default function Inventory() {
   const [stockEntryDialogOpen, setStockEntryDialogOpen] = useState(false);
   const [stockExitDialogOpen, setStockExitDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
-
-  // Check if current branch is a filial (not main office)
-  const isFilial = currentBranch && !currentBranch.isMain;
 
   const handleOpenDialog = (product?: Product) => {
     setSelectedProduct(product || null);
