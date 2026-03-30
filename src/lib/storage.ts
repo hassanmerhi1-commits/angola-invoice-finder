@@ -1038,14 +1038,7 @@ function getDefaultBranches(): Branch[] {
 }
 
 function getDefaultProducts(): Product[] {
-  return [
-    { id: 'prod-001', name: 'Arroz Tio João 1kg', sku: 'ARR-001', barcode: '7891234567890', category: 'Alimentação', price: 850, cost: 650, firstCost: 650, lastCost: 650, avgCost: 650, stock: 100, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'prod-002', name: 'Óleo Alimentar 1L', sku: 'OLE-001', barcode: '7891234567891', category: 'Alimentação', price: 1200, cost: 900, firstCost: 900, lastCost: 900, avgCost: 900, stock: 80, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'prod-003', name: 'Açúcar 1kg', sku: 'ACU-001', barcode: '7891234567892', category: 'Alimentação', price: 450, cost: 320, firstCost: 320, lastCost: 320, avgCost: 320, stock: 150, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'prod-004', name: 'Água Mineral 1.5L', sku: 'AGU-001', barcode: '7891234567893', category: 'Bebidas', price: 250, cost: 150, firstCost: 150, lastCost: 150, avgCost: 150, stock: 200, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'prod-005', name: 'Refrigerante Cola 2L', sku: 'REF-001', barcode: '7891234567894', category: 'Bebidas', price: 650, cost: 450, firstCost: 450, lastCost: 450, avgCost: 450, stock: 120, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'prod-006', name: 'Sabão em Pó 1kg', sku: 'SAB-001', barcode: '7891234567895', category: 'Limpeza', price: 980, cost: 720, firstCost: 720, lastCost: 720, avgCost: 720, stock: 60, unit: 'un', taxRate: 14, branchId: 'all', isActive: true, createdAt: new Date().toISOString() },
-  ];
+  return [];
 }
 
 function getDefaultUsers(): User[] {
