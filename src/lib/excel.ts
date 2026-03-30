@@ -486,7 +486,25 @@ export async function parseSuppliersFromExcel(file: File, columnMappings?: Colum
         const workbook = XLSX.read(data, { type: 'array' });
         
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        const isHeaderless = detectHeaderless(firstSheet);
+        
+        let jsonData: any[];
+        
+        if (isHeaderless) {
+          const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+          jsonData = rawRows
+            .filter(r => r.some(cell => cell !== null && cell !== undefined && cell !== ''))
+            .map(r => ({
+              'NIF': String(r[0] || ''),
+              'Nome': String(r[1] || ''),
+              'Telefone': r[2] || '',
+              'Email': r[3] || '',
+              'Morada': r[4] || '',
+              'Cidade': r[5] || '',
+            }));
+        } else {
+          jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        }
         
         const suppliers: ExcelSupplier[] = jsonData.map((row: any) => {
           // If custom mappings provided, use them
@@ -550,9 +568,7 @@ export function validateImportedSuppliers(suppliers: ExcelSupplier[]): {
       rowErrors.push('Nome é obrigatório');
     }
     if (!supplier.nif) {
-      rowErrors.push('NIF é obrigatório');
-    } else if (supplier.nif.length < 9) {
-      rowErrors.push('NIF deve ter pelo menos 9 caracteres');
+      rowErrors.push('NIF/Código é obrigatório');
     }
 
     if (rowErrors.length > 0) {
