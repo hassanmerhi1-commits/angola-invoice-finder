@@ -20,6 +20,7 @@ import StockTransfer from "./pages/StockTransfer";
 import DataSync from "./pages/DataSync";
 import Suppliers from "./pages/Suppliers";
 import PurchaseOrders from "./pages/PurchaseOrders";
+import PurchaseInvoices from "./pages/PurchaseInvoices";
 import Categories from "./pages/Categories";
 import FiscalDocuments from "./pages/FiscalDocuments";
 import ProForma from "./pages/ProForma";
@@ -153,6 +154,7 @@ function AppRoutes() {
         <Route path="/categories" element={<Categories />} />
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/purchase-orders" element={<PurchaseOrders />} />
+        <Route path="/purchase-invoices" element={<PurchaseInvoices />} />
         <Route path="/daily-reports" element={<DailyReports />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/stock-transfer" element={<StockTransfer />} />
