@@ -57,6 +57,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getComputerName: () => ipcRenderer.invoke('network:getComputerName'),
   },
 
+  // Purchase windows
+  purchase: {
+    openCreateWindow: () => ipcRenderer.invoke('purchase:openCreateWindow'),
+    openProductPicker: () => ipcRenderer.invoke('purchase:openProductPicker'),
+    selectProduct: (product) => ipcRenderer.invoke('purchase:selectProduct', product),
+  },
+
+  // Window controls
+  window: {
+    closeCurrent: () => ipcRenderer.invoke('window:closeCurrent'),
+  },
+
   // Printing
   print: {
     html: (html, options) => ipcRenderer.invoke('print:html', html, options),
