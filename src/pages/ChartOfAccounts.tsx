@@ -230,7 +230,7 @@ export default function ChartOfAccounts() {
   };
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId);
-  const selectedAccountInCurrentTab = selectedAccount ? currentTabConfig.filter(selectedAccount) : null;
+  const selectedAccountInCurrentTab = selectedAccount && currentTabConfig.filter(selectedAccount) ? selectedAccount : null;
 
   return (
     <div className="flex flex-col h-full bg-background">
