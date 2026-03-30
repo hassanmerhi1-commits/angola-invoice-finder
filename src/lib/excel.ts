@@ -143,6 +143,16 @@ export function exportProductsToCSV(products: Product[], filename: string = 'pro
   URL.revokeObjectURL(url);
 }
 
+// Detect if the first row looks like data (no real headers)
+function detectHeaderless(sheet: XLSX.WorkSheet): boolean {
+  const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+  if (rawRows.length === 0) return false;
+  const firstRow = rawRows[0];
+  // If first cell is purely numeric, it's likely a code (data), not a header
+  if (firstRow.length > 0 && !isNaN(Number(firstRow[0]))) return true;
+  return false;
+}
+
 // Parse Excel file with optional custom column mapping
 export async function parseExcelFile(file: File, columnMappings?: ColumnMapping[]): Promise<ExcelProduct[]> {
   return new Promise((resolve, reject) => {
@@ -154,9 +164,42 @@ export async function parseExcelFile(file: File, columnMappings?: ColumnMapping[
         const workbook = XLSX.read(data, { type: 'array' });
         
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        const isHeaderless = detectHeaderless(firstSheet);
         
-        const products: ExcelProduct[] = jsonData.map((row: any) => {
+        let rows: any[];
+        
+        if (isHeaderless) {
+          // No header row — read all rows as arrays, then map by column position
+          const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+          const colCount = rawRows[0]?.length || 0;
+          
+          // Auto-assign headers based on column count
+          rows = rawRows.filter(r => r.some(cell => cell !== null && cell !== undefined && cell !== '')).map(r => {
+            if (colCount >= 3) {
+              // 3+ columns: code, description, price (or more)
+              return {
+                'Código': r[0],
+                'Descrição': r[1],
+                'Preço Venda': r[2] || 0,
+                'Preço Custo': r[3] || 0,
+                'Quantidade': r[4] || 0,
+                'Unidade': r[5] || 'UN',
+                'Categoria': r[6] || '',
+                'IVA %': r[7] || 14,
+              };
+            } else {
+              // 2 columns: code + description only
+              return {
+                'Código': r[0],
+                'Descrição': r[1] || '',
+              };
+            }
+          });
+        } else {
+          rows = XLSX.utils.sheet_to_json(firstSheet);
+        }
+        
+        const products: ExcelProduct[] = rows.map((row: any) => {
           // If custom mappings provided, use them
           if (columnMappings && columnMappings.length > 0) {
             const getMappedValue = (field: string) => {
@@ -182,15 +225,15 @@ export async function parseExcelFile(file: File, columnMappings?: ColumnMapping[
           
           // Default mapping with common column name patterns
           return {
-            codigo: String(row['Código'] || row['codigo'] || row['SKU'] || row['sku'] || ''),
-            descricao: String(row['Descrição'] || row['descricao'] || row['Nome'] || row['nome'] || row['Produto'] || ''),
-            preco: parseFloat(row['Preço Venda'] || row['preco'] || row['Preço'] || row['Price'] || 0),
-            custo: parseFloat(row['Preço Custo'] || row['custo'] || row['Cost'] || 0),
-            quantidade: parseInt(row['Quantidade'] || row['quantidade'] || row['Stock'] || row['Qty'] || 0),
-            unidade: String(row['Unidade'] || row['unidade'] || row['Unit'] || 'UN'),
+            codigo: String(row['Código'] || row['codigo'] || row['SKU'] || row['sku'] || row['Cod'] || row['COD'] || row['Code'] || ''),
+            descricao: String(row['Descrição'] || row['descricao'] || row['Nome'] || row['nome'] || row['Produto'] || row['DESCRICAO'] || row['Description'] || ''),
+            preco: parseFloat(row['Preço Venda'] || row['preco'] || row['Preço'] || row['Price'] || row['PVP'] || 0),
+            custo: parseFloat(row['Preço Custo'] || row['custo'] || row['Cost'] || row['Custo'] || 0),
+            quantidade: parseInt(row['Quantidade'] || row['quantidade'] || row['Stock'] || row['Qty'] || row['QTD'] || 0),
+            unidade: String(row['Unidade'] || row['unidade'] || row['Unit'] || row['UN'] || 'UN'),
             categoria: String(row['Categoria'] || row['categoria'] || row['Category'] || ''),
             iva: parseFloat(row['IVA %'] || row['iva'] || row['IVA'] || row['Tax'] || 14),
-            codigoBarras: row['Código de Barras'] || row['codigo_barras'] || row['Barcode'] || '',
+            codigoBarras: row['Código de Barras'] || row['codigo_barras'] || row['Barcode'] || row['EAN'] || '',
             fornecedor: row['Fornecedor'] || row['fornecedor'] || row['Supplier'] || '',
             qtdMinima: parseInt(row['Qtd Mínima'] || row['qtd_minima'] || row['Min Qty'] || 0),
             localizacao: row['Localização'] || row['localizacao'] || row['Location'] || '',
