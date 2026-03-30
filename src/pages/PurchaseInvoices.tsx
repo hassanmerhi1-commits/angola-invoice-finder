@@ -613,74 +613,6 @@ export default function PurchaseInvoices() {
 
   // ═══════════════ RENDER ═══════════════
 
-  if (isProductPickerWindow) {
-    return (
-      <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Selecionar Produto</h1>
-            <p className="text-sm text-muted-foreground">Pesquisar e escolher item para a fatura de compra</p>
-          </div>
-          <Button variant="outline" onClick={closeCurrentWindow}>
-            <X className="h-4 w-4 mr-2" /> Fechar
-          </Button>
-        </div>
-
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Pesquisar por nome, SKU ou código de barras..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="pl-9"
-            autoFocus
-          />
-        </div>
-
-        <Card>
-          <CardContent className="p-0">
-            <div className="max-h-[70vh] overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Produto</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead className="text-right">Preço</TableHead>
-                    <TableHead className="text-right">Stock</TableHead>
-                    <TableHead className="text-right">IVA</TableHead>
-                    <TableHead className="w-28 text-right">Ação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProducts.map(product => (
-                    <TableRow key={product.id} className="hover:bg-accent/60">
-                      <TableCell className="font-mono text-xs">{product.sku}</TableCell>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell className="text-right font-mono">{(product.lastCost || product.cost || product.price || 0).toLocaleString('pt-AO')}</TableCell>
-                      <TableCell className="text-right">{product.stock}</TableCell>
-                      <TableCell className="text-right">{product.taxRate}%</TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" onClick={() => handleSelectProductAndClose(product)}>
-                          Selecionar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredProducts.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                        Nenhum produto encontrado
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   // ─── LIST MODE ───
   if (mode === 'list') {
@@ -759,27 +691,27 @@ export default function PurchaseInvoices() {
                     <TableCell>
                       <Button variant="ghost" size="icon" onClick={() => setViewInvoice(inv)}>
                         <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                      <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                      Nenhuma fatura de compra encontrada
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
 
-        <InvoiceViewDialog open={!!viewInvoice} onClose={() => setViewInvoice(null)} invoice={viewInvoice} />
-      </div>
-    );
-  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // ─── CREATE MODE ───
   return (
