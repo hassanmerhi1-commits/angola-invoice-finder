@@ -1555,6 +1555,9 @@ function openPurchaseInvoiceWindow() {
     height: 920,
     minWidth: 1180,
     minHeight: 760,
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    modal: false,
+    skipTaskbar: true,
     icon: path.join(__dirname, '../public/icon.png'),
     webPreferences: {
       nodeIntegration: false,

@@ -500,45 +500,9 @@ export default function PurchaseInvoices() {
     });
   }, [isElectronDesktop, toast]);
 
-  const handleOpenWebProductPicker = useCallback(() => {
-    const popup = window.open(
-      '/purchase-invoices-window?mode=product-picker&standalone=1',
-      'kwanza-product-picker',
-      'popup=yes,width=1180,height=760,resizable=yes,scrollbars=yes'
-    );
-
-    if (!popup) {
-      toast({
-        title: 'Popup bloqueado',
-        description: 'Permita popups para abrir a lista de produtos em nova janela.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    popup.focus();
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      const data = event.data as { type?: string; product?: Product } | null;
-      if (data?.type !== 'kwanza:purchase-product-selected' || !data.product) return;
-
-      cleanup();
-      handleAddProduct(data.product);
-    };
-
-    const closedWatcher = window.setInterval(() => {
-      if (!popup.closed) return;
-      cleanup();
-    }, 400);
-
-    const cleanup = () => {
-      window.removeEventListener('message', handleMessage);
-      window.clearInterval(closedWatcher);
-    };
-
-    window.addEventListener('message', handleMessage);
-  }, [handleAddProduct, toast]);
+  const handleOpenInPageProductPicker = useCallback(() => {
+    setProductPickerOpen(true);
+  }, []);
 
   const handleOpenProductPicker = useCallback(async () => {
     if (isElectronDesktop && window.electronAPI?.purchase?.openProductPicker) {
@@ -557,8 +521,8 @@ export default function PurchaseInvoices() {
       return;
     }
 
-    handleOpenWebProductPicker();
-  }, [handleAddProduct, handleOpenWebProductPicker, isElectronDesktop, toast]);
+    handleOpenInPageProductPicker();
+  }, [handleAddProduct, handleOpenInPageProductPicker, isElectronDesktop, toast]);
 
   const handleCloseCreate = useCallback(async () => {
     if (isStandaloneWindow) {
@@ -805,22 +769,8 @@ export default function PurchaseInvoices() {
                   return;
                 }
 
-                const popup = window.open(
-                  '/purchase-invoices-window?mode=create&standalone=1',
-                  'kwanza-purchase-invoice',
-                  'popup=yes,width=1500,height=920,resizable=yes,scrollbars=yes'
-                );
-
-                if (popup) {
-                  popup.focus();
-                  return;
-                }
-
-                toast({
-                  title: 'Popup bloqueado',
-                  description: 'Permita popups para abrir a Fatura de Compra em nova janela.',
-                  variant: 'destructive',
-                });
+                setSearchParams({ mode: 'create' });
+                return;
               }
 
               startCreate();
