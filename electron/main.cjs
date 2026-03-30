@@ -1565,7 +1565,7 @@ function openPurchaseInvoiceWindow() {
     show: false,
   });
 
-  loadRendererRoute(purchaseInvoiceWindow, '/purchase-invoices?mode=create&standalone=1');
+  loadRendererRoute(purchaseInvoiceWindow, '/purchase-invoices-window?mode=create&standalone=1');
 
   purchaseInvoiceWindow.once('ready-to-show', () => {
     purchaseInvoiceWindow.show();
@@ -1606,7 +1606,7 @@ function openPurchaseProductPickerWindow(parentWindow) {
       show: false,
     });
 
-    loadRendererRoute(purchaseProductPickerWindow, '/purchase-invoices?mode=product-picker&standalone=1');
+    loadRendererRoute(purchaseProductPickerWindow, '/purchase-invoices-window?mode=product-picker&standalone=1');
 
     purchaseProductPickerWindow.once('ready-to-show', () => {
       purchaseProductPickerWindow.show();
