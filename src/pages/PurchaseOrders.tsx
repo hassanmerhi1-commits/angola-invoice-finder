@@ -92,6 +92,23 @@ export default function PurchaseOrders() {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scanMode, setScanMode] = useState<'create' | 'receive' | null>(null);
 
+  const handleOpenPurchaseInvoice = useCallback(async () => {
+    if (window.electronAPI?.isElectron && window.electronAPI.purchase?.openCreateWindow) {
+      const result = await window.electronAPI.purchase.openCreateWindow();
+      if (!result?.success) {
+        toast({
+          title: 'Não foi possível abrir nova janela',
+          description: result?.error || 'A abrir no ecrã atual como alternativa.',
+          variant: 'destructive',
+        });
+        navigate('/purchase-invoices?mode=create');
+      }
+      return;
+    }
+
+    navigate('/purchase-invoices?mode=create');
+  }, [navigate, toast]);
+
   // Handle barcode scan for adding products
   const handleBarcodeScan = useCallback((barcode: string) => {
     const product = products.find(p => 
@@ -377,7 +394,7 @@ export default function PurchaseOrders() {
             <Truck className="w-4 h-4 mr-2" />
             Gerir Fornecedores
           </Button>
-          <Button className="rounded-xl gradient-primary shadow-glow" onClick={() => navigate('/purchase-invoices?mode=create')}>
+          <Button className="rounded-xl gradient-primary shadow-glow" onClick={handleOpenPurchaseInvoice}>
             <Plus className="w-4 h-4 mr-2" />
             Nova Fatura de Compra
           </Button>
