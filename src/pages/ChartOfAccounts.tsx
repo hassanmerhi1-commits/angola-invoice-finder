@@ -150,7 +150,9 @@ export default function ChartOfAccounts() {
       };
     };
 
-    if (selectedAccount) {
+    const selectedMatchesCurrentTab = selectedAccount ? currentTabConfig.filter(selectedAccount) : false;
+
+    if (selectedAccount && selectedMatchesCurrentTab) {
       applyParentDefaults(selectedAccount);
     } else {
       const tabDefault = TAB_ACCOUNT_DEFAULTS[activeTab];
@@ -228,6 +230,7 @@ export default function ChartOfAccounts() {
   };
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId);
+  const selectedAccountInCurrentTab = selectedAccount ? currentTabConfig.filter(selectedAccount) : null;
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -236,11 +239,11 @@ export default function ChartOfAccounts() {
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={openCreateDialog}>
           <Plus className="w-3 h-3" /> Nova Conta
         </Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedAccount} onClick={() => selectedAccount && openEditDialog(selectedAccount)}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedAccountInCurrentTab} onClick={() => selectedAccountInCurrentTab && openEditDialog(selectedAccountInCurrentTab)}>
           <Edit2 className="w-3 h-3" /> Editar
         </Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive" disabled={!selectedAccount || selectedAccount.is_header}
-          onClick={() => selectedAccount && handleDelete(selectedAccount)}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive" disabled={!selectedAccountInCurrentTab || selectedAccountInCurrentTab.is_header}
+          onClick={() => selectedAccountInCurrentTab && handleDelete(selectedAccountInCurrentTab)}>
           <Trash2 className="w-3 h-3" /> Eliminar
         </Button>
         <div className="w-px h-5 bg-border mx-1" />
@@ -269,7 +272,10 @@ export default function ChartOfAccounts() {
       </div>
 
       {/* Category Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(value) => {
+        setActiveTab(value);
+        setSelectedAccountId(null);
+      }}>
         <TabsList className="w-full justify-start rounded-none border-b bg-muted/30 h-auto p-0 overflow-x-auto">
           {CATEGORY_TABS.map(tab => (
             <TabsTrigger key={tab.key} value={tab.key}
