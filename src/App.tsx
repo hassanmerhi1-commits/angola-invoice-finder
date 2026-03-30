@@ -140,14 +140,6 @@ function AppRoutes() {
         } 
       />
       <Route
-        path="/purchase-invoices-window"
-        element={
-          <ProtectedRoute>
-            <PurchaseInvoices />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         element={
           <ProtectedRoute>
             <AppLayout />
