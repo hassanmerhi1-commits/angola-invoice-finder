@@ -177,6 +177,7 @@ function AppRoutes() {
         <Route path="/production" element={<ProductionModule />} />
         <Route path="/import" element={<ImportModule />} />
       </Route>
+      <Route path="/purchase-invoices-window" element={<Navigate to="/purchase-invoices" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
