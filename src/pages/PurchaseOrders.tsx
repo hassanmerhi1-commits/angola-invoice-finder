@@ -106,6 +106,22 @@ export default function PurchaseOrders() {
       return;
     }
 
+    const popup = window.open(
+      '/purchase-invoices?mode=create&standalone=1',
+      'kwanza-purchase-invoice',
+      'popup=yes,width=1500,height=920,resizable=yes,scrollbars=yes'
+    );
+
+    if (popup) {
+      popup.focus();
+      return;
+    }
+
+    toast({
+      title: 'Popup bloqueado',
+      description: 'Permita popups para abrir a Fatura de Compra em nova janela.',
+      variant: 'destructive',
+    });
     navigate('/purchase-invoices?mode=create');
   }, [navigate, toast]);
 
