@@ -44,6 +44,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { icon: Tags, label: t.nav.categories, path: '/categories' },
     { icon: Truck, label: t.nav.suppliers, path: '/suppliers' },
     { icon: ClipboardList, label: t.nav.purchaseOrders, path: '/purchase-orders' },
+    { icon: FileText, label: 'Fatura de Compra', path: '/purchase-invoices' },
     { icon: Calendar, label: t.nav.dailyReports, path: '/daily-reports' },
     { icon: ArrowRightLeft, label: t.stockTransfer.title, path: '/stock-transfer' },
     { icon: Users, label: t.nav.clients, path: '/clients' },
