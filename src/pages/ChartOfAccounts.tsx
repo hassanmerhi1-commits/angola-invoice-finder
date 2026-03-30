@@ -23,12 +23,12 @@ import { cn } from '@/lib/utils';
 const CATEGORY_TABS = [
   { key: 'clientes', label: 'Clientes', filter: (a: Account) => a.code.startsWith('3.1') || a.code.startsWith('31') },
   { key: 'fornecedores', label: 'Fornecedores', filter: (a: Account) => a.code.startsWith('3.2') || a.code.startsWith('32') },
-  { key: 'caixa', label: 'Caixa', filter: (a: Account) => a.code.startsWith('1.1') || a.code.startsWith('11') },
-  { key: 'bancos', label: 'Bancos', filter: (a: Account) => a.code.startsWith('1.2') || a.code.startsWith('12') },
+  { key: 'caixa', label: 'Caixa', filter: (a: Account) => a.code.startsWith('4.1') || a.code.startsWith('41') },
+  { key: 'bancos', label: 'Bancos', filter: (a: Account) => a.code.startsWith('4.2') || a.code.startsWith('42') },
   { key: 'ativos', label: 'Ativos', filter: (a: Account) => a.account_type === 'asset' },
   { key: 'recebimentos', label: 'Recebimentos', filter: (a: Account) => a.account_type === 'revenue' },
   { key: 'custos', label: 'Custos', filter: (a: Account) => a.account_type === 'expense' },
-  { key: 'funcionarios', label: 'Funcionários', filter: (a: Account) => a.code.startsWith('6.3') || a.code.startsWith('63') || a.code.startsWith('2.7') || a.code.startsWith('27') },
+  { key: 'funcionarios', label: 'Funcionários', filter: (a: Account) => a.code.startsWith('6.3') || a.code.startsWith('63') || a.code.startsWith('3.4') || a.code.startsWith('34') },
   { key: 'capital', label: 'Capital', filter: (a: Account) => a.account_type === 'equity' },
   { key: 'todos', label: 'Todos', filter: () => true },
 ] as const;
@@ -101,6 +101,22 @@ export default function ChartOfAccounts() {
   const openCreateDialog = () => {
     setEditingAccount(null);
     setFormData({ code: '', name: '', description: '', account_type: 'asset', account_nature: 'debit', parent_id: '', level: 1, is_header: false, opening_balance: 0 });
+    // If a parent is selected, auto-fill parent_id and suggest next code
+    if (selectedAccount) {
+      const children = accounts.filter(a => a.parent_id === selectedAccount.id);
+      const nextLevel = selectedAccount.level + 1;
+      // Suggest next child code: parent.code + "." + (children.length + 1)
+      const nextIndex = children.length + 1;
+      const suggestedCode = `${selectedAccount.code}.${nextIndex}`;
+      setFormData(prev => ({
+        ...prev,
+        parent_id: selectedAccount.id,
+        level: nextLevel,
+        code: suggestedCode,
+        account_type: selectedAccount.account_type,
+        account_nature: selectedAccount.account_nature,
+      }));
+    }
     setIsDialogOpen(true);
   };
 
@@ -306,14 +322,26 @@ export default function ChartOfAccounts() {
               <Select value={formData.parent_id || ROOT_ACCOUNT_VALUE} onValueChange={v => {
                 const parentId = v === ROOT_ACCOUNT_VALUE ? '' : v;
                 const parent = accounts.find(a => a.id === parentId);
-                setFormData(prev => ({ ...prev, parent_id: parentId, level: parent ? parent.level + 1 : 1 }));
+                setFormData(prev => ({
+                  ...prev,
+                  parent_id: parentId,
+                  level: parent ? parent.level + 1 : 1,
+                  account_type: parent ? parent.account_type : prev.account_type,
+                  account_nature: parent ? parent.account_nature : prev.account_nature,
+                }));
               }}>
                 <SelectTrigger><SelectValue placeholder="Nenhuma (Conta raiz)" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ROOT_ACCOUNT_VALUE}>Nenhuma (Conta raiz)</SelectItem>
-                  {getParentAccounts().map(a => (
-                    <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>
-                  ))}
+                  {accounts
+                    .filter(a => a.is_active !== false && (!editingAccount || a.id !== editingAccount.id))
+                    .sort((a, b) => a.code.localeCompare(b.code))
+                    .map(a => (
+                      <SelectItem key={a.id} value={a.id}>
+                        <span className="font-mono text-muted-foreground mr-2">{a.code}</span>
+                        {a.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -355,7 +383,15 @@ function AccountTreeRow({ account, level, expandedIds, onToggle, onSelect, onDou
   const children = allAccounts.filter(a => a.parent_id === account.id);
   const hasChildren = children.length > 0;
   const isSelected = selectedId === account.id;
-  const balance = Number(account.current_balance) || 0;
+  
+  // For header/parent accounts: compute balance as sum of all descendants
+  const computeBalance = (acc: Account): number => {
+    const kids = allAccounts.filter(a => a.parent_id === acc.id);
+    if (kids.length === 0) return Number(acc.current_balance) || 0;
+    return kids.reduce((sum, kid) => sum + computeBalance(kid), 0);
+  };
+  
+  const balance = hasChildren || account.is_header ? computeBalance(account) : (Number(account.current_balance) || 0);
 
   return (
     <>
@@ -381,13 +417,13 @@ function AccountTreeRow({ account, level, expandedIds, onToggle, onSelect, onDou
         <td className="px-3 py-1.5">{account.name}</td>
         <td className="px-3 py-1.5 text-center text-muted-foreground">AOA</td>
         <td className="px-3 py-1.5 text-right font-mono">
-          {account.is_header ? '' : balance >= 0 ? `${balance.toLocaleString('pt-AO')}` : ''}
+          {balance >= 0 ? `${balance.toLocaleString('pt-AO')}` : ''}
         </td>
         <td className="px-3 py-1.5 text-right font-mono">
-          {account.is_header ? '' : balance < 0 ? `${Math.abs(balance).toLocaleString('pt-AO')}` : ''}
+          {balance < 0 ? `${Math.abs(balance).toLocaleString('pt-AO')}` : ''}
         </td>
         <td className={cn("px-3 py-1.5 text-right font-mono font-medium", balance >= 0 ? "text-foreground" : "text-destructive")}>
-          {account.is_header ? '' : `${balance.toLocaleString('pt-AO')}`}
+          {`${balance.toLocaleString('pt-AO')}`}
         </td>
       </tr>
       {isExpanded && children.map(child => (
