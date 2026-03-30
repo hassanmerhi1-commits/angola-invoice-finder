@@ -739,7 +739,23 @@ export default function PurchaseInvoices() {
             <h1 className="text-2xl font-bold text-foreground">Fatura de Compra</h1>
             <p className="text-sm text-muted-foreground">Gestão de facturas de compra / COMPRA</p>
           </div>
-          <Button onClick={startCreate} className="gap-2">
+          <Button
+            onClick={async () => {
+              if (isElectronDesktop && !isStandaloneWindow && window.electronAPI?.purchase?.openCreateWindow) {
+                const result = await window.electronAPI.purchase.openCreateWindow();
+                if (!result?.success) {
+                  toast({
+                    title: 'Erro',
+                    description: result?.error || 'Não foi possível abrir nova janela.',
+                    variant: 'destructive',
+                  });
+                }
+                return;
+              }
+              startCreate();
+            }}
+            className="gap-2"
+          >
             <Plus className="h-4 w-4" /> Nova Fatura de Compra
           </Button>
         </div>
@@ -813,7 +829,7 @@ export default function PurchaseInvoices() {
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setMode('list')}>
+          <Button variant="ghost" size="icon" onClick={handleCloseCreate}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -827,7 +843,7 @@ export default function PurchaseInvoices() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setMode('list')} className="gap-1">
+          <Button variant="outline" size="sm" onClick={handleCloseCreate} className="gap-1">
             <X className="h-4 w-4" /> Cancelar
           </Button>
           <Button size="sm" onClick={handleSave} className="gap-1">
@@ -986,10 +1002,10 @@ export default function PurchaseInvoices() {
 
           {/* Product lines toolbar */}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1" onClick={() => setProductPickerOpen(true)}>
+            <Button variant="outline" size="sm" className="gap-1" onClick={handleOpenProductPicker}>
               <Plus className="h-4 w-4" /> Inserir Produto
             </Button>
-            <Button variant="ghost" size="sm" className="gap-1" onClick={() => setProductPickerOpen(true)}>
+            <Button variant="ghost" size="sm" className="gap-1" onClick={handleOpenProductPicker}>
               <Search className="h-4 w-4" /> Encontrar
             </Button>
             <span className="text-xs text-muted-foreground ml-auto">F2 para pesquisar</span>
