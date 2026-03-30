@@ -35,9 +35,32 @@ const CATEGORY_TABS = [
 
 const ROOT_ACCOUNT_VALUE = '__root__';
 
+const TAB_ACCOUNT_DEFAULTS: Record<string, { accountType: AccountType; preferredParentCodes: string[] }> = {
+  clientes: { accountType: 'asset', preferredParentCodes: ['3.1', '3'] },
+  fornecedores: { accountType: 'liability', preferredParentCodes: ['3.2', '3'] },
+  caixa: { accountType: 'asset', preferredParentCodes: ['4.1', '4'] },
+  bancos: { accountType: 'asset', preferredParentCodes: ['4.2', '4'] },
+  ativos: { accountType: 'asset', preferredParentCodes: ['1', '2'] },
+  recebimentos: { accountType: 'revenue', preferredParentCodes: ['7.1', '7'] },
+  custos: { accountType: 'expense', preferredParentCodes: ['6.1', '6'] },
+  funcionarios: { accountType: 'expense', preferredParentCodes: ['6.3', '3.4'] },
+  capital: { accountType: 'equity', preferredParentCodes: ['5'] },
+};
+
+const buildSuggestedChildCode = (parentCode: string, siblingCodes: string[]) => {
+  const prefix = `${parentCode}.`;
+  const nextIndex = siblingCodes.reduce((max, code) => {
+    if (!code.startsWith(prefix)) return max;
+    const firstSegment = code.slice(prefix.length).split('.')[0];
+    const parsed = Number(firstSegment);
+    return Number.isFinite(parsed) ? Math.max(max, parsed) : max;
+  }, 0) + 1;
+  return `${parentCode}.${nextIndex}`;
+};
+
 export default function ChartOfAccounts() {
   const { t } = useTranslation();
-  const { accounts, isLoading, refetch, createAccount, updateAccount, deleteAccount, getParentAccounts } = useChartOfAccounts();
+  const { accounts, isLoading, refetch, createAccount, updateAccount, deleteAccount } = useChartOfAccounts();
 
   const [activeTab, setActiveTab] = useState('todos');
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,23 +123,57 @@ export default function ChartOfAccounts() {
 
   const openCreateDialog = () => {
     setEditingAccount(null);
-    setFormData({ code: '', name: '', description: '', account_type: 'asset', account_nature: 'debit', parent_id: '', level: 1, is_header: false, opening_balance: 0 });
-    // If a parent is selected, auto-fill parent_id and suggest next code
-    if (selectedAccount) {
-      const children = accounts.filter(a => a.parent_id === selectedAccount.id);
-      const nextLevel = selectedAccount.level + 1;
-      // Suggest next child code: parent.code + "." + (children.length + 1)
-      const nextIndex = children.length + 1;
-      const suggestedCode = `${selectedAccount.code}.${nextIndex}`;
-      setFormData(prev => ({
-        ...prev,
-        parent_id: selectedAccount.id,
-        level: nextLevel,
-        code: suggestedCode,
-        account_type: selectedAccount.account_type,
-        account_nature: selectedAccount.account_nature,
-      }));
+
+    const emptyForm = {
+      code: '',
+      name: '',
+      description: '',
+      account_type: 'asset' as AccountType,
+      account_nature: 'debit' as 'debit' | 'credit',
+      parent_id: '',
+      level: 1,
+      is_header: false,
+      opening_balance: 0,
+    };
+
+    let nextForm = { ...emptyForm };
+
+    const applyParentDefaults = (parent: Account) => {
+      const children = accounts.filter(a => a.parent_id === parent.id && a.is_active !== false);
+      nextForm = {
+        ...nextForm,
+        parent_id: parent.id,
+        level: parent.level + 1,
+        code: buildSuggestedChildCode(parent.code, children.map(c => c.code)),
+        account_type: parent.account_type,
+        account_nature: parent.account_nature,
+      };
+    };
+
+    const selectedMatchesCurrentTab = selectedAccount ? currentTabConfig.filter(selectedAccount) : false;
+
+    if (selectedAccount && selectedMatchesCurrentTab) {
+      applyParentDefaults(selectedAccount);
+    } else {
+      const tabDefault = TAB_ACCOUNT_DEFAULTS[activeTab];
+      if (tabDefault) {
+        nextForm = {
+          ...nextForm,
+          account_type: tabDefault.accountType,
+          account_nature: getDefaultNature(tabDefault.accountType),
+        };
+
+        const tabParent = tabDefault.preferredParentCodes
+          .map(code => accounts.find(a => a.code === code && a.is_active !== false))
+          .find(Boolean);
+
+        if (tabParent) {
+          applyParentDefaults(tabParent);
+        }
+      }
     }
+
+    setFormData(nextForm);
     setIsDialogOpen(true);
   };
 
@@ -173,6 +230,7 @@ export default function ChartOfAccounts() {
   };
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId);
+  const selectedAccountInCurrentTab = selectedAccount && currentTabConfig.filter(selectedAccount) ? selectedAccount : null;
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -181,11 +239,11 @@ export default function ChartOfAccounts() {
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={openCreateDialog}>
           <Plus className="w-3 h-3" /> Nova Conta
         </Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedAccount} onClick={() => selectedAccount && openEditDialog(selectedAccount)}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedAccountInCurrentTab} onClick={() => selectedAccountInCurrentTab && openEditDialog(selectedAccountInCurrentTab)}>
           <Edit2 className="w-3 h-3" /> Editar
         </Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive" disabled={!selectedAccount || selectedAccount.is_header}
-          onClick={() => selectedAccount && handleDelete(selectedAccount)}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive" disabled={!selectedAccountInCurrentTab || selectedAccountInCurrentTab.is_header}
+          onClick={() => selectedAccountInCurrentTab && handleDelete(selectedAccountInCurrentTab)}>
           <Trash2 className="w-3 h-3" /> Eliminar
         </Button>
         <div className="w-px h-5 bg-border mx-1" />
@@ -214,7 +272,10 @@ export default function ChartOfAccounts() {
       </div>
 
       {/* Category Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(value) => {
+        setActiveTab(value);
+        setSelectedAccountId(null);
+      }}>
         <TabsList className="w-full justify-start rounded-none border-b bg-muted/30 h-auto p-0 overflow-x-auto">
           {CATEGORY_TABS.map(tab => (
             <TabsTrigger key={tab.key} value={tab.key}
