@@ -624,27 +624,9 @@ export default function PurchaseInvoices() {
             <p className="text-sm text-muted-foreground">Gestão de facturas de compra / COMPRA</p>
           </div>
           <Button
-            onClick={async () => {
-              if (!isStandaloneWindow) {
-                if (isElectronDesktop && window.electronAPI?.purchase?.openCreateWindow) {
-                  const result = await window.electronAPI.purchase.openCreateWindow();
-                  if (!result?.success) {
-                    toast({
-                      title: 'Erro',
-                      description: result?.error || 'Não foi possível abrir nova janela.',
-                      variant: 'destructive',
-                    });
-                  }
-                  return;
-                }
-
-                setSearchParams({ mode: 'create' });
-                return;
-              }
-
-              startCreate();
-            }}
+            onClick={() => setSearchParams({ mode: "create" })}
             className="gap-2"
+          >
           >
             <Plus className="h-4 w-4" /> Nova Fatura de Compra
           </Button>
