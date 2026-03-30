@@ -502,7 +502,7 @@ export default function PurchaseInvoices() {
 
   const handleOpenWebProductPicker = useCallback(() => {
     const popup = window.open(
-      '/purchase-invoices?mode=product-picker&standalone=1',
+      '/purchase-invoices-window?mode=product-picker&standalone=1',
       'kwanza-product-picker',
       'popup=yes,width=1180,height=760,resizable=yes,scrollbars=yes'
     );
@@ -806,7 +806,7 @@ export default function PurchaseInvoices() {
                 }
 
                 const popup = window.open(
-                  '/purchase-invoices?mode=create&standalone=1',
+                  '/purchase-invoices-window?mode=create&standalone=1',
                   'kwanza-purchase-invoice',
                   'popup=yes,width=1500,height=920,resizable=yes,scrollbars=yes'
                 );
