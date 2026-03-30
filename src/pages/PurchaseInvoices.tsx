@@ -461,74 +461,13 @@ export default function PurchaseInvoices() {
     setLines(prev => [...prev, newLine]);
   }, [form.warehouseId, form.warehouseName, currentBranch]);
 
-  const closeCurrentWindow = useCallback(async () => {
-    if (isElectronDesktop && window.electronAPI?.window?.closeCurrent) {
-      await window.electronAPI.window.closeCurrent();
-      return;
-    }
-
-    if (isStandaloneWindow) {
-      window.close();
-    }
-  }, [isElectronDesktop, isStandaloneWindow]);
-
-  const handleSelectProductAndClose = useCallback(async (product: Product) => {
-    if (isElectronDesktop && window.electronAPI?.purchase?.selectProduct) {
-      const result = await window.electronAPI.purchase.selectProduct(product);
-      if (!result?.success) {
-        toast({
-          title: 'Erro',
-          description: result?.error || 'Falha ao selecionar o produto.',
-          variant: 'destructive',
-        });
-      }
-      return;
-    }
-
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: 'kwanza:purchase-product-selected', product }, window.location.origin);
-      window.close();
-      return;
-    }
-
-    toast({
-      title: 'Erro',
-      description: 'Não foi possível devolver o produto para a janela principal.',
-      variant: 'destructive',
-    });
-  }, [isElectronDesktop, toast]);
-
-  const handleOpenInPageProductPicker = useCallback(() => {
+  const handleOpenProductPicker = useCallback(() => {
     setProductPickerOpen(true);
   }, []);
 
-  const handleOpenProductPicker = useCallback(async () => {
-    if (isElectronDesktop && window.electronAPI?.purchase?.openProductPicker) {
-      const result = await window.electronAPI.purchase.openProductPicker();
-      if (result?.success && result.product) {
-        handleAddProduct(result.product as Product);
-        return;
-      }
-      if (!result?.cancelled) {
-        toast({
-          title: 'Erro',
-          description: result?.error || 'Não foi possível abrir seleção de produtos.',
-          variant: 'destructive',
-        });
-      }
-      return;
-    }
-
-    handleOpenInPageProductPicker();
-  }, [handleAddProduct, handleOpenInPageProductPicker, isElectronDesktop, toast]);
-
-  const handleCloseCreate = useCallback(async () => {
-    if (isStandaloneWindow) {
-      await closeCurrentWindow();
-      return;
-    }
-    setMode('list');
-  }, [closeCurrentWindow, isStandaloneWindow]);
+  const handleCloseCreate = useCallback(() => {
+    setMode("list");
+  }, []);
 
   // Update line field
   const updateLineField = useCallback((idx: number, field: keyof PurchaseInvoiceLine, value: number | string) => {
