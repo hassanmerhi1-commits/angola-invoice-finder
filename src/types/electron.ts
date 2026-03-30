@@ -116,6 +116,18 @@ export interface ElectronAPI {
     getComputerName: () => Promise<string>;
   };
 
+  // Purchase windows
+  purchase?: {
+    openCreateWindow: () => Promise<{ success: boolean; error?: string }>;
+    openProductPicker: () => Promise<{ success: boolean; cancelled?: boolean; product?: any; error?: string }>;
+    selectProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
+  };
+
+  // Window controls
+  window?: {
+    closeCurrent: () => Promise<{ success: boolean }>;
+  };
+
   // Server discovery
   discovery?: {
     start: () => Promise<{ success: boolean }>;

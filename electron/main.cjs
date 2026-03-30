@@ -113,6 +113,9 @@ if (!fs.existsSync(IP_FILE_PATH)) {
 // ============= GLOBALS =============
 let mainWindow = null;
 let splashWindow = null;
+let purchaseInvoiceWindow = null;
+let purchaseProductPickerWindow = null;
+let resolveProductPickerSelection = null;
 let db = null;
 let dbPath = null;
 let isServerMode = false;
@@ -1501,6 +1504,122 @@ function createSplashWindow() {
   splashWindow.center();
 }
 
+function resolveRendererIndexPath() {
+  const possiblePaths = [
+    path.join(__dirname, '../dist/index.html'),
+    path.join(process.resourcesPath, 'app/dist/index.html'),
+    path.join(app.getAppPath(), 'dist/index.html'),
+  ];
+
+  for (const possiblePath of possiblePaths) {
+    try {
+      if (fs.existsSync(possiblePath)) {
+        return possiblePath;
+      }
+    } catch (error) {
+      // ignore and keep trying
+    }
+  }
+
+  return possiblePaths[0];
+}
+
+function loadRendererRoute(targetWindow, route = '/') {
+  const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
+  const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
+
+  if (isDev) {
+    targetWindow.loadURL(`http://localhost:5173/#${normalizedRoute}`);
+    return;
+  }
+
+  const indexPath = resolveRendererIndexPath();
+  targetWindow.loadFile(indexPath, { hash: normalizedRoute });
+}
+
+function resolvePendingProductPicker(payload) {
+  if (!resolveProductPickerSelection) return;
+  resolveProductPickerSelection(payload);
+  resolveProductPickerSelection = null;
+}
+
+function openPurchaseInvoiceWindow() {
+  if (purchaseInvoiceWindow && !purchaseInvoiceWindow.isDestroyed()) {
+    purchaseInvoiceWindow.show();
+    purchaseInvoiceWindow.focus();
+    return { success: true };
+  }
+
+  purchaseInvoiceWindow = new BrowserWindow({
+    width: 1500,
+    height: 920,
+    minWidth: 1180,
+    minHeight: 760,
+    icon: path.join(__dirname, '../public/icon.png'),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.cjs')
+    },
+    autoHideMenuBar: false,
+    show: false,
+  });
+
+  loadRendererRoute(purchaseInvoiceWindow, '/purchase-invoices?mode=create&standalone=1');
+
+  purchaseInvoiceWindow.once('ready-to-show', () => {
+    purchaseInvoiceWindow.show();
+    purchaseInvoiceWindow.focus();
+  });
+
+  purchaseInvoiceWindow.on('closed', () => {
+    purchaseInvoiceWindow = null;
+  });
+
+  return { success: true };
+}
+
+function openPurchaseProductPickerWindow(parentWindow) {
+  if (purchaseProductPickerWindow && !purchaseProductPickerWindow.isDestroyed()) {
+    purchaseProductPickerWindow.show();
+    purchaseProductPickerWindow.focus();
+    return Promise.resolve({ success: false, error: 'Janela de seleção já está aberta' });
+  }
+
+  return new Promise((resolve) => {
+    resolveProductPickerSelection = resolve;
+
+    purchaseProductPickerWindow = new BrowserWindow({
+      width: 1180,
+      height: 760,
+      minWidth: 980,
+      minHeight: 620,
+      parent: parentWindow && !parentWindow.isDestroyed() ? parentWindow : (mainWindow || undefined),
+      modal: true,
+      icon: path.join(__dirname, '../public/icon.png'),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.cjs')
+      },
+      autoHideMenuBar: false,
+      show: false,
+    });
+
+    loadRendererRoute(purchaseProductPickerWindow, '/purchase-invoices?mode=product-picker&standalone=1');
+
+    purchaseProductPickerWindow.once('ready-to-show', () => {
+      purchaseProductPickerWindow.show();
+      purchaseProductPickerWindow.focus();
+    });
+
+    purchaseProductPickerWindow.on('closed', () => {
+      purchaseProductPickerWindow = null;
+      resolvePendingProductPicker({ success: false, cancelled: true });
+    });
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400, height: 900, minWidth: 1024, minHeight: 768,
@@ -1535,20 +1654,9 @@ function createWindow() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
   const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
+  loadRendererRoute(mainWindow, '/');
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
-  } else {
-    const possiblePaths = [
-      path.join(__dirname, '../dist/index.html'),
-      path.join(process.resourcesPath, 'app/dist/index.html'),
-      path.join(app.getAppPath(), 'dist/index.html'),
-    ];
-    let indexPath = possiblePaths[0];
-    for (const p of possiblePaths) {
-      try { if (fs.existsSync(p)) { indexPath = p; break; } } catch (e) {}
-    }
-    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.once('ready-to-show', () => {
@@ -1591,6 +1699,15 @@ app.on('before-quit', () => {
   if (wss) { wss.close(); wss = null; }
   if (wsClient) { wsClient.close(); wsClient = null; }
   if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); }
+  if (purchaseProductPickerWindow && !purchaseProductPickerWindow.isDestroyed()) {
+    purchaseProductPickerWindow.destroy();
+    purchaseProductPickerWindow = null;
+  }
+  if (purchaseInvoiceWindow && !purchaseInvoiceWindow.isDestroyed()) {
+    purchaseInvoiceWindow.destroy();
+    purchaseInvoiceWindow = null;
+  }
+  resolvePendingProductPicker({ success: false, cancelled: true });
   // Close all company databases
   for (const [, entry] of companyDatabases) {
     try { entry.db?.close(); } catch (e) {}
@@ -1750,6 +1867,38 @@ ipcMain.handle('network:getLocalIPs', () => {
 ipcMain.handle('network:getInstallPath', () => INSTALL_DIR);
 ipcMain.handle('network:getIPFilePath', () => IP_FILE_PATH);
 ipcMain.handle('network:getComputerName', () => os.hostname());
+
+// Purchase windows
+ipcMain.handle('purchase:openCreateWindow', () => {
+  return openPurchaseInvoiceWindow();
+});
+
+ipcMain.handle('purchase:openProductPicker', (event) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  return openPurchaseProductPickerWindow(parentWindow);
+});
+
+ipcMain.handle('purchase:selectProduct', (_, product) => {
+  if (!product || !product.id) {
+    return { success: false, error: 'Produto inválido' };
+  }
+
+  resolvePendingProductPicker({ success: true, product });
+
+  if (purchaseProductPickerWindow && !purchaseProductPickerWindow.isDestroyed()) {
+    purchaseProductPickerWindow.close();
+  }
+
+  return { success: true };
+});
+
+ipcMain.handle('window:closeCurrent', (event) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (senderWindow && !senderWindow.isDestroyed()) {
+    senderWindow.close();
+  }
+  return { success: true };
+});
 
 // Print support
 ipcMain.handle('print:html', async (_, html, options = {}) => {

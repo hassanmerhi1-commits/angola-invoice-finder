@@ -349,6 +349,9 @@ export default function PurchaseInvoices() {
   const { products } = useProducts(currentBranch?.id);
   const { suppliers } = useSuppliers();
   const { toast } = useToast();
+  const isElectronDesktop = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+  const isStandaloneWindow = searchParams.get('standalone') === '1';
+  const isProductPickerWindow = searchParams.get('mode') === 'product-picker';
 
   // State
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
@@ -383,6 +386,16 @@ export default function PurchaseInvoices() {
       i.supplierName.toLowerCase().includes(q)
     );
   }, [invoices, searchTerm]);
+
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm) return products.slice(0, 300);
+    const q = searchTerm.toLowerCase();
+    return products.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      p.barcode?.toLowerCase().includes(q)
+    ).slice(0, 300);
+  }, [products, searchTerm]);
 
   // ─────── Create mode ───────
   const startCreate = useCallback(() => {
@@ -449,6 +462,60 @@ export default function PurchaseInvoices() {
     });
     setLines(prev => [...prev, newLine]);
   }, [form.warehouseId, form.warehouseName, currentBranch]);
+
+  const closeCurrentWindow = useCallback(async () => {
+    if (isElectronDesktop && window.electronAPI?.window?.closeCurrent) {
+      await window.electronAPI.window.closeCurrent();
+    }
+  }, [isElectronDesktop]);
+
+  const handleSelectProductAndClose = useCallback(async (product: Product) => {
+    if (!isElectronDesktop || !window.electronAPI?.purchase?.selectProduct) {
+      toast({
+        title: 'Erro',
+        description: 'Seleção em janela separada só está disponível no desktop.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const result = await window.electronAPI.purchase.selectProduct(product);
+    if (!result?.success) {
+      toast({
+        title: 'Erro',
+        description: result?.error || 'Falha ao selecionar o produto.',
+        variant: 'destructive',
+      });
+    }
+  }, [isElectronDesktop, toast]);
+
+  const handleOpenProductPicker = useCallback(async () => {
+    if (isElectronDesktop && window.electronAPI?.purchase?.openProductPicker) {
+      const result = await window.electronAPI.purchase.openProductPicker();
+      if (result?.success && result.product) {
+        handleAddProduct(result.product as Product);
+        return;
+      }
+      if (!result?.cancelled) {
+        toast({
+          title: 'Erro',
+          description: result?.error || 'Não foi possível abrir seleção de produtos.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+
+    setProductPickerOpen(true);
+  }, [handleAddProduct, isElectronDesktop, toast]);
+
+  const handleCloseCreate = useCallback(async () => {
+    if (isStandaloneWindow) {
+      await closeCurrentWindow();
+      return;
+    }
+    setMode('list');
+  }, [closeCurrentWindow, isStandaloneWindow]);
 
   // Update line field
   const updateLineField = useCallback((idx: number, field: keyof PurchaseInvoiceLine, value: number | string) => {
@@ -594,6 +661,75 @@ export default function PurchaseInvoices() {
 
   // ═══════════════ RENDER ═══════════════
 
+  if (isProductPickerWindow) {
+    return (
+      <div className="space-y-3 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">Selecionar Produto</h1>
+            <p className="text-sm text-muted-foreground">Pesquisar e escolher item para a fatura de compra</p>
+          </div>
+          <Button variant="outline" onClick={closeCurrentWindow}>
+            <X className="h-4 w-4 mr-2" /> Fechar
+          </Button>
+        </div>
+
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Pesquisar por nome, SKU ou código de barras..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="pl-9"
+            autoFocus
+          />
+        </div>
+
+        <Card>
+          <CardContent className="p-0">
+            <div className="max-h-[70vh] overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produto</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="text-right">Preço</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead className="text-right">IVA</TableHead>
+                    <TableHead className="w-28 text-right">Ação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.map(product => (
+                    <TableRow key={product.id} className="hover:bg-accent/60">
+                      <TableCell className="font-mono text-xs">{product.sku}</TableCell>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell className="text-right font-mono">{(product.lastCost || product.cost || product.price || 0).toLocaleString('pt-AO')}</TableCell>
+                      <TableCell className="text-right">{product.stock}</TableCell>
+                      <TableCell className="text-right">{product.taxRate}%</TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" onClick={() => handleSelectProductAndClose(product)}>
+                          Selecionar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredProducts.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                        Nenhum produto encontrado
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // ─── LIST MODE ───
   if (mode === 'list') {
     return (
@@ -603,7 +739,23 @@ export default function PurchaseInvoices() {
             <h1 className="text-2xl font-bold text-foreground">Fatura de Compra</h1>
             <p className="text-sm text-muted-foreground">Gestão de facturas de compra / COMPRA</p>
           </div>
-          <Button onClick={startCreate} className="gap-2">
+          <Button
+            onClick={async () => {
+              if (isElectronDesktop && !isStandaloneWindow && window.electronAPI?.purchase?.openCreateWindow) {
+                const result = await window.electronAPI.purchase.openCreateWindow();
+                if (!result?.success) {
+                  toast({
+                    title: 'Erro',
+                    description: result?.error || 'Não foi possível abrir nova janela.',
+                    variant: 'destructive',
+                  });
+                }
+                return;
+              }
+              startCreate();
+            }}
+            className="gap-2"
+          >
             <Plus className="h-4 w-4" /> Nova Fatura de Compra
           </Button>
         </div>
@@ -677,7 +829,7 @@ export default function PurchaseInvoices() {
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setMode('list')}>
+          <Button variant="ghost" size="icon" onClick={handleCloseCreate}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -691,7 +843,7 @@ export default function PurchaseInvoices() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setMode('list')} className="gap-1">
+          <Button variant="outline" size="sm" onClick={handleCloseCreate} className="gap-1">
             <X className="h-4 w-4" /> Cancelar
           </Button>
           <Button size="sm" onClick={handleSave} className="gap-1">
@@ -850,10 +1002,10 @@ export default function PurchaseInvoices() {
 
           {/* Product lines toolbar */}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1" onClick={() => setProductPickerOpen(true)}>
+            <Button variant="outline" size="sm" className="gap-1" onClick={handleOpenProductPicker}>
               <Plus className="h-4 w-4" /> Inserir Produto
             </Button>
-            <Button variant="ghost" size="sm" className="gap-1" onClick={() => setProductPickerOpen(true)}>
+            <Button variant="ghost" size="sm" className="gap-1" onClick={handleOpenProductPicker}>
               <Search className="h-4 w-4" /> Encontrar
             </Button>
             <span className="text-xs text-muted-foreground ml-auto">F2 para pesquisar</span>
