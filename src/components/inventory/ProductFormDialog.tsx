@@ -108,10 +108,10 @@ export function ProductFormDialog({
       return;
     }
 
-    if (formData.price <= 0 || formData.cost <= 0) {
+    if (formData.price < 0 || formData.cost < 0) {
       toast({
         title: 'Erro',
-        description: 'Preço e custo devem ser maiores que zero',
+        description: 'Preço e custo não podem ser negativos',
         variant: 'destructive',
       });
       return;

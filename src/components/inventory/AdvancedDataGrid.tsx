@@ -29,6 +29,7 @@ interface ColumnDef {
 interface AdvancedDataGridProps {
   products: Product[];
   onSelectProduct: (product: Product) => void;
+  onDoubleClickProduct?: (product: Product) => void;
   selectedProductId?: string;
   hideStock?: boolean;
   isHeadOffice?: boolean;
@@ -76,7 +77,7 @@ const getVisibleColumns = (hideStock: boolean, isHeadOffice: boolean, branches: 
 };
 
 export function AdvancedDataGrid({ 
-  products, onSelectProduct, selectedProductId, hideStock = false,
+  products, onSelectProduct, onDoubleClickProduct, selectedProductId, hideStock = false,
   isHeadOffice = false, branches = [], allBranchProducts = {}
 }: AdvancedDataGridProps) {
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilter>>({});
@@ -349,6 +350,7 @@ export function AdvancedDataGrid({
           <div
             key={product.id}
             onClick={() => onSelectProduct(product)}
+            onDoubleClick={() => onDoubleClickProduct?.(product)}
             className={cn(
               "flex border-b border-border cursor-pointer hover:bg-accent/50 transition-colors",
               selectedProductId === product.id && "bg-primary text-primary-foreground hover:bg-primary/90",
