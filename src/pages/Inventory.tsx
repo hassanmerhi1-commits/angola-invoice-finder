@@ -116,10 +116,9 @@ export default function Inventory() {
     setSelectedProduct(product);
   };
 
-  const handleDoubleClickProduct = () => {
-    if (selectedProduct) {
-      setDialogOpen(true);
-    }
+  const handleDoubleClickProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setDialogOpen(true);
   };
 
   const handleImportProducts = (data: ExcelProduct[], options?: { updateDuplicates?: boolean }) => {
@@ -474,10 +473,11 @@ export default function Inventory() {
           </Button>
         </div>
 
-        <TabsContent value="lista" className="flex-1 m-0 p-2" onDoubleClick={handleDoubleClickProduct}>
+        <TabsContent value="lista" className="flex-1 m-0 p-2">
           <AdvancedDataGrid 
             products={displayProducts}
             onSelectProduct={handleSelectProduct}
+            onDoubleClickProduct={handleDoubleClickProduct}
             selectedProductId={selectedProduct?.id}
             hideStock={!!isFilial}
             isHeadOffice={isHeadOffice}
