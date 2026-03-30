@@ -4,6 +4,7 @@ import { useBranches, useCategories } from '@/hooks/useERP';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -125,9 +126,9 @@ export function ProductFormDialog({
       category: formData.category,
       price: formData.price,
       cost: formData.cost,
-      firstCost: product?.firstCost || formData.cost, // Keep original first cost or use current
-      lastCost: formData.cost, // Update last cost with current cost
-      avgCost: product?.avgCost || formData.cost, // Keep avg or use current
+      firstCost: product?.firstCost || formData.cost,
+      lastCost: formData.cost,
+      avgCost: product?.avgCost || formData.cost,
       stock: formData.stock,
       unit: formData.unit,
       taxRate: formData.taxRate,
@@ -146,180 +147,191 @@ export function ProductFormDialog({
     });
   };
 
+  const preventWheelValueChange = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur();
+  };
+
   const margin = formData.price > 0 && formData.cost > 0
     ? (((formData.price - formData.cost) / formData.cost) * 100).toFixed(1)
     : '0';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {product ? 'Editar Produto' : 'Novo Produto'}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-2xl p-0">
+        <form onSubmit={handleSubmit} className="flex max-h-[85dvh] flex-col">
+          <DialogHeader className="px-6 pt-6 pb-3">
+            <DialogTitle>{product ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
+            <DialogDescription>
+              Atualize os dados do produto e role com o mouse normalmente pela lista de campos.
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Label htmlFor="name">Nome do Produto *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ex: Arroz Tio João 1kg"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="sku">SKU *</Label>
-              <Input
-                id="sku"
-                value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value.toUpperCase() })}
-                placeholder="Ex: ARR-001"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="barcode">Código de Barras</Label>
-              <Input
-                id="barcode"
-                value={formData.barcode}
-                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                placeholder="Ex: 7891234567890"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="category">Categoria</Label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) => setFormData({ ...formData, category: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeCategories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.name}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: cat.color || '#6b7280' }}
-                        />
-                        {cat.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="unit">Unidade</Label>
-              <Select
-                value={formData.unit}
-                onValueChange={(value) => setFormData({ ...formData, unit: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {UNITS.map((unit) => (
-                    <SelectItem key={unit.value} value={unit.value}>
-                      {unit.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="cost">Custo (Kz) *</Label>
-              <Input
-                id="cost"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.cost}
-                onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="price">Preço de Venda (Kz) *</Label>
-              <Input
-                id="price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="taxRate">Taxa IVA (%)</Label>
-              <Input
-                id="taxRate"
-                type="number"
-                min="0"
-                max="100"
-                value={formData.taxRate}
-                onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div>
-              <Label>Margem de Lucro</Label>
-              <div className="h-10 px-3 py-2 bg-muted rounded-md flex items-center font-medium">
-                {margin}%
+          <div className="flex-1 overflow-y-auto px-6 pb-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label htmlFor="name">Nome do Produto *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ex: Arroz Tio João 1kg"
+                />
               </div>
-            </div>
 
-            <div>
-              <Label htmlFor="stock">Stock Inicial</Label>
-              <Input
-                id="stock"
-                type="number"
-                min="0"
-                value={formData.stock}
-                onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
-              />
-            </div>
+              <div>
+                <Label htmlFor="sku">SKU *</Label>
+                <Input
+                  id="sku"
+                  value={formData.sku}
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value.toUpperCase() })}
+                  placeholder="Ex: ARR-001"
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="branch">Filial</Label>
-              <Select
-                value={formData.branchId}
-                onValueChange={(value) => setFormData({ ...formData, branchId: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as Filiais</SelectItem>
-                  {branches.map((branch) => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div>
+                <Label htmlFor="barcode">Código de Barras</Label>
+                <Input
+                  id="barcode"
+                  value={formData.barcode}
+                  onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                  placeholder="Ex: 7891234567890"
+                />
+              </div>
 
-            <div className="col-span-2 flex items-center gap-3">
-              <Switch
-                id="isActive"
-                checked={formData.isActive}
-                onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
-              />
-              <Label htmlFor="isActive">Produto Activo</Label>
+              <div>
+                <Label htmlFor="category">Categoria</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.name}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: cat.color || '#6b7280' }}
+                          />
+                          {cat.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="unit">Unidade</Label>
+                <Select
+                  value={formData.unit}
+                  onValueChange={(value) => setFormData({ ...formData, unit: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNITS.map((unit) => (
+                      <SelectItem key={unit.value} value={unit.value}>
+                        {unit.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="cost">Custo (Kz) *</Label>
+                <Input
+                  id="cost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.cost}
+                  onWheel={preventWheelValueChange}
+                  onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="price">Preço de Venda (Kz) *</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.price}
+                  onWheel={preventWheelValueChange}
+                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="taxRate">Taxa IVA (%)</Label>
+                <Input
+                  id="taxRate"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.taxRate}
+                  onWheel={preventWheelValueChange}
+                  onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="margin">Margem de Lucro</Label>
+                <div id="margin" className="h-10 px-3 py-2 bg-muted rounded-md flex items-center font-medium">
+                  {margin}%
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="stock">Stock Inicial</Label>
+                <Input
+                  id="stock"
+                  type="number"
+                  min="0"
+                  value={formData.stock}
+                  onWheel={preventWheelValueChange}
+                  onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="branch">Filial</Label>
+                <Select
+                  value={formData.branchId}
+                  onValueChange={(value) => setFormData({ ...formData, branchId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as Filiais</SelectItem>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="col-span-2 flex items-center gap-3">
+                <Switch
+                  id="isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                />
+                <Label htmlFor="isActive">Produto Activo</Label>
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t px-6 py-4 bg-background">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
