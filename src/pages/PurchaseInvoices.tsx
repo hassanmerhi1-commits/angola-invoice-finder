@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useProducts, useSuppliers, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useToast } from '@/hooks/use-toast';
@@ -342,6 +343,7 @@ function InvoiceViewDialog({
 // MAIN COMPONENT
 // ═══════════════════════════════════════════
 export default function PurchaseInvoices() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { currentBranch, branches } = useBranchContext();
   const { products } = useProducts(currentBranch?.id);
@@ -406,6 +408,14 @@ export default function PurchaseInvoices() {
     setActiveTab('fatura');
     setMode('create');
   }, [currentBranch]);
+
+  useEffect(() => {
+    if (searchParams.get('mode') !== 'create' || mode === 'create') return;
+    startCreate();
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('mode');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, mode, startCreate]);
 
   // Select supplier
   const handleSelectSupplier = useCallback((s: Supplier) => {

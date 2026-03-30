@@ -377,7 +377,7 @@ export default function PurchaseOrders() {
             <Truck className="w-4 h-4 mr-2" />
             Gerir Fornecedores
           </Button>
-          <Button className="rounded-xl gradient-primary shadow-glow" onClick={() => setCreateDialogOpen(true)}>
+          <Button className="rounded-xl gradient-primary shadow-glow" onClick={() => navigate('/purchase-invoices?mode=create')}>
             <Plus className="w-4 h-4 mr-2" />
             Nova Fatura de Compra
           </Button>
