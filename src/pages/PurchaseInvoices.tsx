@@ -466,28 +466,79 @@ export default function PurchaseInvoices() {
   const closeCurrentWindow = useCallback(async () => {
     if (isElectronDesktop && window.electronAPI?.window?.closeCurrent) {
       await window.electronAPI.window.closeCurrent();
+      return;
     }
-  }, [isElectronDesktop]);
+
+    if (isStandaloneWindow) {
+      window.close();
+    }
+  }, [isElectronDesktop, isStandaloneWindow]);
 
   const handleSelectProductAndClose = useCallback(async (product: Product) => {
-    if (!isElectronDesktop || !window.electronAPI?.purchase?.selectProduct) {
+    if (isElectronDesktop && window.electronAPI?.purchase?.selectProduct) {
+      const result = await window.electronAPI.purchase.selectProduct(product);
+      if (!result?.success) {
+        toast({
+          title: 'Erro',
+          description: result?.error || 'Falha ao selecionar o produto.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: 'kwanza:purchase-product-selected', product }, window.location.origin);
+      window.close();
+      return;
+    }
+
+    toast({
+      title: 'Erro',
+      description: 'Não foi possível devolver o produto para a janela principal.',
+      variant: 'destructive',
+    });
+  }, [isElectronDesktop, toast]);
+
+  const handleOpenWebProductPicker = useCallback(() => {
+    const popup = window.open(
+      '/purchase-invoices?mode=product-picker&standalone=1',
+      'kwanza-product-picker',
+      'popup=yes,width=1180,height=760,resizable=yes,scrollbars=yes'
+    );
+
+    if (!popup) {
       toast({
-        title: 'Erro',
-        description: 'Seleção em janela separada só está disponível no desktop.',
+        title: 'Popup bloqueado',
+        description: 'Permita popups para abrir a lista de produtos em nova janela.',
         variant: 'destructive',
       });
       return;
     }
 
-    const result = await window.electronAPI.purchase.selectProduct(product);
-    if (!result?.success) {
-      toast({
-        title: 'Erro',
-        description: result?.error || 'Falha ao selecionar o produto.',
-        variant: 'destructive',
-      });
-    }
-  }, [isElectronDesktop, toast]);
+    popup.focus();
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as { type?: string; product?: Product } | null;
+      if (data?.type !== 'kwanza:purchase-product-selected' || !data.product) return;
+
+      cleanup();
+      handleAddProduct(data.product);
+    };
+
+    const closedWatcher = window.setInterval(() => {
+      if (!popup.closed) return;
+      cleanup();
+    }, 400);
+
+    const cleanup = () => {
+      window.removeEventListener('message', handleMessage);
+      window.clearInterval(closedWatcher);
+    };
+
+    window.addEventListener('message', handleMessage);
+  }, [handleAddProduct, toast]);
 
   const handleOpenProductPicker = useCallback(async () => {
     if (isElectronDesktop && window.electronAPI?.purchase?.openProductPicker) {
@@ -506,8 +557,8 @@ export default function PurchaseInvoices() {
       return;
     }
 
-    setProductPickerOpen(true);
-  }, [handleAddProduct, isElectronDesktop, toast]);
+    handleOpenWebProductPicker();
+  }, [handleAddProduct, handleOpenWebProductPicker, isElectronDesktop, toast]);
 
   const handleCloseCreate = useCallback(async () => {
     if (isStandaloneWindow) {
@@ -741,17 +792,37 @@ export default function PurchaseInvoices() {
           </div>
           <Button
             onClick={async () => {
-              if (isElectronDesktop && !isStandaloneWindow && window.electronAPI?.purchase?.openCreateWindow) {
-                const result = await window.electronAPI.purchase.openCreateWindow();
-                if (!result?.success) {
-                  toast({
-                    title: 'Erro',
-                    description: result?.error || 'Não foi possível abrir nova janela.',
-                    variant: 'destructive',
-                  });
+              if (!isStandaloneWindow) {
+                if (isElectronDesktop && window.electronAPI?.purchase?.openCreateWindow) {
+                  const result = await window.electronAPI.purchase.openCreateWindow();
+                  if (!result?.success) {
+                    toast({
+                      title: 'Erro',
+                      description: result?.error || 'Não foi possível abrir nova janela.',
+                      variant: 'destructive',
+                    });
+                  }
+                  return;
                 }
-                return;
+
+                const popup = window.open(
+                  '/purchase-invoices?mode=create&standalone=1',
+                  'kwanza-purchase-invoice',
+                  'popup=yes,width=1500,height=920,resizable=yes,scrollbars=yes'
+                );
+
+                if (popup) {
+                  popup.focus();
+                  return;
+                }
+
+                toast({
+                  title: 'Popup bloqueado',
+                  description: 'Permita popups para abrir a Fatura de Compra em nova janela.',
+                  variant: 'destructive',
+                });
               }
+
               startCreate();
             }}
             className="gap-2"
