@@ -350,8 +350,6 @@ export default function PurchaseInvoices() {
   const { suppliers } = useSuppliers();
   const { toast } = useToast();
   const isElectronDesktop = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
-  const isStandaloneWindow = searchParams.get('standalone') === '1';
-  const isProductPickerWindow = searchParams.get('mode') === 'product-picker';
 
   // State
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);

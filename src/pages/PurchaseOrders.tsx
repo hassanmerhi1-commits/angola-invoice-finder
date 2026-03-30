@@ -92,23 +92,9 @@ export default function PurchaseOrders() {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scanMode, setScanMode] = useState<'create' | 'receive' | null>(null);
 
-  const handleOpenPurchaseInvoice = useCallback(async () => {
-    if (window.electronAPI?.isElectron && window.electronAPI.purchase?.openCreateWindow) {
-      const result = await window.electronAPI.purchase.openCreateWindow();
-      if (!result?.success) {
-        toast({
-          title: 'Não foi possível abrir nova janela',
-          description: result?.error || 'A abrir no ecrã atual como alternativa.',
-          variant: 'destructive',
-        });
-        navigate('/purchase-invoices-window?mode=create&standalone=1');
-      }
-      return;
-    }
-
-    // Web/preview fallback: stay in the same app window (no external popup)
-    navigate('/purchase-invoices-window?mode=create&standalone=1');
-  }, [navigate, toast]);
+  const handleOpenPurchaseInvoice = useCallback(() => {
+    navigate("/purchase-invoices?mode=create");
+  }, [navigate]);
 
   // Handle barcode scan for adding products
   const handleBarcodeScan = useCallback((barcode: string) => {
