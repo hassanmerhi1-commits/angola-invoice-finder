@@ -672,27 +672,27 @@ export default function PurchaseInvoices() {
                     <TableCell>
                       <Button variant="ghost" size="icon" onClick={() => setViewInvoice(inv)}>
                         <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                      <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                      Nenhuma fatura de compra encontrada
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        <InvoiceViewDialog open={!!viewInvoice} onClose={() => setViewInvoice(null)} invoice={viewInvoice} />
+      </div>
+    );
+  }
 
   // ─── CREATE MODE ───
   return (
