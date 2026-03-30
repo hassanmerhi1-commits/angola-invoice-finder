@@ -101,28 +101,13 @@ export default function PurchaseOrders() {
           description: result?.error || 'A abrir no ecrã atual como alternativa.',
           variant: 'destructive',
         });
-        navigate('/purchase-invoices-window?mode=create');
+        navigate('/purchase-invoices-window?mode=create&standalone=1');
       }
       return;
     }
 
-    const popup = window.open(
-      '/purchase-invoices-window?mode=create&standalone=1',
-      'kwanza-purchase-invoice',
-      'popup=yes,width=1500,height=920,resizable=yes,scrollbars=yes'
-    );
-
-    if (popup) {
-      popup.focus();
-      return;
-    }
-
-    toast({
-      title: 'Popup bloqueado',
-      description: 'Permita popups para abrir a Fatura de Compra em nova janela.',
-      variant: 'destructive',
-    });
-    navigate('/purchase-invoices-window?mode=create');
+    // Web/preview fallback: stay in the same app window (no external popup)
+    navigate('/purchase-invoices-window?mode=create&standalone=1');
   }, [navigate, toast]);
 
   // Handle barcode scan for adding products
