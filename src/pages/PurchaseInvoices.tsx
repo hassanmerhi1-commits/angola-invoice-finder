@@ -627,7 +627,6 @@ export default function PurchaseInvoices() {
             onClick={() => setSearchParams({ mode: "create" })}
             className="gap-2"
           >
-          >
             <Plus className="h-4 w-4" /> Nova Fatura de Compra
           </Button>
         </div>
