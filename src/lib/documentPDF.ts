@@ -396,12 +396,30 @@ export function generateDocumentHTML(doc: ERPDocument, options: PDFOptions = {})
 // Open print preview in a new window
 export function printDocument(doc: ERPDocument, options: PDFOptions = {}) {
   const html = generateDocumentHTML(doc, { showQR: true, ...options });
-  const printWindow = window.open('', '_blank', 'width=800,height=1100');
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
-    setTimeout(() => printWindow.print(), 500);
+  
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
+  
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!iframeDoc) {
+    document.body.removeChild(iframe);
+    return;
   }
+  
+  iframeDoc.open();
+  iframeDoc.write(html);
+  iframeDoc.close();
+  
+  setTimeout(() => {
+    iframe.contentWindow?.print();
+    setTimeout(() => document.body.removeChild(iframe), 2000);
+  }, 500);
 }
 
 // Download as HTML (can be opened and printed to PDF)
