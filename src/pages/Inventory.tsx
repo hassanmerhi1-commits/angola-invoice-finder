@@ -376,6 +376,16 @@ export default function Inventory() {
           <Calculator className="w-3 h-3" />
           Ajustar Stock
         </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1"
+          onClick={() => setLabelPrintDialogOpen(true)}
+          disabled={!selectedProduct && displayProducts.length === 0}
+        >
+          <Printer className="w-3 h-3" />
+          Etiquetas
+        </Button>
 
         <div className="flex-1" />
 
