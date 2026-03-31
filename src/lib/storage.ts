@@ -390,19 +390,18 @@ export async function saveSupplier(supplier: Supplier): Promise<void> {
     const existing = await window.electronAPI!.db.getById('suppliers', supplier.id);
     const payload = mapSupplierToDb(supplier);
     if (existing?.data) {
-      const result = await dbUpdate('suppliers', supplier.id, payload);
-      if (!result) console.error('[Storage] Failed to update supplier:', supplier.id);
+      await dbUpdate('suppliers', supplier.id, payload);
     } else {
-      const result = await dbInsert('suppliers', payload);
-      if (!result) console.error('[Storage] Failed to insert supplier:', supplier.id);
+      await dbInsert('suppliers', payload);
     }
-    return;
+  } else {
+    const suppliers = lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []);
+    const index = suppliers.findIndex(s => s.id === supplier.id);
+    if (index >= 0) suppliers[index] = supplier;
+    else suppliers.push(supplier);
+    lsSet(STORAGE_KEYS.suppliers, suppliers);
   }
-  const suppliers = lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []);
-  const index = suppliers.findIndex(s => s.id === supplier.id);
-  if (index >= 0) suppliers[index] = supplier;
-  else suppliers.push(supplier);
-  lsSet(STORAGE_KEYS.suppliers, suppliers);
+  auditLog('create', 'suppliers', `Fornecedor "${supplier.name}" guardado`, 'Sistema');
 }
 
 export async function deleteSupplier(supplierId: string): Promise<void> {
