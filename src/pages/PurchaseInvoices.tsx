@@ -266,6 +266,52 @@ function InvoiceViewDialog({
   invoice: PurchaseInvoice | null;
 }) {
   if (!invoice) return null;
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const lines = invoice.lines.map(l => `
+      <tr>
+        <td style="font-family:monospace;font-size:11px">${l.productCode}</td>
+        <td>${l.description}</td>
+        <td style="text-align:right">${l.totalQty}</td>
+        <td style="text-align:right;font-family:monospace">${l.unitPrice.toLocaleString('pt-AO')}</td>
+        <td style="text-align:right">${l.ivaRate}%</td>
+        <td style="text-align:right;font-family:monospace;font-weight:bold">${l.totalWithIva.toLocaleString('pt-AO')}</td>
+      </tr>
+    `).join('');
+    const journalRows = invoice.journalLines.map(j => `
+      <tr>
+        <td style="font-family:monospace">${j.accountCode}</td>
+        <td>${j.accountName}</td>
+        <td>${j.note}</td>
+        <td style="text-align:right;font-family:monospace">${j.debit > 0 ? j.debit.toLocaleString('pt-AO') : '—'}</td>
+        <td style="text-align:right;font-family:monospace">${j.credit > 0 ? j.credit.toLocaleString('pt-AO') : '—'}</td>
+      </tr>
+    `).join('');
+    printWindow.document.write(`<html><head><title>FC ${invoice.invoiceNumber}</title>
+      <style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 8px}th{background:#f5f5f5;text-align:left}h2{color:#c2410c}@media print{body{margin:0}}</style>
+    </head><body>
+      <h2>FATURA DE COMPRA</h2>
+      <p><strong>${invoice.invoiceNumber}</strong>${invoice.supplierInvoiceNo ? ' — Fatura Fornecedor: ' + invoice.supplierInvoiceNo : ''}</p>
+      <table style="width:auto;border:none;margin-bottom:16px"><tr style="border:none">
+        <td style="border:none"><strong>Fornecedor:</strong> ${invoice.supplierName}</td>
+        <td style="border:none"><strong>Data:</strong> ${new Date(invoice.date).toLocaleDateString('pt-AO')}</td>
+        <td style="border:none"><strong>Armazém:</strong> ${invoice.warehouseName}</td>
+        <td style="border:none"><strong>Moeda:</strong> ${invoice.currency}</td>
+      </tr></table>
+      <table><thead><tr><th>Produto</th><th>Descrição</th><th>Qtd</th><th>Preço</th><th>IVA</th><th>Total</th></tr></thead><tbody>${lines}</tbody></table>
+      <div style="text-align:right;margin-top:12px">
+        <p>Sub Total: <strong>${invoice.subtotal.toLocaleString('pt-AO')} ${invoice.currency}</strong></p>
+        <p style="color:#c2410c">IVA: <strong>${invoice.ivaTotal.toLocaleString('pt-AO')} ${invoice.currency}</strong></p>
+        <p style="font-size:16px">Líquido: <strong>${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}</strong></p>
+      </div>
+      ${invoice.journalLines.length > 0 ? `<h3>Entrada Diário</h3><table><thead><tr><th>Conta</th><th>Nome</th><th>Nota</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${journalRows}</tbody></table>` : ''}
+    </body></html>`);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[85vh]">
@@ -276,6 +322,9 @@ function InvoiceViewDialog({
             <Badge variant={invoice.status === 'confirmed' ? 'default' : invoice.status === 'cancelled' ? 'destructive' : 'outline'}>
               {invoice.status === 'confirmed' ? 'Confirmado' : invoice.status === 'cancelled' ? 'Anulado' : 'Rascunho'}
             </Badge>
+            <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={handlePrint}>
+              <Printer className="h-4 w-4" /> Imprimir
+            </Button>
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[65vh]">
@@ -285,6 +334,9 @@ function InvoiceViewDialog({
               <div><span className="text-muted-foreground">Data:</span> {format(new Date(invoice.date), 'dd/MM/yyyy')}</div>
               <div><span className="text-muted-foreground">Armazém:</span> {invoice.warehouseName}</div>
               <div><span className="text-muted-foreground">Moeda:</span> {invoice.currency}</div>
+              {invoice.supplierInvoiceNo && (
+                <div><span className="text-muted-foreground">Nº Fatura Fornecedor:</span> <strong>{invoice.supplierInvoiceNo}</strong></div>
+              )}
             </div>
             <Table>
               <TableHeader>
