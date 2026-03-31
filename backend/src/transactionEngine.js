@@ -311,7 +311,15 @@ async function processSale(client, saleData) {
     console.warn('[TX ENGINE] Tax summary skipped:', e.message);
   }
 
-  console.log(`[TX ENGINE] Sale ${invoiceNumber}: Stock OUT, Journal, Tax, ${clientId ? 'Open Item' : 'Cash'} ✓`);
+  // 6. Audit log
+  await auditLog(client, {
+    tableName: 'sales', recordId: sale.id, action: 'create',
+    userId: cashierId, userName: cashierName, branchId,
+    newValues: { invoiceNumber, total, paymentMethod, items: items.length },
+    description: `Venda ${invoiceNumber} - ${parseFloat(total).toLocaleString()} AOA - ${items.length} itens`,
+  });
+
+  console.log(`[TX ENGINE] Sale ${invoiceNumber}: Stock OUT, Journal, Tax, Audit, ${clientId ? 'Open Item' : 'Cash'} ✓`);
   return sale;
 }
 
