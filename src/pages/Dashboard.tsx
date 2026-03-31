@@ -257,6 +257,7 @@ export default function Dashboard() {
               <TabsTrigger value="cashflow">Fluxo Caixa</TabsTrigger>
               <TabsTrigger value="products">Produtos</TabsTrigger>
               <TabsTrigger value="aging">Aging AR</TabsTrigger>
+              <TabsTrigger value="payments">Pagamentos</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
