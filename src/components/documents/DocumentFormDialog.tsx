@@ -388,14 +388,42 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
             </TabsContent>
           </Tabs>
 
+          {/* IVA Summary Table (AGT Requirement) */}
+          {ivaSummary.length > 0 && (
+            <div className="border rounded overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/60">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left font-medium">Quadro Resumo de Impostos</th>
+                    <th className="px-3 py-1.5 text-right font-medium">Base Incidência</th>
+                    <th className="px-3 py-1.5 text-right font-medium">Taxa IVA</th>
+                    <th className="px-3 py-1.5 text-right font-medium">Valor IVA</th>
+                    <th className="px-3 py-1.5 text-right font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ivaSummary.map(([rate, vals]) => (
+                    <tr key={rate} className="border-t">
+                      <td className="px-3 py-1">{rate === 0 ? 'Isento' : `IVA ${rate}%`}</td>
+                      <td className="px-3 py-1 text-right font-mono">{vals.base.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</td>
+                      <td className="px-3 py-1 text-right">{rate}%</td>
+                      <td className="px-3 py-1 text-right font-mono">{vals.iva.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</td>
+                      <td className="px-3 py-1 text-right font-mono font-medium">{vals.total.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Totals panel */}
           <div className="flex justify-end">
             <div className="w-72 space-y-1 text-xs border rounded p-3 bg-muted/30">
-              <div className="flex justify-between"><span>Subtotal:</span><span className="font-mono">{totals.subtotal.toLocaleString('pt-AO')} Kz</span></div>
+              <div className="flex justify-between"><span>Subtotal (s/IVA):</span><span className="font-mono">{totals.subtotal.toLocaleString('pt-AO')} Kz</span></div>
               <div className="flex justify-between text-muted-foreground"><span>Desconto:</span><span className="font-mono">-{totals.totalDiscount.toLocaleString('pt-AO')} Kz</span></div>
-              <div className="flex justify-between text-muted-foreground"><span>IVA:</span><span className="font-mono">{totals.totalTax.toLocaleString('pt-AO')} Kz</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Total IVA:</span><span className="font-mono">{totals.totalTax.toLocaleString('pt-AO')} Kz</span></div>
               <div className="border-t pt-1 flex justify-between font-bold text-sm">
-                <span>Total:</span><span className="font-mono">{totals.total.toLocaleString('pt-AO')} Kz</span>
+                <span>Total c/IVA:</span><span className="font-mono">{totals.total.toLocaleString('pt-AO')} Kz</span>
               </div>
               {config.requiresPayment && (
                 <>
