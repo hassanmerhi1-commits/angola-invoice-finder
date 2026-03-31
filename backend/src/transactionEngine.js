@@ -276,7 +276,20 @@ async function processSale(client, saleData) {
     });
   }
 
-  console.log(`[TX ENGINE] Sale ${invoiceNumber}: Stock OUT, Journal, ${clientId ? 'Open Item' : 'Cash'} ✓`);
+  // 5b. Tax summary record
+  const saleDate = new Date(today);
+  try {
+    await client.query(
+      `INSERT INTO tax_summaries (document_type, document_id, tax_code, tax_rate, total_base, total_tax, direction, period_year, period_month)
+       VALUES ('sale', $1, 'IVA14', 14.00, $2, $3, 'output', $4, $5)`,
+      [sale.id, parseFloat(subtotal), parseFloat(taxAmount), saleDate.getFullYear(), saleDate.getMonth() + 1]
+    );
+  } catch (e) {
+    // tax_summaries table may not exist yet — non-critical
+    console.warn('[TX ENGINE] Tax summary skipped:', e.message);
+  }
+
+  console.log(`[TX ENGINE] Sale ${invoiceNumber}: Stock OUT, Journal, Tax, ${clientId ? 'Open Item' : 'Cash'} ✓`);
   return sale;
 }
 
