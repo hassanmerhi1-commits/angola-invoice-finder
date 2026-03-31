@@ -9,6 +9,7 @@
  */
 
 import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, Supplier, PurchaseOrder, Category, StockMovement } from '@/types/erp';
+import { auditLog } from '@/lib/auditService';
 
 // ============= MODE DETECTION =============
 export function isElectronMode(): boolean {
