@@ -51,6 +51,7 @@ export interface PurchaseInvoice {
   supplierBalance: number;
   // Header
   ref?: string;
+  supplierInvoiceNo?: string; // Supplier's own invoice number
   contact?: string;
   department?: string;
   ref2?: string;

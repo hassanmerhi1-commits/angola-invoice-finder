@@ -1,52 +1,31 @@
 /**
  * Stock Movement Report
- * Shows inventory entries and exits
+ * Shows inventory entries and exits from ALL sources:
+ * purchases, sales, transfers, adjustments (entrada/saída)
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Download, Printer, ArrowDownCircle, ArrowUpCircle, FileSpreadsheet, Package } from 'lucide-react';
-import { useBranches, useSales, useProducts } from '@/hooks/useERP';
-
-interface StockMovement {
-  id: string;
-  date: string;
-  type: 'entry' | 'exit' | 'adjustment' | 'transfer';
-  documentRef: string;
-  productSku: string;
-  productName: string;
-  quantity: number;
-  unitCost: number;
-  totalValue: number;
-  source?: string;
-  destination?: string;
-  notes?: string;
-}
+import { Download, Printer, ArrowDownCircle, ArrowUpCircle, FileSpreadsheet, Package, Search } from 'lucide-react';
+import { useBranches, useProducts } from '@/hooks/useERP';
+import { getStockMovements } from '@/lib/storage';
+import { StockMovement } from '@/types/erp';
 
 export default function StockMovementReport() {
   const { currentBranch } = useBranches();
-  const { sales } = useSales(currentBranch?.id);
   const { products } = useProducts(currentBranch?.id);
   
+  const [movements, setMovements] = useState<StockMovement[]>([]);
   const [startDate, setStartDate] = useState(() => {
     const date = new Date();
     date.setDate(1);
@@ -55,120 +34,121 @@ export default function StockMovementReport() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [movementType, setMovementType] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Generate movements from sales
-  const movements: StockMovement[] = [];
-  
-  // Exit movements from sales
-  sales.forEach(sale => {
-    sale.items.forEach(item => {
-      movements.push({
-        id: `${sale.id}-${item.productId}`,
-        date: sale.createdAt,
-        type: 'exit',
-        documentRef: sale.invoiceNumber,
-        productSku: item.productId.slice(0, 8).toUpperCase(),
-        productName: item.productName,
-        quantity: -item.quantity,
-        unitCost: item.unitPrice * 0.7, // Estimated cost
-        totalValue: item.subtotal * 0.7,
-        destination: 'Venda',
-        notes: `Venda ${sale.invoiceNumber}`,
-      });
-    });
-  });
+  // Load real stock movements from storage
+  useEffect(() => {
+    const loadMovements = async () => {
+      const data = await getStockMovements(currentBranch?.id);
+      setMovements(data);
+    };
+    loadMovements();
+  }, [currentBranch?.id]);
 
-  // Add some mock entry movements
-  products.slice(0, 5).forEach((product, idx) => {
-    const entryDate = new Date();
-    entryDate.setDate(entryDate.getDate() - idx * 3);
-    movements.push({
-      id: `entry-${product.id}`,
-      date: entryDate.toISOString(),
-      type: 'entry',
-      documentRef: `FT-C${(idx + 1).toString().padStart(4, '0')}`,
-      productSku: product.sku,
-      productName: product.name,
-      quantity: Math.floor(Math.random() * 100) + 20,
-      unitCost: product.cost,
-      totalValue: product.cost * (Math.floor(Math.random() * 100) + 20),
-      source: 'Compra',
-      notes: 'Reposição de stock',
-    });
-  });
-
-  // Sort by date descending
-  movements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  // Filter
-  let filteredMovements = movements;
-  if (movementType !== 'all') {
-    filteredMovements = filteredMovements.filter(m => m.type === movementType);
-  }
-  if (selectedProduct !== 'all') {
-    filteredMovements = filteredMovements.filter(m => m.productSku === selectedProduct);
-  }
-  filteredMovements = filteredMovements.filter(m => {
-    const date = new Date(m.date);
-    return date >= new Date(startDate) && date <= new Date(endDate + 'T23:59:59');
-  });
-
-  // Totals
-  const totals = filteredMovements.reduce(
-    (acc, m) => ({
-      entries: acc.entries + (m.quantity > 0 ? m.quantity : 0),
-      exits: acc.exits + (m.quantity < 0 ? Math.abs(m.quantity) : 0),
-      entryValue: acc.entryValue + (m.quantity > 0 ? m.totalValue : 0),
-      exitValue: acc.exitValue + (m.quantity < 0 ? m.totalValue : 0),
-    }),
-    { entries: 0, exits: 0, entryValue: 0, exitValue: 0 }
-  );
-
-  const formatMoney = (value: number) => value.toLocaleString('pt-AO', { minimumFractionDigits: 2 });
-
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'entry': return 'Entrada';
-      case 'exit': return 'Saída';
+  const getReasonLabel = (reason: string) => {
+    switch (reason) {
+      case 'purchase': return 'Compra';
+      case 'sale': return 'Venda';
+      case 'transfer_in': return 'Transferência (Entrada)';
+      case 'transfer_out': return 'Transferência (Saída)';
       case 'adjustment': return 'Ajuste';
-      case 'transfer': return 'Transferência';
-      default: return type;
+      case 'damage': return 'Dano/Avaria';
+      case 'return': return 'Devolução';
+      case 'initial': return 'Stock Inicial';
+      default: return reason;
     }
   };
 
-  const getTypeBadge = (type: string, quantity: number) => {
-    if (type === 'entry' || quantity > 0) {
-      return (
-        <Badge className="bg-green-100 text-green-800 flex items-center gap-1 w-fit">
-          <ArrowDownCircle className="w-3 h-3" />
-          Entrada
-        </Badge>
+  const getTypeBadgeColor = (type: string, reason: string) => {
+    if (type === 'IN') {
+      switch (reason) {
+        case 'purchase': return 'bg-green-100 text-green-800';
+        case 'transfer_in': return 'bg-blue-100 text-blue-800';
+        case 'return': return 'bg-yellow-100 text-yellow-800';
+        case 'adjustment': return 'bg-purple-100 text-purple-800';
+        case 'initial': return 'bg-gray-100 text-gray-800';
+        default: return 'bg-green-100 text-green-800';
+      }
+    }
+    switch (reason) {
+      case 'sale': return 'bg-red-100 text-red-800';
+      case 'transfer_out': return 'bg-blue-100 text-blue-800';
+      case 'damage': return 'bg-orange-100 text-orange-800';
+      case 'adjustment': return 'bg-purple-100 text-purple-800';
+      default: return 'bg-red-100 text-red-800';
+    }
+  };
+
+  // Filter movements
+  const filteredMovements = useMemo(() => {
+    let result = [...movements];
+    
+    // Date filter
+    result = result.filter(m => {
+      const date = new Date(m.createdAt);
+      return date >= new Date(startDate) && date <= new Date(endDate + 'T23:59:59');
+    });
+    
+    // Type filter
+    if (movementType !== 'all') {
+      if (movementType === 'entry') result = result.filter(m => m.type === 'IN');
+      else if (movementType === 'exit') result = result.filter(m => m.type === 'OUT');
+      else result = result.filter(m => m.reason === movementType);
+    }
+    
+    // Product filter
+    if (selectedProduct !== 'all') {
+      result = result.filter(m => m.productId === selectedProduct);
+    }
+
+    // Search filter
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      result = result.filter(m =>
+        m.productName.toLowerCase().includes(q) ||
+        m.sku.toLowerCase().includes(q) ||
+        (m.referenceNumber || '').toLowerCase().includes(q) ||
+        (m.notes || '').toLowerCase().includes(q)
       );
     }
-    return (
-      <Badge className="bg-red-100 text-red-800 flex items-center gap-1 w-fit">
-        <ArrowUpCircle className="w-3 h-3" />
-        Saída
-      </Badge>
-    );
-  };
+
+    // Sort by date descending
+    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    return result;
+  }, [movements, startDate, endDate, movementType, selectedProduct, searchTerm]);
+
+  // Totals
+  const totals = useMemo(() => filteredMovements.reduce(
+    (acc, m) => ({
+      entries: acc.entries + (m.type === 'IN' ? m.quantity : 0),
+      exits: acc.exits + (m.type === 'OUT' ? m.quantity : 0),
+      entryValue: acc.entryValue + (m.type === 'IN' ? (m.costAtTime || 0) * m.quantity : 0),
+      exitValue: acc.exitValue + (m.type === 'OUT' ? (m.costAtTime || 0) * m.quantity : 0),
+    }),
+    { entries: 0, exits: 0, entryValue: 0, exitValue: 0 }
+  ), [filteredMovements]);
+
+  const formatMoney = (value: number) => value.toLocaleString('pt-AO', { minimumFractionDigits: 2 });
 
   const handlePrint = () => window.print();
 
   const handleExportExcel = () => {
-    const headers = ['Data', 'Tipo', 'Documento', 'SKU', 'Produto', 'Qtd', 'Custo Unit.', 'Valor Total'];
+    const headers = ['Data', 'Tipo', 'Motivo', 'Documento', 'SKU', 'Produto', 'Qtd', 'Custo Unit.', 'Valor Total', 'Notas'];
     const rows = filteredMovements.map(m => [
-      new Date(m.date).toLocaleDateString('pt-AO'),
-      getTypeLabel(m.type),
-      m.documentRef,
-      m.productSku,
+      new Date(m.createdAt).toLocaleDateString('pt-AO'),
+      m.type === 'IN' ? 'Entrada' : 'Saída',
+      getReasonLabel(m.reason),
+      m.referenceNumber || '',
+      m.sku,
       m.productName,
       m.quantity,
-      m.unitCost,
-      m.totalValue,
+      m.costAtTime || 0,
+      (m.costAtTime || 0) * m.quantity,
+      m.notes || '',
     ]);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -183,52 +163,66 @@ export default function StockMovementReport() {
         <CardHeader className="py-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Package className="w-5 h-5" />
-            Movimentos de Stock
+            Extracto de Movimentos de Stock
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-4 items-end">
             <div className="space-y-1">
               <Label className="text-xs">Data Início</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-8 w-40"
-              />
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 w-40" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Data Fim</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="h-8 w-40"
-              />
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 w-40" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs">Tipo de Movimento</Label>
               <Select value={movementType} onValueChange={setMovementType}>
-                <SelectTrigger className="h-8 w-36">
+                <SelectTrigger className="h-8 w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="entry">Entradas</SelectItem>
-                  <SelectItem value="exit">Saídas</SelectItem>
+                  <SelectItem value="entry">Todas Entradas</SelectItem>
+                  <SelectItem value="exit">Todas Saídas</SelectItem>
+                  <SelectItem value="purchase">Compras</SelectItem>
+                  <SelectItem value="sale">Vendas</SelectItem>
+                  <SelectItem value="transfer_in">Transferência Entrada</SelectItem>
+                  <SelectItem value="transfer_out">Transferência Saída</SelectItem>
                   <SelectItem value="adjustment">Ajustes</SelectItem>
-                  <SelectItem value="transfer">Transferências</SelectItem>
+                  <SelectItem value="damage">Dano/Avaria</SelectItem>
+                  <SelectItem value="return">Devoluções</SelectItem>
+                  <SelectItem value="initial">Stock Inicial</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Produto</Label>
+              <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                <SelectTrigger className="h-8 w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Produtos</SelectItem>
+                  {products.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.sku} — {p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex gap-2 items-end">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Pesquisar por nome, SKU, documento..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 h-8" />
+            </div>
             <div className="flex gap-2 ml-auto">
               <Button variant="outline" size="sm" onClick={handlePrint}>
-                <Printer className="w-4 h-4 mr-2" />
-                Imprimir
+                <Printer className="w-4 h-4 mr-2" /> Imprimir
               </Button>
               <Button variant="outline" size="sm" onClick={handleExportExcel}>
-                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                Excel
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
               </Button>
             </div>
           </div>
@@ -282,46 +276,53 @@ export default function StockMovementReport() {
                 <TableRow className="bg-muted/50">
                   <TableHead>Data/Hora</TableHead>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Motivo</TableHead>
                   <TableHead>Documento</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Produto</TableHead>
                   <TableHead className="text-right">Quantidade</TableHead>
                   <TableHead className="text-right">Custo Unit.</TableHead>
                   <TableHead className="text-right">Valor Total</TableHead>
-                  <TableHead>Origem/Destino</TableHead>
+                  <TableHead>Notas</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredMovements.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Nenhum movimento encontrado
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                      Nenhum movimento encontrado para o período selecionado
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredMovements.map((movement) => (
-                    <TableRow key={movement.id}>
+                  filteredMovements.map((m) => (
+                    <TableRow key={m.id}>
                       <TableCell className="text-sm">
-                        {new Date(movement.date).toLocaleDateString('pt-AO')}<br />
+                        {new Date(m.createdAt).toLocaleDateString('pt-AO')}<br />
                         <span className="text-xs text-muted-foreground">
-                          {new Date(movement.date).toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(m.createdAt).toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </TableCell>
-                      <TableCell>{getTypeBadge(movement.type, movement.quantity)}</TableCell>
-                      <TableCell className="font-mono text-sm">{movement.documentRef}</TableCell>
-                      <TableCell className="font-mono text-sm">{movement.productSku}</TableCell>
-                      <TableCell>{movement.productName}</TableCell>
-                      <TableCell className={`text-right font-mono font-medium ${movement.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {movement.quantity > 0 ? '+' : ''}{movement.quantity}
+                      <TableCell>
+                        <Badge className={`flex items-center gap-1 w-fit ${getTypeBadgeColor(m.type, m.reason)}`}>
+                          {m.type === 'IN' ? <ArrowDownCircle className="w-3 h-3" /> : <ArrowUpCircle className="w-3 h-3" />}
+                          {m.type === 'IN' ? 'Entrada' : 'Saída'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">{getReasonLabel(m.reason)}</TableCell>
+                      <TableCell className="font-mono text-sm">{m.referenceNumber || '—'}</TableCell>
+                      <TableCell className="font-mono text-sm">{m.sku}</TableCell>
+                      <TableCell>{m.productName}</TableCell>
+                      <TableCell className={`text-right font-mono font-medium ${m.type === 'IN' ? 'text-green-600' : 'text-red-600'}`}>
+                        {m.type === 'IN' ? '+' : '-'}{m.quantity}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm">
-                        {formatMoney(movement.unitCost)} Kz
+                        {m.costAtTime ? formatMoney(m.costAtTime) + ' Kz' : '—'}
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {formatMoney(movement.totalValue)} Kz
+                        {m.costAtTime ? formatMoney(m.costAtTime * m.quantity) + ' Kz' : '—'}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {movement.source || movement.destination || '-'}
+                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                        {m.notes || '—'}
                       </TableCell>
                     </TableRow>
                   ))

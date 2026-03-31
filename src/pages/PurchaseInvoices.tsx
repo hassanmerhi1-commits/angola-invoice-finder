@@ -19,6 +19,8 @@ import {
   applyPriceUpdate,
 } from '@/lib/purchaseInvoiceStorage';
 import { Supplier, Product } from '@/types/erp';
+import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
+import { useProducts as useProductsHook } from '@/hooks/useERP';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -114,12 +116,13 @@ function SupplierPickerDialog({
 
 // ─────────── Product Picker Dialog ───────────
 function ProductPickerDialog({
-  open, onClose, products, onSelect,
+  open, onClose, products, onSelect, onCreateNew,
 }: {
   open: boolean;
   onClose: () => void;
   products: Product[];
   onSelect: (p: Product) => void;
+  onCreateNew: () => void;
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(() => {
@@ -136,7 +139,12 @@ function ProductPickerDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[80vh]">
         <DialogHeader>
-          <DialogTitle>Lista de Produtos</DialogTitle>
+          <DialogTitle className="flex items-center justify-between">
+            <span>Lista de Produtos</span>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => { onClose(); onCreateNew(); }}>
+              <Plus className="h-4 w-4" /> Novo Produto
+            </Button>
+          </DialogTitle>
         </DialogHeader>
         <Input
           placeholder="Pesquisar produto por nome, SKU ou código de barras..."
@@ -179,6 +187,10 @@ function ProductPickerDialog({
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     Nenhum produto encontrado
+                    <br />
+                    <Button variant="link" size="sm" className="mt-2 gap-1" onClick={() => { onClose(); onCreateNew(); }}>
+                      <Plus className="h-4 w-4" /> Criar novo produto
+                    </Button>
                   </TableCell>
                 </TableRow>
               )}
@@ -254,6 +266,52 @@ function InvoiceViewDialog({
   invoice: PurchaseInvoice | null;
 }) {
   if (!invoice) return null;
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const lines = invoice.lines.map(l => `
+      <tr>
+        <td style="font-family:monospace;font-size:11px">${l.productCode}</td>
+        <td>${l.description}</td>
+        <td style="text-align:right">${l.totalQty}</td>
+        <td style="text-align:right;font-family:monospace">${l.unitPrice.toLocaleString('pt-AO')}</td>
+        <td style="text-align:right">${l.ivaRate}%</td>
+        <td style="text-align:right;font-family:monospace;font-weight:bold">${l.totalWithIva.toLocaleString('pt-AO')}</td>
+      </tr>
+    `).join('');
+    const journalRows = invoice.journalLines.map(j => `
+      <tr>
+        <td style="font-family:monospace">${j.accountCode}</td>
+        <td>${j.accountName}</td>
+        <td>${j.note}</td>
+        <td style="text-align:right;font-family:monospace">${j.debit > 0 ? j.debit.toLocaleString('pt-AO') : '—'}</td>
+        <td style="text-align:right;font-family:monospace">${j.credit > 0 ? j.credit.toLocaleString('pt-AO') : '—'}</td>
+      </tr>
+    `).join('');
+    printWindow.document.write(`<html><head><title>FC ${invoice.invoiceNumber}</title>
+      <style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 8px}th{background:#f5f5f5;text-align:left}h2{color:#c2410c}@media print{body{margin:0}}</style>
+    </head><body>
+      <h2>FATURA DE COMPRA</h2>
+      <p><strong>${invoice.invoiceNumber}</strong>${invoice.supplierInvoiceNo ? ' — Fatura Fornecedor: ' + invoice.supplierInvoiceNo : ''}</p>
+      <table style="width:auto;border:none;margin-bottom:16px"><tr style="border:none">
+        <td style="border:none"><strong>Fornecedor:</strong> ${invoice.supplierName}</td>
+        <td style="border:none"><strong>Data:</strong> ${new Date(invoice.date).toLocaleDateString('pt-AO')}</td>
+        <td style="border:none"><strong>Armazém:</strong> ${invoice.warehouseName}</td>
+        <td style="border:none"><strong>Moeda:</strong> ${invoice.currency}</td>
+      </tr></table>
+      <table><thead><tr><th>Produto</th><th>Descrição</th><th>Qtd</th><th>Preço</th><th>IVA</th><th>Total</th></tr></thead><tbody>${lines}</tbody></table>
+      <div style="text-align:right;margin-top:12px">
+        <p>Sub Total: <strong>${invoice.subtotal.toLocaleString('pt-AO')} ${invoice.currency}</strong></p>
+        <p style="color:#c2410c">IVA: <strong>${invoice.ivaTotal.toLocaleString('pt-AO')} ${invoice.currency}</strong></p>
+        <p style="font-size:16px">Líquido: <strong>${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}</strong></p>
+      </div>
+      ${invoice.journalLines.length > 0 ? `<h3>Entrada Diário</h3><table><thead><tr><th>Conta</th><th>Nome</th><th>Nota</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${journalRows}</tbody></table>` : ''}
+    </body></html>`);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[85vh]">
@@ -264,6 +322,9 @@ function InvoiceViewDialog({
             <Badge variant={invoice.status === 'confirmed' ? 'default' : invoice.status === 'cancelled' ? 'destructive' : 'outline'}>
               {invoice.status === 'confirmed' ? 'Confirmado' : invoice.status === 'cancelled' ? 'Anulado' : 'Rascunho'}
             </Badge>
+            <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={handlePrint}>
+              <Printer className="h-4 w-4" /> Imprimir
+            </Button>
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[65vh]">
@@ -273,6 +334,9 @@ function InvoiceViewDialog({
               <div><span className="text-muted-foreground">Data:</span> {format(new Date(invoice.date), 'dd/MM/yyyy')}</div>
               <div><span className="text-muted-foreground">Armazém:</span> {invoice.warehouseName}</div>
               <div><span className="text-muted-foreground">Moeda:</span> {invoice.currency}</div>
+              {invoice.supplierInvoiceNo && (
+                <div><span className="text-muted-foreground">Nº Fatura Fornecedor:</span> <strong>{invoice.supplierInvoiceNo}</strong></div>
+              )}
             </div>
             <Table>
               <TableHeader>
@@ -352,6 +416,7 @@ export default function PurchaseInvoices() {
   const navigate = useNavigate();
 
   // State
+  const { addProduct: addProductToStock } = useProductsHook(currentBranch?.id);
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [mode, setMode] = useState<'list' | 'create'>('list');
   const [searchTerm, setSearchTerm] = useState('');
@@ -362,7 +427,7 @@ export default function PurchaseInvoices() {
   const [editingJournalIdx, setEditingJournalIdx] = useState<number | null>(null);
   const [viewInvoice, setViewInvoice] = useState<PurchaseInvoice | null>(null);
   const [activeTab, setActiveTab] = useState('fatura');
-
+  const [showCreateProduct, setShowCreateProduct] = useState(false);
   // Form state
   const [form, setForm] = useState<Partial<PurchaseInvoice>>({});
   const [lines, setLines] = useState<PurchaseInvoiceLine[]>([]);
@@ -554,6 +619,7 @@ export default function PurchaseInvoices() {
       supplierPhone: form.supplierPhone,
       supplierBalance: form.supplierBalance || 0,
       ref: form.ref,
+      supplierInvoiceNo: (form as any).supplierInvoiceNo,
       contact: form.contact,
       department: form.department,
       ref2: form.ref2,
@@ -649,6 +715,7 @@ export default function PurchaseInvoices() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nº Fatura</TableHead>
+                  <TableHead>Nº Fatura Fornecedor</TableHead>
                   <TableHead>Fornecedor</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Armazém</TableHead>
@@ -663,6 +730,7 @@ export default function PurchaseInvoices() {
                 {filtered.map(inv => (
                   <TableRow key={inv.id}>
                     <TableCell className="font-mono text-xs font-medium">{inv.invoiceNumber}</TableCell>
+                    <TableCell className="text-xs">{inv.supplierInvoiceNo || '—'}</TableCell>
                     <TableCell>{inv.supplierName}</TableCell>
                     <TableCell className="text-sm">{format(new Date(inv.date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="text-sm">{inv.warehouseName}</TableCell>
@@ -683,7 +751,7 @@ export default function PurchaseInvoices() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                       <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
                       Nenhuma fatura de compra encontrada
                     </TableCell>
@@ -759,8 +827,18 @@ export default function PurchaseInvoices() {
                     <Input value={form.ref || ''} onChange={e => setForm(p => ({ ...p, ref: e.target.value }))} placeholder="Auto" className="h-8 text-xs" />
                   </div>
                   <div>
+                    <Label className="text-xs">Nº Fatura Fornecedor</Label>
+                    <Input value={(form as any).supplierInvoiceNo || ''} onChange={e => setForm(p => ({ ...p, supplierInvoiceNo: e.target.value }))} placeholder="Nº da fatura do fornecedor" className="h-8 text-xs" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
                     <Label className="text-xs">Ref</Label>
                     <Input value={form.ref2 || ''} onChange={e => setForm(p => ({ ...p, ref2: e.target.value }))} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Departamento</Label>
+                    <Input value={form.department || ''} onChange={e => setForm(p => ({ ...p, department: e.target.value }))} className="h-8 text-xs" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -960,7 +1038,15 @@ export default function PurchaseInvoices() {
                         </TableCell>
                         <TableCell className="text-right font-mono">{line.totalQty}</TableCell>
                         <TableCell className="text-right font-mono font-medium">{line.total.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell className="text-right font-mono">{line.ivaRate}%</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={line.ivaRate}
+                            onChange={e => updateLineField(idx, 'ivaRate', parseFloat(e.target.value) || 0)}
+                            className="h-7 w-14 text-xs text-right font-mono"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                          />
+                        </TableCell>
                         <TableCell className="text-xs">{line.warehouseName}</TableCell>
                         <TableCell className="text-right font-mono">{line.currentStock}</TableCell>
                         <TableCell className="text-right font-mono">{line.totalWithIva.toLocaleString('pt-AO')}</TableCell>
@@ -1143,11 +1229,22 @@ export default function PurchaseInvoices() {
         onClose={() => setProductPickerOpen(false)}
         products={products}
         onSelect={handleAddProduct}
+        onCreateNew={() => setShowCreateProduct(true)}
       />
       <AccountPickerDialog
         open={accountPickerOpen}
         onClose={() => setAccountPickerOpen(false)}
         onSelect={handleAccountSelect}
+      />
+      <ProductDetailDialog
+        open={showCreateProduct}
+        onOpenChange={setShowCreateProduct}
+        product={null}
+        onSave={(newProduct) => {
+          addProductToStock(newProduct);
+          handleAddProduct(newProduct);
+          toast({ title: 'Produto criado', description: `${newProduct.name} adicionado ao stock e à fatura` });
+        }}
       />
     </div>
   );
