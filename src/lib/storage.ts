@@ -365,7 +365,7 @@ export async function getSuppliers(): Promise<Supplier[]> {
 
 export async function saveSupplier(supplier: Supplier): Promise<void> {
   if (isElectronMode()) {
-    const existing = await dbGetById('suppliers', supplier.id);
+    const existing = await window.electronAPI!.db.getById('suppliers', supplier.id);
     const payload = mapSupplierToDb(supplier);
     if (existing?.data) {
       const result = await dbUpdate('suppliers', supplier.id, payload);
