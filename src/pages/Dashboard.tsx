@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   RevenueExpensesChart, CashFlowChart, TopProductsChart,
-  ARAgingChart, DailySalesChart,
+  ARAgingChart, DailySalesChart, ProfitMarginWidget,
+  PaymentMethodChart, StockValuationWidget,
 } from '@/components/dashboard/FinancialCharts';
 import {
   FileText, ShoppingCart, Package, BarChart3, TrendingUp,
