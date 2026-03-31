@@ -308,6 +308,33 @@ export function ProductFormDialog({
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="minStock">Stock Mínimo</Label>
+                  <Input
+                    id="minStock"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={formData.minStock || ''}
+                    onWheel={preventWheelValueChange}
+                    onChange={(e) => setFormData({ ...formData, minStock: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="maxStock">Stock Máximo</Label>
+                  <Input
+                    id="maxStock"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={formData.maxStock || ''}
+                    onWheel={preventWheelValueChange}
+                    onChange={(e) => setFormData({ ...formData, maxStock: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
               <div>
                 <Label htmlFor="branch">Filial</Label>
                 <Select
