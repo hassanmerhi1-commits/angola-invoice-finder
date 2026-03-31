@@ -420,7 +420,11 @@ export function SAFTExportDialog({
               </Button>
               <Button onClick={handleDownload} className="flex-1">
                 <Download className="w-4 h-4 mr-2" />
-                Descarregar Ficheiro
+                Descarregar Local
+              </Button>
+              <Button variant="secondary" onClick={handleDownloadXmlFromServer} disabled={isGenerating} className="flex-1">
+                <FileCode className="w-4 h-4 mr-2" />
+                XML Servidor
               </Button>
             </div>
           </div>
