@@ -44,6 +44,7 @@ import TaxManagement from "./pages/TaxManagement";
 import AuditTrail from "./pages/AuditTrail";
 import BudgetControl from "./pages/BudgetControl";
 import Approvals from "./pages/Approvals";
+import ExchangeRates from "./pages/ExchangeRates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -188,6 +189,7 @@ function AppRoutes() {
         <Route path="/audit-trail" element={<AuditTrail />} />
         <Route path="/budget-control" element={<BudgetControl />} />
         <Route path="/approvals" element={<Approvals />} />
+        <Route path="/exchange-rates" element={<ExchangeRates />} />
       </Route>
       <Route path="/purchase-invoices-window" element={<Navigate to="/purchase-invoices" replace />} />
       <Route path="*" element={<NotFound />} />

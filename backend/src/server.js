@@ -114,11 +114,32 @@ io.on('connection', (socket) => {
     await broadcastTable('purchase_orders');
   });
 
+  // Subscribe to specific table changes
+  socket.on('subscribe', (tables) => {
+    if (Array.isArray(tables)) {
+      tables.forEach(t => socket.join(`table:${t}`));
+      console.log(`[SUBSCRIBE] ${socket.id} → ${tables.join(', ')}`);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`[DISCONNECTED] Client: ${socket.id}`);
     discoveryBroadcaster.setConnectedClients(io.sockets.sockets.size);
   });
 });
+
+// Enhanced broadcast: also emit targeted events for real-time listeners
+const _origBroadcast = broadcastTable;
+async function enhancedBroadcast(tableName) {
+  await _origBroadcast(tableName);
+  io.to(`table:${tableName}`).emit('table_updated', { table: tableName, timestamp: Date.now() });
+}
+
+// Transaction event broadcasting (called by transaction engine)
+function broadcastTransactionEvent(eventType, data) {
+  io.emit('transaction_event', { type: eventType, data, timestamp: Date.now() });
+  console.log(`[TX EVENT] ${eventType}`);
+}
 
 // ============================================
 // API ROUTES
@@ -145,6 +166,8 @@ const budgetRoutes = require('./routes/budgets');
 const approvalRoutes = require('./routes/approvals');
 const saftRoutes = require('./routes/saft');
 const dashboardRoutes = require('./routes/dashboard');
+const exchangeRateRoutes = require('./routes/exchangeRates');
+const saftXmlRoutes = require('./routes/saftXml');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -167,6 +190,8 @@ app.use('/api/budgets', budgetRoutes(broadcastTable));
 app.use('/api/approvals', approvalRoutes(broadcastTable));
 app.use('/api/saft', saftRoutes(broadcastTable));
 app.use('/api/dashboard', dashboardRoutes(broadcastTable));
+app.use('/api/exchange-rates', exchangeRateRoutes(broadcastTable));
+app.use('/api/saft-xml', saftXmlRoutes(broadcastTable));
 
 // Health check with extended info
 app.get('/api/health', (req, res) => {
