@@ -54,8 +54,8 @@ export function ShelfLabelPrintDialog({ open, onOpenChange, products }: ShelfLab
             <div class="sku">${product.sku || ''}</div>
             ${showBarcode && product.barcode ? `<div class="barcode">||||| ${product.barcode} |||||</div>` : ''}
             <div class="prices">
-              <div class="price-main">${product.price.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</div>
-              ${showBasePrice ? `<div class="price-base">s/IVA: ${basePrice.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</div>` : ''}
+            <div class="price-main">${priceWithIVA.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</div>
+              ${showBasePrice ? `<div class="price-base">s/IVA: ${product.price.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</div>` : ''}
               ${taxRate > 0 ? `<div class="tax-info">IVA ${taxRate}%</div>` : '<div class="tax-info">Isento</div>'}
             </div>
           </div>
