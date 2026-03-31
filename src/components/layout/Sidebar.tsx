@@ -33,6 +33,7 @@ import {
   GitBranch,
   Coins,
   Lock,
+  Scale,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -55,6 +56,7 @@ const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
   '/caixa': 'caixa_open',
   '/expenses': 'expense_create',
   '/bank-accounts': 'bank_manage',
+  '/bank-reconciliation': 'bank_manage',
   '/payments': 'accounting_payment',
   '/chart-of-accounts': 'accounting_view',
   '/accounting-periods': 'accounting_view',
@@ -97,6 +99,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { icon: Wallet, label: 'Caixa', path: '/caixa' },
     { icon: Receipt, label: 'Despesas', path: '/expenses' },
     { icon: Landmark, label: 'Contas Bancárias', path: '/bank-accounts' },
+    { icon: Scale, label: 'Reconciliação', path: '/bank-reconciliation' },
     { icon: Upload, label: t.nav.dataSync, path: '/data-sync' },
     { icon: CreditCard, label: 'Pagamentos', path: '/payments' },
     { icon: BookOpen, label: t.nav.chartOfAccounts, path: '/chart-of-accounts' },
