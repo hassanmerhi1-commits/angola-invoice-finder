@@ -136,6 +136,8 @@ export function ProductFormDialog({
       lastCost: formData.cost,
       avgCost: product?.avgCost || formData.cost,
       stock: formData.stock,
+      minStock: formData.minStock || undefined,
+      maxStock: formData.maxStock || undefined,
       unit: formData.unit,
       taxRate: formData.taxRate,
       branchId: formData.branchId,
