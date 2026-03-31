@@ -948,7 +948,7 @@ function mapSupplierToDb(supplier: Supplier): any {
     address: supplier.address || '', city: supplier.city || '',
     province: supplier.country || 'Angola',
     contact_person: supplier.contactPerson || '',
-    payment_terms: supplier.paymentTerms, balance: 0,
+    payment_terms: supplier.paymentTerms, balance: supplier.balance || 0,
     is_active: supplier.isActive ? 1 : 0, notes: supplier.notes || '',
   };
 }

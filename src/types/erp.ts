@@ -236,6 +236,7 @@ export interface Supplier {
   country: string;
   contactPerson?: string;
   paymentTerms: 'immediate' | '15_days' | '30_days' | '60_days' | '90_days';
+  balance: number;
   isActive: boolean;
   notes?: string;
   createdAt: string;

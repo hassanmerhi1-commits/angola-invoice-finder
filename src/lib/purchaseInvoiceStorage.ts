@@ -4,7 +4,7 @@
  */
 
 import { Product } from '@/types/erp';
-import { getAllProducts, saveProduct, updateProductStock, saveStockMovement } from '@/lib/storage';
+import { getAllProducts, saveProduct, updateProductStock, saveStockMovement, getSuppliers, saveSupplier } from '@/lib/storage';
 
 const STORAGE_KEY = 'kwanzaerp_purchase_invoices';
 
