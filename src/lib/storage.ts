@@ -9,6 +9,7 @@
  */
 
 import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, Supplier, PurchaseOrder, Category, StockMovement } from '@/types/erp';
+import { auditLog } from '@/lib/auditService';
 
 // ============= MODE DETECTION =============
 export function isElectronMode(): boolean {
@@ -103,19 +104,25 @@ export async function getBranches(): Promise<Branch[]> {
 export async function saveBranch(branch: Branch): Promise<void> {
   if (isElectronMode()) {
     await dbInsert('branches', mapBranchToDb(branch));
+    auditLog('create', 'branches', `Filial "${branch.name}" guardada`, 'Sistema');
     return;
   }
   const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
   const index = branches.findIndex(b => b.id === branch.id);
+  const isNew = index < 0;
   if (index >= 0) branches[index] = branch;
   else branches.push(branch);
   lsSet(STORAGE_KEYS.branches, branches);
+  auditLog(isNew ? 'create' : 'update', 'branches', `Filial "${branch.name}" ${isNew ? 'criada' : 'actualizada'}`, 'Sistema');
 }
 
 export async function deleteBranch(branchId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('branches', branchId); return; }
-  const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, []).filter(b => b.id !== branchId);
-  lsSet(STORAGE_KEYS.branches, branches);
+  if (isElectronMode()) { await dbDelete('branches', branchId); }
+  else {
+    const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, []).filter(b => b.id !== branchId);
+    lsSet(STORAGE_KEYS.branches, branches);
+  }
+  auditLog('delete', 'branches', `Filial ${branchId} eliminada`, 'Sistema');
 }
 
 export function getCurrentBranch(): Branch | null {
@@ -149,19 +156,25 @@ export async function saveProduct(product: Product): Promise<void> {
     const payload = mapProductToDb(product);
     if (existing?.data) await dbUpdate('products', product.id, payload);
     else await dbInsert('products', payload);
+    auditLog(existing?.data ? 'update' : 'create', 'products', `Produto "${product.name}" (${product.sku}) ${existing?.data ? 'actualizado' : 'criado'}`, 'Sistema');
     return;
   }
   const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
   const index = products.findIndex(p => p.id === product.id);
+  const isNew = index < 0;
   if (index >= 0) products[index] = product;
   else products.push(product);
   lsSet(STORAGE_KEYS.products, products);
+  auditLog(isNew ? 'create' : 'update', 'products', `Produto "${product.name}" (${product.sku}) ${isNew ? 'criado' : 'actualizado'}`, 'Sistema');
 }
 
 export async function deleteProduct(productId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('products', productId); return; }
-  const products = lsGet<Product[]>(STORAGE_KEYS.products, []).filter(p => p.id !== productId);
-  lsSet(STORAGE_KEYS.products, products);
+  if (isElectronMode()) { await dbDelete('products', productId); }
+  else {
+    const products = lsGet<Product[]>(STORAGE_KEYS.products, []).filter(p => p.id !== productId);
+    lsSet(STORAGE_KEYS.products, products);
+  }
+  auditLog('delete', 'products', `Produto ${productId} eliminado`, 'Sistema');
 }
 
 export async function updateProductStock(productId: string, quantityChange: number): Promise<void> {
@@ -247,6 +260,7 @@ export async function saveSale(sale: Sale): Promise<void> {
     for (const item of sale.items) {
       await updateProductStock(item.productId, -item.quantity);
     }
+    auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
     return;
   }
 
@@ -285,6 +299,7 @@ export async function saveSale(sale: Sale): Promise<void> {
       ...(sale.taxAmount > 0 ? [{ accountCode: '3.3.1', debit: 0, credit: sale.taxAmount }] : []),
     ],
   });
+  auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
 }
 
 export function generateInvoiceNumber(branchCode: string): string {
@@ -305,19 +320,23 @@ export async function getUsers(): Promise<User[]> {
 export async function saveUser(user: User): Promise<void> {
   if (isElectronMode()) {
     await dbInsert('users', mapUserToDb(user));
-    return;
+  } else {
+    const users = lsGet<User[]>(STORAGE_KEYS.users, getDefaultUsers());
+    const index = users.findIndex(u => u.id === user.id);
+    if (index >= 0) users[index] = { ...user, updatedAt: new Date().toISOString() };
+    else users.push(user);
+    lsSet(STORAGE_KEYS.users, users);
   }
-  const users = lsGet<User[]>(STORAGE_KEYS.users, getDefaultUsers());
-  const index = users.findIndex(u => u.id === user.id);
-  if (index >= 0) users[index] = { ...user, updatedAt: new Date().toISOString() };
-  else users.push(user);
-  lsSet(STORAGE_KEYS.users, users);
+  auditLog('create', 'users', `Utilizador "${user.name}" guardado`, 'Sistema');
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('users', userId); return; }
-  const users = lsGet<User[]>(STORAGE_KEYS.users, []).filter(u => u.id !== userId);
-  lsSet(STORAGE_KEYS.users, users);
+  if (isElectronMode()) { await dbDelete('users', userId); }
+  else {
+    const users = lsGet<User[]>(STORAGE_KEYS.users, []).filter(u => u.id !== userId);
+    lsSet(STORAGE_KEYS.users, users);
+  }
+  auditLog('delete', 'users', `Utilizador ${userId} eliminado`, 'Sistema');
 }
 
 export function getCurrentUser(): User | null {
@@ -340,18 +359,21 @@ export async function getClients(): Promise<Client[]> {
 export async function saveClient(client: Client): Promise<void> {
   if (isElectronMode()) {
     await dbInsert('clients', mapClientToDb(client));
-    return;
+  } else {
+    const clients = lsGet<Client[]>(STORAGE_KEYS.clients, []);
+    const index = clients.findIndex(c => c.id === client.id);
+    const isNew = index < 0;
+    if (index >= 0) clients[index] = { ...client, updatedAt: new Date().toISOString() };
+    else clients.push(client);
+    lsSet(STORAGE_KEYS.clients, clients);
   }
-  const clients = lsGet<Client[]>(STORAGE_KEYS.clients, []);
-  const index = clients.findIndex(c => c.id === client.id);
-  if (index >= 0) clients[index] = { ...client, updatedAt: new Date().toISOString() };
-  else clients.push(client);
-  lsSet(STORAGE_KEYS.clients, clients);
+  auditLog('create', 'clients', `Cliente "${client.name}" guardado`, 'Sistema');
 }
 
 export async function deleteClient(clientId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('clients', clientId); return; }
-  lsSet(STORAGE_KEYS.clients, lsGet<Client[]>(STORAGE_KEYS.clients, []).filter(c => c.id !== clientId));
+  if (isElectronMode()) { await dbDelete('clients', clientId); }
+  else { lsSet(STORAGE_KEYS.clients, lsGet<Client[]>(STORAGE_KEYS.clients, []).filter(c => c.id !== clientId)); }
+  auditLog('delete', 'clients', `Cliente ${clientId} eliminado`, 'Sistema');
 }
 
 // ============= SUPPLIER FUNCTIONS =============
@@ -368,24 +390,24 @@ export async function saveSupplier(supplier: Supplier): Promise<void> {
     const existing = await window.electronAPI!.db.getById('suppliers', supplier.id);
     const payload = mapSupplierToDb(supplier);
     if (existing?.data) {
-      const result = await dbUpdate('suppliers', supplier.id, payload);
-      if (!result) console.error('[Storage] Failed to update supplier:', supplier.id);
+      await dbUpdate('suppliers', supplier.id, payload);
     } else {
-      const result = await dbInsert('suppliers', payload);
-      if (!result) console.error('[Storage] Failed to insert supplier:', supplier.id);
+      await dbInsert('suppliers', payload);
     }
-    return;
+  } else {
+    const suppliers = lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []);
+    const index = suppliers.findIndex(s => s.id === supplier.id);
+    if (index >= 0) suppliers[index] = supplier;
+    else suppliers.push(supplier);
+    lsSet(STORAGE_KEYS.suppliers, suppliers);
   }
-  const suppliers = lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []);
-  const index = suppliers.findIndex(s => s.id === supplier.id);
-  if (index >= 0) suppliers[index] = supplier;
-  else suppliers.push(supplier);
-  lsSet(STORAGE_KEYS.suppliers, suppliers);
+  auditLog('create', 'suppliers', `Fornecedor "${supplier.name}" guardado`, 'Sistema');
 }
 
 export async function deleteSupplier(supplierId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('suppliers', supplierId); return; }
-  lsSet(STORAGE_KEYS.suppliers, lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []).filter(s => s.id !== supplierId));
+  if (isElectronMode()) { await dbDelete('suppliers', supplierId); }
+  else { lsSet(STORAGE_KEYS.suppliers, lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []).filter(s => s.id !== supplierId)); }
+  auditLog('delete', 'suppliers', `Fornecedor ${supplierId} eliminado`, 'Sistema');
 }
 
 // ============= CATEGORY FUNCTIONS =============
@@ -406,18 +428,20 @@ export async function saveCategory(category: Category): Promise<void> {
       parent_id: category.parentId || '',
       is_active: category.isActive ? 1 : 0,
     });
-    return;
+  } else {
+    const categories = lsGet<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
+    const index = categories.findIndex(c => c.id === category.id);
+    if (index >= 0) categories[index] = category;
+    else categories.push(category);
+    lsSet(STORAGE_KEYS.categories, categories);
   }
-  const categories = lsGet<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
-  const index = categories.findIndex(c => c.id === category.id);
-  if (index >= 0) categories[index] = category;
-  else categories.push(category);
-  lsSet(STORAGE_KEYS.categories, categories);
+  auditLog('create', 'categories', `Categoria "${category.name}" guardada`, 'Sistema');
 }
 
 export async function deleteCategory(categoryId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('categories', categoryId); return; }
-  lsSet(STORAGE_KEYS.categories, lsGet<Category[]>(STORAGE_KEYS.categories, []).filter(c => c.id !== categoryId));
+  if (isElectronMode()) { await dbDelete('categories', categoryId); }
+  else { lsSet(STORAGE_KEYS.categories, lsGet<Category[]>(STORAGE_KEYS.categories, []).filter(c => c.id !== categoryId)); }
+  auditLog('delete', 'categories', `Categoria ${categoryId} eliminada`, 'Sistema');
 }
 
 // ============= PURCHASE ORDER FUNCTIONS =============
@@ -473,6 +497,7 @@ export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
         total: item.subtotal,
       });
     }
+    auditLog('create', 'purchase_orders', `OC ${order.orderNumber} - ${order.supplierName} - ${order.total.toLocaleString()} Kz`, 'Sistema');
     return;
   }
   const orders = lsGet<PurchaseOrder[]>(STORAGE_KEYS.purchaseOrders, []);
@@ -480,6 +505,7 @@ export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
   if (index >= 0) orders[index] = order;
   else orders.push(order);
   lsSet(STORAGE_KEYS.purchaseOrders, orders);
+  auditLog('create', 'purchase_orders', `OC ${order.orderNumber} - ${order.supplierName} - ${order.total.toLocaleString()} Kz`, 'Sistema');
 }
 
 export function generatePurchaseOrderNumber(): string {
@@ -631,6 +657,7 @@ export async function saveStockTransfer(transfer: StockTransfer): Promise<void> 
         received_quantity: item.receivedQuantity || 0,
       });
     }
+    auditLog('transfer', 'stock', `Transferência ${transfer.transferNumber} criada`, 'Sistema');
     return;
   }
   const transfers = lsGet<StockTransfer[]>(STORAGE_KEYS.stockTransfers, []);
@@ -638,6 +665,7 @@ export async function saveStockTransfer(transfer: StockTransfer): Promise<void> 
   if (index >= 0) transfers[index] = transfer;
   else transfers.push(transfer);
   lsSet(STORAGE_KEYS.stockTransfers, transfers);
+  auditLog('transfer', 'stock', `Transferência ${transfer.transferNumber} guardada`, 'Sistema');
 }
 
 export function generateTransferNumber(): string {

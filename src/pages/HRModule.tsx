@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { printPayslip } from '@/lib/payslipPrinter';
 import {
   Plus, Search, Edit2, Trash2, RefreshCw, Users, UserCheck,
   Calendar, DollarSign, FileText, Clock, Download, Printer,
@@ -404,10 +405,13 @@ export default function HRModule() {
                 <th className="px-3 py-2 text-right font-semibold w-20">INSS</th>
                 <th className="px-3 py-2 text-right font-semibold w-24">Líquido</th>
                 <th className="px-3 py-2 text-center font-semibold w-16">Estado</th>
+                <th className="px-3 py-2 text-center font-semibold w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {currentPayroll.map(p => (
+              {currentPayroll.map(p => {
+                const emp = employees.find(e => e.id === p.employeeId);
+                return (
                 <tr key={p.id} className="hover:bg-accent/30">
                   <td className="px-3 py-1.5 font-mono">{p.payrollNumber}</td>
                   <td className="px-3 py-1.5 font-mono">{p.employeeNumber}</td>
@@ -423,8 +427,14 @@ export default function HRModule() {
                       {p.status === 'draft' ? 'Rascunho' : p.status === 'approved' ? 'Aprovado' : 'Pago'}
                     </Badge>
                   </td>
+                  <td className="px-3 py-1.5 text-center">
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => printPayslip(p, emp)}>
+                      <Printer className="w-3 h-3" />
+                    </Button>
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
             <tfoot className="bg-muted/80 border-t-2 border-primary/30">
               <tr className="font-bold text-xs">
@@ -432,7 +442,7 @@ export default function HRModule() {
                 <td className="px-3 py-2 text-right font-mono">{payrollTotals.gross.toLocaleString('pt-AO')} Kz</td>
                 <td className="px-3 py-2 text-right font-mono text-destructive" colSpan={2}>{payrollTotals.deductions.toLocaleString('pt-AO')} Kz</td>
                 <td className="px-3 py-2 text-right font-mono text-green-600">{payrollTotals.net.toLocaleString('pt-AO')} Kz</td>
-                <td></td>
+                <td colSpan={2}></td>
               </tr>
             </tfoot>
           </table>

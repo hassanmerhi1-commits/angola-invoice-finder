@@ -59,6 +59,8 @@ export function ProductFormDialog({
     price: 0,
     cost: 0,
     stock: 0,
+    minStock: 0,
+    maxStock: 0,
     unit: 'un',
     taxRate: 14,
     branchId: 'all',
@@ -75,6 +77,8 @@ export function ProductFormDialog({
         price: product.price,
         cost: product.cost,
         stock: product.stock,
+        minStock: product.minStock || 0,
+        maxStock: product.maxStock || 0,
         unit: product.unit,
         taxRate: product.taxRate,
         branchId: product.branchId,
@@ -89,6 +93,8 @@ export function ProductFormDialog({
         price: 0,
         cost: 0,
         stock: 0,
+        minStock: 0,
+        maxStock: 0,
         unit: 'un',
         taxRate: 14,
         branchId: 'all',
@@ -130,6 +136,8 @@ export function ProductFormDialog({
       lastCost: formData.cost,
       avgCost: product?.avgCost || formData.cost,
       stock: formData.stock,
+      minStock: formData.minStock || undefined,
+      maxStock: formData.maxStock || undefined,
       unit: formData.unit,
       taxRate: formData.taxRate,
       branchId: formData.branchId,
@@ -298,6 +306,33 @@ export function ProductFormDialog({
                   onWheel={preventWheelValueChange}
                   onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="minStock">Stock Mínimo</Label>
+                  <Input
+                    id="minStock"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={formData.minStock || ''}
+                    onWheel={preventWheelValueChange}
+                    onChange={(e) => setFormData({ ...formData, minStock: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="maxStock">Stock Máximo</Label>
+                  <Input
+                    id="maxStock"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={formData.maxStock || ''}
+                    onWheel={preventWheelValueChange}
+                    onChange={(e) => setFormData({ ...formData, maxStock: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
               </div>
 
               <div>
