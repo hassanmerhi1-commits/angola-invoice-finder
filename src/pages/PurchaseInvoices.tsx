@@ -1048,9 +1048,10 @@ export default function PurchaseInvoices() {
                             onWheel={e => (e.target as HTMLInputElement).blur()}
                           />
                         </TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">{line.ivaAmount.toLocaleString('pt-AO')}</TableCell>
                         <TableCell className="text-xs">{line.warehouseName}</TableCell>
                         <TableCell className="text-right font-mono">{line.currentStock}</TableCell>
-                        <TableCell className="text-right font-mono">{line.totalWithIva.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{line.totalWithIva.toLocaleString('pt-AO')}</TableCell>
                         <TableCell>{line.unit}</TableCell>
                         <TableCell>
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeLine(idx)}>
