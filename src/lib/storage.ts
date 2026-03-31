@@ -497,6 +497,7 @@ export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
         total: item.subtotal,
       });
     }
+    auditLog('create', 'purchase_orders', `OC ${order.orderNumber} - ${order.supplierName} - ${order.total.toLocaleString()} Kz`, 'Sistema');
     return;
   }
   const orders = lsGet<PurchaseOrder[]>(STORAGE_KEYS.purchaseOrders, []);
@@ -504,6 +505,7 @@ export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
   if (index >= 0) orders[index] = order;
   else orders.push(order);
   lsSet(STORAGE_KEYS.purchaseOrders, orders);
+  auditLog('create', 'purchase_orders', `OC ${order.orderNumber} - ${order.supplierName} - ${order.total.toLocaleString()} Kz`, 'Sistema');
 }
 
 export function generatePurchaseOrderNumber(): string {
