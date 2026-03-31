@@ -188,6 +188,13 @@ export function AdvancedDataGrid({
   };
 
   const formatValue = (product: Product, key: string) => {
+    // Handle base price (without IVA) computed column
+    if (key === 'basePrice') {
+      const taxRate = product.taxRate || 0;
+      const basePrice = taxRate > 0 ? product.price / (1 + taxRate / 100) : product.price;
+      return (basePrice || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 });
+    }
+    
     // Handle computed columns
     if (key === 'profitMargin') {
       const margin = calculateProfitMargin(product);
