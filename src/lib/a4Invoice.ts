@@ -384,8 +384,9 @@ export async function generateA4InvoiceHTML(
         <div class="document-number">${sale.invoiceNumber}</div>
         <div class="document-date">
           Data: ${formatDate(sale.createdAt)}<br>
-          Hora: ${formatTime(sale.createdAt)}
+          Hora: ${new Date(sale.createdAt).toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </div>
+        <div style="font-size:10px;color:#666;margin-top:5px;">Original</div>
       </div>
     </div>
 
@@ -412,17 +413,21 @@ export async function generateA4InvoiceHTML(
     <table class="items-table">
       <thead>
         <tr>
-          <th style="width: 40%">Descrição</th>
-          <th style="width: 10%">Qtd</th>
-          <th style="width: 15%">Preço Unit.</th>
-          <th style="width: 10%">IVA</th>
+          <th style="width: 32%">Descrição</th>
+          <th style="width: 8%">Qtd</th>
+          <th style="width: 14%">Preço Unit. (s/IVA)</th>
+          <th style="width: 14%">Base Tributável</th>
+          <th style="width: 8%">IVA%</th>
           <th style="width: 12%">Valor IVA</th>
-          <th style="width: 13%">Total</th>
+          <th style="width: 12%">Total c/IVA</th>
         </tr>
       </thead>
       <tbody>
         ${sale.items.map(item => {
-          const taxAmount = item.subtotal * 0.14 / 1.14;
+          const itemTaxRate = (item as any).taxRate || 14;
+          const basePrice = item.unitPrice;
+          const baseTributavel = item.subtotal / (1 + itemTaxRate / 100);
+          const taxAmount = item.subtotal - baseTributavel;
           return `
           <tr>
             <td>
@@ -430,12 +435,51 @@ export async function generateA4InvoiceHTML(
               <div class="item-sku">Ref: ${item.productId.slice(0, 8).toUpperCase()}</div>
             </td>
             <td>${item.quantity}</td>
-            <td>${formatMoney(item.unitPrice)} Kz</td>
-            <td>14%</td>
+            <td>${formatMoney(basePrice)} Kz</td>
+            <td>${formatMoney(baseTributavel)} Kz</td>
+            <td>${itemTaxRate}%</td>
             <td>${formatMoney(taxAmount)} Kz</td>
             <td><strong>${formatMoney(item.subtotal)} Kz</strong></td>
           </tr>
         `;}).join('')}
+      </tbody>
+    </table>
+
+    <!-- Quadro Resumo de Impostos (AGT) -->
+    <table class="items-table" style="margin-bottom: 15px; font-size: 10px;">
+      <thead>
+        <tr>
+          <th colspan="2">Quadro Resumo de Impostos</th>
+          <th>Base Incidência</th>
+          <th>Taxa</th>
+          <th>Valor IVA</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(() => {
+          const taxMap = new Map<number, { base: number; iva: number; total: number }>();
+          sale.items.forEach(item => {
+            const rate = (item as any).taxRate || 14;
+            const total = item.subtotal;
+            const base = total / (1 + rate / 100);
+            const iva = total - base;
+            const existing = taxMap.get(rate) || { base: 0, iva: 0, total: 0 };
+            existing.base += base;
+            existing.iva += iva;
+            existing.total += total;
+            taxMap.set(rate, existing);
+          });
+          return Array.from(taxMap.entries()).sort((a, b) => a[0] - b[0]).map(([rate, vals]) => `
+            <tr>
+              <td colspan="2">${rate === 0 ? 'Isento' : 'IVA ' + rate + '%'}</td>
+              <td>${formatMoney(vals.base)} Kz</td>
+              <td>${rate}%</td>
+              <td>${formatMoney(vals.iva)} Kz</td>
+              <td><strong>${formatMoney(vals.total)} Kz</strong></td>
+            </tr>
+          `).join('');
+        })()}
       </tbody>
     </table>
 
@@ -468,7 +512,7 @@ export async function generateA4InvoiceHTML(
           <span>${formatMoney(sale.subtotal)} Kz</span>
         </div>
         <div class="total-row">
-          <span>IVA (14%):</span>
+          <span>Total IVA:</span>
           <span>${formatMoney(sale.taxAmount)} Kz</span>
         </div>
         ${sale.discount > 0 ? `
@@ -478,7 +522,7 @@ export async function generateA4InvoiceHTML(
         </div>
         ` : ''}
         <div class="total-row grand-total">
-          <span>TOTAL A PAGAR:</span>
+          <span>TOTAL A PAGAR (c/ IVA):</span>
           <span>${formatMoney(sale.total)} Kz</span>
         </div>
       </div>

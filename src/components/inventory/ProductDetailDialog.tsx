@@ -169,10 +169,15 @@ export function ProductDetailDialog({
 
   const set = (field: string, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
 
-  // Auto-calculate price with IVA when price or IVA changes
+  // Auto-calculate price with IVA when price or IVA changes (bidirectional)
   const updatePrice = (newPrice: number) => {
     set('price', newPrice);
     set('priceIVA', +(newPrice * (1 + formData.iva / 100)).toFixed(2));
+  };
+
+  const updatePriceFromIVA = (newPriceIVA: number) => {
+    set('priceIVA', newPriceIVA);
+    set('price', +(newPriceIVA / (1 + formData.iva / 100)).toFixed(2));
   };
 
   const updateIVA = (newIVA: number) => {
@@ -294,22 +299,26 @@ export function ProductDetailDialog({
 
               {/* ── Column 2: Preços & Custos ── */}
               <div className="border-r p-3 space-y-1">
-                <h4 className="text-[11px] font-semibold border-b pb-1 mb-1">Preços de Venda</h4>
-                <Row label="Preço 1 (Base)">
+              <h4 className="text-[11px] font-semibold border-b pb-1 mb-1">Preços de Venda</h4>
+                <Row label="Preço 1 (s/IVA)">
                   <Input type="number" step="0.01" value={formData.price} onChange={e => updatePrice(parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
-                <Row label="Preço 2">
+                <Row label="Preço 1 c/IVA">
+                  <Input type="number" step="0.01" value={formData.priceIVA} onChange={e => updatePriceFromIVA(parseFloat(e.target.value) || 0)} className="h-7 text-xs font-medium" />
+                </Row>
+                <div className="border-t border-dashed my-1" />
+                <Row label="Preço 2 (s/IVA)">
                   <Input type="number" step="0.01" value={formData.price2} onChange={e => set('price2', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
-                <Row label="Preço 3">
+                <ReadOnlyRow label="Preço 2 c/IVA" value={(formData.price2 * (1 + formData.iva / 100)).toFixed(2)} />
+                <Row label="Preço 3 (s/IVA)">
                   <Input type="number" step="0.01" value={formData.price3} onChange={e => set('price3', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
-                <Row label="Preço 4">
+                <ReadOnlyRow label="Preço 3 c/IVA" value={(formData.price3 * (1 + formData.iva / 100)).toFixed(2)} />
+                <Row label="Preço 4 (s/IVA)">
                   <Input type="number" step="0.01" value={formData.price4} onChange={e => set('price4', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
-                <Row label="Preço c/ IVA">
-                  <Input type="number" step="0.01" value={formData.priceIVA} onChange={e => set('priceIVA', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
-                </Row>
+                <ReadOnlyRow label="Preço 4 c/IVA" value={(formData.price4 * (1 + formData.iva / 100)).toFixed(2)} />
                 <ReadOnlyRow label="Margem %" value={`${margin}%`} />
 
                 <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Custo</h4>
