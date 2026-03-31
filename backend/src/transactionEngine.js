@@ -661,7 +661,15 @@ async function processPayment(client, paymentData) {
     lines,
   });
 
-  console.log(`[TX ENGINE] Payment ${paymentNumber}: ${amount} AOA, Journal, Clearing ✓`);
+  // Audit log
+  await auditLog(client, {
+    tableName: 'payments', recordId: payment.id, action: 'create',
+    userId: createdBy, branchId,
+    newValues: { paymentNumber, paymentType, entityName, amount, paymentMethod },
+    description: `${paymentType === 'receipt' ? 'Recebimento' : 'Pagamento'} ${paymentNumber} - ${entityName} - ${amount} AOA`,
+  });
+
+  console.log(`[TX ENGINE] Payment ${paymentNumber}: ${amount} AOA, Journal, Clearing, Audit ✓`);
   return payment;
 }
 
