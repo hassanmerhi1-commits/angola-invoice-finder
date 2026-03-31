@@ -161,6 +161,18 @@ export function ReceiptDialog({
               <span>TOTAL</span>
               <span>{sale.total.toLocaleString('pt-AO')} Kz</span>
             </div>
+            {company.exchangeRateUSD && company.exchangeRateUSD > 0 && (
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>Equiv. USD</span>
+                <span>$ {(sale.total / company.exchangeRateUSD).toFixed(2)}</span>
+              </div>
+            )}
+            {company.exchangeRateEUR && company.exchangeRateEUR > 0 && (
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>Equiv. EUR</span>
+                <span>€ {(sale.total / company.exchangeRateEUR).toFixed(2)}</span>
+              </div>
+            )}
           </div>
 
           <Separator className="border-dashed" />
