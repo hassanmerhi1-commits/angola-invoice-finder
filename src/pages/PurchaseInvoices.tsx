@@ -349,7 +349,7 @@ export default function PurchaseInvoices() {
   const { products } = useProducts(currentBranch?.id);
   const { suppliers } = useSuppliers();
   const { toast } = useToast();
-  const isElectronDesktop = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+  const navigate = useNavigate();
 
   // State
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
