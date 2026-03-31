@@ -9,6 +9,28 @@
 const db = require('./db');
 const { createJournalEntry, findAccountByCode } = require('./accounting');
 
+// ==================== AUDIT LOGGING ====================
+
+/**
+ * Write an audit log entry within a transaction
+ */
+async function auditLog(client, params) {
+  const { tableName, recordId, action, userId, userName, branchId, oldValues, newValues, description } = params;
+  try {
+    await client.query(
+      `INSERT INTO audit_log (table_name, record_id, action, user_id, user_name, branch_id, old_values, new_values, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [tableName, recordId, action, userId, userName, branchId,
+       oldValues ? JSON.stringify(oldValues) : null,
+       newValues ? JSON.stringify(newValues) : null,
+       description]
+    );
+  } catch (e) {
+    // audit_log table may not exist yet — non-critical
+    console.warn('[AUDIT] Log skipped:', e.message);
+  }
+}
+
 // ==================== STOCK MOVEMENTS ====================
 
 /**
