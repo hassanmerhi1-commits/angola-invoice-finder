@@ -523,7 +523,7 @@ export default function Inventory() {
           </Button>
         </div>
 
-        <TabsContent value="lista" className="flex-1 m-0 p-2">
+        <TabsContent value="lista" forceMount className="flex-1 m-0 p-2 data-[state=inactive]:hidden">
           <AdvancedDataGrid 
             products={displayProducts}
             onSelectProduct={handleSelectProduct}
@@ -537,11 +537,65 @@ export default function Inventory() {
         </TabsContent>
 
         <TabsContent value="extracto" className="flex-1 m-0 p-4">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center">Extracto do produto selecionado</p>
-            </CardContent>
-          </Card>
+          {!selectedProduct ? (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-muted-foreground text-center">Selecione um produto na lista para ver o extracto</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-base">{selectedProduct.sku} — {selectedProduct.name}</h3>
+                    <p className="text-sm text-muted-foreground">Movimentos de stock ligados ao produto selecionado</p>
+                  </div>
+                  <div className="flex gap-4 text-sm">
+                    <span><strong>Entradas:</strong> {movementSummary.entries}</span>
+                    <span><strong>Saídas:</strong> {movementSummary.exits}</span>
+                    <span><strong>Saldo Movimento:</strong> {movementSummary.entries - movementSummary.exits}</span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data/Hora</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Motivo</TableHead>
+                        <TableHead>Documento</TableHead>
+                        <TableHead className="text-right">Qtd</TableHead>
+                        <TableHead className="text-right">Custo</TableHead>
+                        <TableHead>Notas</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedProductMovements.map((movement) => (
+                        <TableRow key={movement.id}>
+                          <TableCell className="text-xs text-muted-foreground">{new Date(movement.createdAt).toLocaleString('pt-AO')}</TableCell>
+                          <TableCell className={movement.type === 'IN' ? 'text-green-600 font-medium' : 'text-destructive font-medium'}>
+                            {movement.type === 'IN' ? 'Entrada' : 'Saída'}
+                          </TableCell>
+                          <TableCell>{getMovementReasonLabel(movement.reason)}</TableCell>
+                          <TableCell className="font-mono text-xs">{movement.referenceNumber || '—'}</TableCell>
+                          <TableCell className="text-right font-mono">{movement.quantity}</TableCell>
+                          <TableCell className="text-right font-mono">{(movement.costAtTime || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-xs">{movement.notes || '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                      {selectedProductMovements.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Ainda não existem movimentos para este produto.</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="mes" className="flex-1 m-0 p-4">
