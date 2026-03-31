@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Building2, User as UserIcon, LogOut, Settings, Menu, Database, Server, Monitor, RefreshCw } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { CompanyLogo } from '@/components/layout/CompanyLogo';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 import { useTranslation } from '@/i18n';
 import { useDatabaseStatus } from '@/hooks/useDatabaseStatus';
 
