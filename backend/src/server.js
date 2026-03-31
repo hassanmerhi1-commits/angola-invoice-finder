@@ -145,6 +145,8 @@ const budgetRoutes = require('./routes/budgets');
 const approvalRoutes = require('./routes/approvals');
 const saftRoutes = require('./routes/saft');
 const dashboardRoutes = require('./routes/dashboard');
+const exchangeRateRoutes = require('./routes/exchangeRates');
+const saftXmlRoutes = require('./routes/saftXml');
 
 // Use routes
 app.use('/api/auth', authRoutes);
