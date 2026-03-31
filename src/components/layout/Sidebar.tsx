@@ -34,6 +34,10 @@ import {
   Coins,
   Lock,
   Scale,
+  Factory,
+  UserCheck,
+  NotebookPen,
+  TrendingUp,
 } from 'lucide-react';
 
 interface SidebarProps {
