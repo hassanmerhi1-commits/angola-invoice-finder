@@ -441,6 +441,7 @@ export async function saveCategory(category: Category): Promise<void> {
 export async function deleteCategory(categoryId: string): Promise<void> {
   if (isElectronMode()) { await dbDelete('categories', categoryId); }
   else { lsSet(STORAGE_KEYS.categories, lsGet<Category[]>(STORAGE_KEYS.categories, []).filter(c => c.id !== categoryId)); }
+  auditLog('delete', 'categories', `Categoria ${categoryId} eliminada`, 'Sistema');
 }
 
 // ============= PURCHASE ORDER FUNCTIONS =============
