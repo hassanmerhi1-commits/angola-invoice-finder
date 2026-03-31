@@ -137,7 +137,13 @@ export default function Invoices() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {Object.entries(DOCUMENT_TYPE_CONFIG).map(([key, cfg]) => (
-              <DropdownMenuItem key={key} onClick={() => openNewDocument(key as DocumentType)}>
+              <DropdownMenuItem key={key} onClick={() => {
+                if (key === 'fatura_compra') {
+                  navigate('/purchase-invoices');
+                } else {
+                  openNewDocument(key as DocumentType);
+                }
+              }}>
                 <span className={cn("mr-2", cfg.color)}>■</span>
                 {cfg.label}
               </DropdownMenuItem>
