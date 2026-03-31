@@ -131,7 +131,7 @@ export default function Suppliers() {
         description: `${formData.name} foi actualizado com sucesso`,
       });
     } else {
-      createSupplier(formData);
+      createSupplier({ ...formData, balance: 0 });
       toast({
         title: 'Fornecedor criado',
         description: `${formData.name} foi criado com sucesso`,
