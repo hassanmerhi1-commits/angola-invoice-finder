@@ -76,6 +76,91 @@ export default function HRModule() {
 
   const payrollEntries = useMemo(() => getStored<PayrollEntry>(STORAGE_KEYS.payroll), [refreshKey]);
   const leaves = useMemo(() => getStored<LeaveRequest>(STORAGE_KEYS.leaves), [refreshKey]);
+  const attendance = useMemo(() => getStored<AttendanceRecord>(STORAGE_KEYS.attendance), [refreshKey]);
+
+  const dayAttendance = useMemo(() => attendance.filter(a => a.date === attendanceDate), [attendance, attendanceDate]);
+
+  // Attendance helpers
+  const markAttendance = (empId: string, status: AttendanceRecord['status']) => {
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return;
+    const all = getStored<AttendanceRecord>(STORAGE_KEYS.attendance);
+    const existing = all.findIndex(a => a.employeeId === empId && a.date === attendanceDate);
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    if (existing >= 0) {
+      if (status === 'present' && !all[existing].checkOut && all[existing].checkIn) {
+        all[existing].checkOut = timeStr;
+        all[existing].hoursWorked = Math.max(0, now.getHours() - parseInt(all[existing].checkIn!.split(':')[0]));
+      } else {
+        all[existing].status = status;
+      }
+    } else {
+      all.push({
+        id: `att_${Date.now()}`,
+        employeeId: empId,
+        employeeName: emp.fullName,
+        date: attendanceDate,
+        checkIn: status === 'present' ? timeStr : undefined,
+        hoursWorked: 0, overtime: 0,
+        status,
+        createdAt: now.toISOString(),
+      });
+    }
+    setStored(STORAGE_KEYS.attendance, all);
+    refresh();
+  };
+
+  const getEmpAttendance = (empId: string) => dayAttendance.find(a => a.employeeId === empId);
+
+  // Leave helpers
+  const submitLeave = () => {
+    const emp = employees.find(e => e.id === leaveForm.employeeId);
+    if (!emp || !leaveForm.startDate || !leaveForm.endDate) { toast.error('Preencha todos os campos'); return; }
+    const days = differenceInCalendarDays(new Date(leaveForm.endDate), new Date(leaveForm.startDate)) + 1;
+    if (days < 1) { toast.error('Data de fim deve ser após a data de início'); return; }
+    const all = getStored<LeaveRequest>(STORAGE_KEYS.leaves);
+    all.push({
+      id: `leave_${Date.now()}`,
+      employeeId: emp.id,
+      employeeName: emp.fullName,
+      leaveType: leaveForm.leaveType,
+      startDate: leaveForm.startDate,
+      endDate: leaveForm.endDate,
+      days,
+      reason: leaveForm.reason,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+    setStored(STORAGE_KEYS.leaves, all);
+    toast.success(`Pedido de ${leaveTypeLabel(leaveForm.leaveType)} submetido (${days} dias)`);
+    setLeaveFormOpen(false);
+    refresh();
+  };
+
+  const approveLeave = (id: string) => {
+    const all = getStored<LeaveRequest>(STORAGE_KEYS.leaves);
+    const idx = all.findIndex(l => l.id === id);
+    if (idx >= 0) { all[idx].status = 'approved'; all[idx].approvedBy = user?.id; all[idx].approvedAt = new Date().toISOString(); }
+    setStored(STORAGE_KEYS.leaves, all);
+    toast.success('Pedido aprovado');
+    refresh();
+  };
+
+  const rejectLeave = (id: string) => {
+    const all = getStored<LeaveRequest>(STORAGE_KEYS.leaves);
+    const idx = all.findIndex(l => l.id === id);
+    if (idx >= 0) { all[idx].status = 'rejected'; }
+    setStored(STORAGE_KEYS.leaves, all);
+    toast.info('Pedido rejeitado');
+    refresh();
+  };
+
+  const leaveTypeLabel = (type: string) => {
+    const map: Record<string, string> = { annual: 'Férias', sick: 'Doença', maternity: 'Maternidade', paternity: 'Paternidade', unpaid: 'Sem vencimento', other: 'Outro' };
+    return map[type] || type;
+  };
 
   const filteredEmployees = useMemo(() => {
     if (!searchTerm) return employees;
