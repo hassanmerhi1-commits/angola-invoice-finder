@@ -52,6 +52,7 @@ export default function Invoices() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { currentBranch } = useBranchContext();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<DocumentType | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
