@@ -260,6 +260,10 @@ export default function Dashboard() {
             </TabsList>
             <TabsContent value="overview" className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <ProfitMarginWidget />
+                <StockValuationWidget />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <RevenueExpensesChart />
                 <DailySalesChart />
               </div>
