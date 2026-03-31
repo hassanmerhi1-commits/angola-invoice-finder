@@ -405,8 +405,9 @@ export async function saveSupplier(supplier: Supplier): Promise<void> {
 }
 
 export async function deleteSupplier(supplierId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('suppliers', supplierId); return; }
-  lsSet(STORAGE_KEYS.suppliers, lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []).filter(s => s.id !== supplierId));
+  if (isElectronMode()) { await dbDelete('suppliers', supplierId); }
+  else { lsSet(STORAGE_KEYS.suppliers, lsGet<Supplier[]>(STORAGE_KEYS.suppliers, []).filter(s => s.id !== supplierId)); }
+  auditLog('delete', 'suppliers', `Fornecedor ${supplierId} eliminado`, 'Sistema');
 }
 
 // ============= CATEGORY FUNCTIONS =============
@@ -427,18 +428,19 @@ export async function saveCategory(category: Category): Promise<void> {
       parent_id: category.parentId || '',
       is_active: category.isActive ? 1 : 0,
     });
-    return;
+  } else {
+    const categories = lsGet<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
+    const index = categories.findIndex(c => c.id === category.id);
+    if (index >= 0) categories[index] = category;
+    else categories.push(category);
+    lsSet(STORAGE_KEYS.categories, categories);
   }
-  const categories = lsGet<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
-  const index = categories.findIndex(c => c.id === category.id);
-  if (index >= 0) categories[index] = category;
-  else categories.push(category);
-  lsSet(STORAGE_KEYS.categories, categories);
+  auditLog('create', 'categories', `Categoria "${category.name}" guardada`, 'Sistema');
 }
 
 export async function deleteCategory(categoryId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('categories', categoryId); return; }
-  lsSet(STORAGE_KEYS.categories, lsGet<Category[]>(STORAGE_KEYS.categories, []).filter(c => c.id !== categoryId));
+  if (isElectronMode()) { await dbDelete('categories', categoryId); }
+  else { lsSet(STORAGE_KEYS.categories, lsGet<Category[]>(STORAGE_KEYS.categories, []).filter(c => c.id !== categoryId)); }
 }
 
 // ============= PURCHASE ORDER FUNCTIONS =============
