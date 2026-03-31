@@ -124,6 +124,16 @@ export function generateReceiptText(
   lines.push(leftRight('TOTAL:', formatMoney(sale.total)));
   lines.push(doubleDivider);
   
+  // Multi-currency equivalents
+  if (company.exchangeRateUSD && company.exchangeRateUSD > 0) {
+    const usdVal = (sale.total / company.exchangeRateUSD).toFixed(2);
+    lines.push(leftRight('Equiv. USD:', '$ ' + usdVal));
+  }
+  if (company.exchangeRateEUR && company.exchangeRateEUR > 0) {
+    const eurVal = (sale.total / company.exchangeRateEUR).toFixed(2);
+    lines.push(leftRight('Equiv. EUR:', 'E ' + eurVal));
+  }
+  
   // Payment info
   lines.push('');
   const paymentMethodNames: Record<string, string> = {
