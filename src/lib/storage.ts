@@ -657,6 +657,7 @@ export async function saveStockTransfer(transfer: StockTransfer): Promise<void> 
         received_quantity: item.receivedQuantity || 0,
       });
     }
+    auditLog('transfer', 'stock', `Transferência ${transfer.transferNumber} criada`, 'Sistema');
     return;
   }
   const transfers = lsGet<StockTransfer[]>(STORAGE_KEYS.stockTransfers, []);
@@ -664,6 +665,7 @@ export async function saveStockTransfer(transfer: StockTransfer): Promise<void> 
   if (index >= 0) transfers[index] = transfer;
   else transfers.push(transfer);
   lsSet(STORAGE_KEYS.stockTransfers, transfers);
+  auditLog('transfer', 'stock', `Transferência ${transfer.transferNumber} guardada`, 'Sistema');
 }
 
 export function generateTransferNumber(): string {
