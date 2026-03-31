@@ -36,6 +36,7 @@ export default function Dashboard() {
   const { currentBranch } = useBranchContext();
   const { language } = useTranslation();
   const { companyName, logo } = useCompanyLogo();
+  const { products } = useProducts(currentBranch?.id);
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
 
   // Fetch real KPIs
@@ -52,6 +53,21 @@ export default function Dashboard() {
   }, [currentBranch?.id]);
 
   const fmt = (n: number) => (n || 0).toLocaleString('pt-AO');
+
+  // Low stock alerts from actual product data
+  const lowStockProducts = useMemo(() => {
+    return products
+      .filter(p => p.isActive && p.minStock && p.minStock > 0 && p.stock <= p.minStock)
+      .sort((a, b) => a.stock - b.stock)
+      .slice(0, 10);
+  }, [products]);
+
+  const overstockProducts = useMemo(() => {
+    return products
+      .filter(p => p.isActive && p.maxStock && p.maxStock > 0 && p.stock > p.maxStock)
+      .sort((a, b) => b.stock - a.stock)
+      .slice(0, 5);
+  }, [products]);
 
   const documentFlow = useMemo(() => [
     { label: 'Proforma', icon: ClipboardList, path: '/proforma' },
