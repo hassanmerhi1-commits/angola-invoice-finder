@@ -217,7 +217,8 @@ async function processSale(client, saleData) {
     });
 
     // Calculate COGS
-    const productResult = await client.query('SELECT cost FROM products WHERE id = $1', [item.productId]);
+    // Calculate COGS
+    const productResult = await client.query('SELECT cost, tax_code FROM products WHERE id = $1', [item.productId]);
     if (productResult.rows.length > 0) {
       totalCOGS += parseFloat(productResult.rows[0].cost) * item.quantity;
     }
