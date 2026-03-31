@@ -835,7 +835,9 @@ function mapProductToDb(product: Product): any {
   return {
     id: product.id, sku: product.sku, barcode: product.barcode || '',
     name: product.name, description: '', category_id: product.category,
-    unit: product.unit, price: product.price, cost: product.cost,
+    unit: product.unit, price: product.price,
+    price_2: product.price2 || 0, price_3: product.price3 || 0, price_4: product.price4 || 0,
+    cost: product.cost,
     last_cost: product.lastCost || product.cost,
     weighted_avg_cost: product.avgCost || product.cost,
     stock: product.stock, min_stock: 0, max_stock: 0,
