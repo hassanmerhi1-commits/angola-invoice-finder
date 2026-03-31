@@ -77,6 +77,8 @@ export function ProductFormDialog({
         price: product.price,
         cost: product.cost,
         stock: product.stock,
+        minStock: product.minStock || 0,
+        maxStock: product.maxStock || 0,
         unit: product.unit,
         taxRate: product.taxRate,
         branchId: product.branchId,
