@@ -17,6 +17,7 @@ import {
   generatePurchaseInvoiceNumber,
   applyStockUpdate,
   applyPriceUpdate,
+  applySupplierBalanceUpdate,
 } from '@/lib/purchaseInvoiceStorage';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
