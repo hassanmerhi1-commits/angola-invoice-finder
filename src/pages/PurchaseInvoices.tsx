@@ -268,8 +268,6 @@ function InvoiceViewDialog({
   if (!invoice) return null;
 
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
     const lines = invoice.lines.map(l => `
       <tr>
         <td style="font-family:monospace;font-size:11px">${l.productCode}</td>
@@ -289,7 +287,7 @@ function InvoiceViewDialog({
         <td style="text-align:right;font-family:monospace">${j.credit > 0 ? j.credit.toLocaleString('pt-AO') : '—'}</td>
       </tr>
     `).join('');
-    printWindow.document.write(`<html><head><title>FC ${invoice.invoiceNumber}</title>
+    const html = `<html><head><title>FC ${invoice.invoiceNumber}</title>
       <style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 8px}th{background:#f5f5f5;text-align:left}h2{color:#c2410c}@media print{body{margin:0}}</style>
     </head><body>
       <h2>FATURA DE COMPRA</h2>
@@ -307,9 +305,26 @@ function InvoiceViewDialog({
         <p style="font-size:16px">Líquido: <strong>${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}</strong></p>
       </div>
       ${invoice.journalLines.length > 0 ? `<h3>Entrada Diário</h3><table><thead><tr><th>Conta</th><th>Nome</th><th>Nota</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${journalRows}</tbody></table>` : ''}
-    </body></html>`);
-    printWindow.document.close();
-    printWindow.print();
+    </body></html>`;
+
+    // Use iframe to avoid popup blocker
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 300);
   };
 
   return (
