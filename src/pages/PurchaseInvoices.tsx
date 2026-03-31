@@ -619,6 +619,7 @@ export default function PurchaseInvoices() {
       supplierPhone: form.supplierPhone,
       supplierBalance: form.supplierBalance || 0,
       ref: form.ref,
+      supplierInvoiceNo: (form as any).supplierInvoiceNo,
       contact: form.contact,
       department: form.department,
       ref2: form.ref2,
