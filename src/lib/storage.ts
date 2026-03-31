@@ -395,7 +395,7 @@ export async function saveCategory(category: Category): Promise<void> {
       id: category.id,
       name: category.name,
       description: category.description || '',
-      parent_id: '',
+      parent_id: category.parentId || '',
       is_active: category.isActive ? 1 : 0,
     });
     return;
