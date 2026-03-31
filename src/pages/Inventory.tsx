@@ -77,6 +77,15 @@ export default function Inventory() {
   useEffect(() => {
     loadBranchProducts();
   }, [loadBranchProducts, products]);
+
+  const loadStockMovements = useCallback(async () => {
+    const data = await getStockMovements(isHeadOffice ? undefined : currentBranch?.id);
+    setStockMovements(data);
+  }, [currentBranch?.id, isHeadOffice]);
+
+  useEffect(() => {
+    loadStockMovements();
+  }, [loadStockMovements, products]);
   
   // For head office: deduplicate products by SKU (show unique items with aggregated total)
   const displayProducts = useMemo(() => {
