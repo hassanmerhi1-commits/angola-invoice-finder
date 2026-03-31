@@ -38,6 +38,8 @@ import Expenses from "./pages/Expenses";
 import BankAccounts from "./pages/BankAccounts";
 import CaixaManagement from "./pages/CaixaManagement";
 import Vendas from "./pages/Vendas";
+import PaymentsPage from "./pages/Payments";
+import AccountingPeriods from "./pages/AccountingPeriods";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
