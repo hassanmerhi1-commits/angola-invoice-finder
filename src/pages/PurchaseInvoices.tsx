@@ -730,6 +730,7 @@ export default function PurchaseInvoices() {
                 {filtered.map(inv => (
                   <TableRow key={inv.id}>
                     <TableCell className="font-mono text-xs font-medium">{inv.invoiceNumber}</TableCell>
+                    <TableCell className="text-xs">{inv.supplierInvoiceNo || '—'}</TableCell>
                     <TableCell>{inv.supplierName}</TableCell>
                     <TableCell className="text-sm">{format(new Date(inv.date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="text-sm">{inv.warehouseName}</TableCell>
