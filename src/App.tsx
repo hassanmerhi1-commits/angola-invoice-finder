@@ -40,6 +40,10 @@ import CaixaManagement from "./pages/CaixaManagement";
 import Vendas from "./pages/Vendas";
 import PaymentsPage from "./pages/Payments";
 import AccountingPeriods from "./pages/AccountingPeriods";
+import TaxManagement from "./pages/TaxManagement";
+import AuditTrail from "./pages/AuditTrail";
+import BudgetControl from "./pages/BudgetControl";
+import Approvals from "./pages/Approvals";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
