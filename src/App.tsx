@@ -178,6 +178,8 @@ function AppRoutes() {
         <Route path="/hr" element={<HRModule />} />
         <Route path="/production" element={<ProductionModule />} />
         <Route path="/import" element={<ImportModule />} />
+        <Route path="/payments" element={<PaymentsPage />} />
+        <Route path="/accounting-periods" element={<AccountingPeriods />} />
       </Route>
       <Route path="/purchase-invoices-window" element={<Navigate to="/purchase-invoices" replace />} />
       <Route path="*" element={<NotFound />} />
