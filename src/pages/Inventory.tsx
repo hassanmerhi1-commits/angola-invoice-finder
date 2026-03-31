@@ -32,6 +32,7 @@ import {
   Building2
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
+import { ShelfLabelPrintDialog } from '@/components/inventory/ShelfLabelPrintDialog';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { BranchStockDetail } from '@/components/inventory/BranchStockDetail';
 import { BranchSelector } from '@/components/BranchSelector';
