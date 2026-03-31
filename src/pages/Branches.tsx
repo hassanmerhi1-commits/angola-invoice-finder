@@ -120,6 +120,7 @@ export default function Branches() {
             address: formData.address || '',
             phone: formData.phone || '',
             isMain: formData.isMain,
+            priceLevel: (formData as any).priceLevel || editingBranch.priceLevel || 1,
           };
           storage.saveBranch(updatedBranch);
           toast.success('Filial actualizada com sucesso');
