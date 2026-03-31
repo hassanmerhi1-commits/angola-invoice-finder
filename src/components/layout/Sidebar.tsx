@@ -33,6 +33,7 @@ import {
   GitBranch,
   Coins,
   Lock,
+  Scale,
 } from 'lucide-react';
 
 interface SidebarProps {
