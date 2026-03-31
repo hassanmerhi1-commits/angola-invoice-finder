@@ -376,7 +376,7 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
                       </tr>
                     ))}
                     {lines.length === 0 && (
-                      <tr><td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">Nenhuma linha adicionada</td></tr>
+                      <tr><td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">Nenhuma linha adicionada</td></tr>
                     )}
                   </tbody>
                 </table>
