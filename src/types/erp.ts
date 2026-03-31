@@ -18,6 +18,7 @@ export interface Branch {
   address: string;
   phone: string;
   isMain: boolean;
+  priceLevel: number; // 1-4, which price column this branch uses
   createdAt: string;
 }
 
