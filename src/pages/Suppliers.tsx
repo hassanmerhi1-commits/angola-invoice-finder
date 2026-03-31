@@ -233,11 +233,16 @@ export default function Suppliers() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Fornecedores</h1>
-          <p className="text-sm text-muted-foreground font-medium">
-            Gestão de fornecedores e compras
-          </p>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight">Fornecedores</h1>
+            <p className="text-sm text-muted-foreground font-medium">
+              Gestão de fornecedores e compras
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" className="rounded-xl" onClick={() => setImportDialogOpen(true)}>
