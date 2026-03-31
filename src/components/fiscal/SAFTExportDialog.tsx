@@ -120,17 +120,14 @@ export function SAFTExportDialog({
   const handleDownloadXmlFromServer = async () => {
     try {
       setIsGenerating(true);
-      const { apiClient } = await import('@/lib/api/client');
-      const response = await apiClient.getSaftXml(options.startDate, options.endDate);
+      const { getApiUrl } = await import('@/lib/api/config');
+      const baseUrl = getApiUrl();
+      const sp = new URLSearchParams({ startDate: options.startDate, endDate: options.endDate });
       
-      // Create and download XML file
-      const blob = new Blob([response.xml || JSON.stringify(response)], { type: 'application/xml' });
-      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = `${baseUrl}/api/saft-xml/download?${sp}`;
       a.download = `SAFT-AO_${company.nif}_${options.startDate}_${options.endDate}.xml`;
       a.click();
-      URL.revokeObjectURL(url);
       
       toast.success('Ficheiro SAF-T XML (servidor) descarregado');
     } catch (error) {
