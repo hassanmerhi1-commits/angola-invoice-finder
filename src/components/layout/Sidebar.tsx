@@ -34,6 +34,10 @@ import {
   Coins,
   Lock,
   Scale,
+  Factory,
+  UserCheck,
+  NotebookPen,
+  TrendingUp,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -109,6 +113,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { icon: GitBranch, label: 'Aprovações', path: '/approvals' },
     { icon: Coins, label: 'Câmbio', path: '/exchange-rates' },
     { icon: Shield, label: 'Auditoria', path: '/audit-trail' },
+    { icon: NotebookPen, label: 'Diários', path: '/journals' },
+    { icon: TrendingUp, label: 'Vendas', path: '/vendas' },
+    { icon: Factory, label: 'Produção', path: '/production' },
+    { icon: UserCheck, label: 'Recursos Humanos', path: '/hr' },
     { icon: Shield, label: 'User Management', path: '/users' },
     { icon: Building2, label: 'Branches', path: '/branches' },
     { icon: BarChart3, label: 'Reports', path: '/reports' },
