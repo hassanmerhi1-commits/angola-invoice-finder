@@ -1164,11 +1164,22 @@ export default function PurchaseInvoices() {
         onClose={() => setProductPickerOpen(false)}
         products={products}
         onSelect={handleAddProduct}
+        onCreateNew={() => setShowCreateProduct(true)}
       />
       <AccountPickerDialog
         open={accountPickerOpen}
         onClose={() => setAccountPickerOpen(false)}
         onSelect={handleAccountSelect}
+      />
+      <ProductDetailDialog
+        open={showCreateProduct}
+        onOpenChange={setShowCreateProduct}
+        product={null}
+        onSave={(newProduct) => {
+          addProductToStock(newProduct);
+          handleAddProduct(newProduct);
+          toast({ title: 'Produto criado', description: `${newProduct.name} adicionado ao stock e à fatura` });
+        }}
       />
     </div>
   );
