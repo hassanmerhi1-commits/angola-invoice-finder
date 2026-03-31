@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { printPayslip } from '@/lib/payslipPrinter';
 import {
   Plus, Search, Edit2, Trash2, RefreshCw, Users, UserCheck,
   Calendar, DollarSign, FileText, Clock, Download, Printer,
