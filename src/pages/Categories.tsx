@@ -499,5 +499,3 @@ export default function Categories() {
     </div>
   );
 }
-
-import React from 'react';
