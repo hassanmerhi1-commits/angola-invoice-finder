@@ -811,7 +811,11 @@ function mapProductFromDb(row: any): Product {
   return {
     id: row.id, name: row.name, sku: row.sku || '', barcode: row.barcode,
     category: row.category_id ?? row.category ?? '',
-    price: Number(row.price || 0), cost,
+    price: Number(row.price || 0),
+    price2: Number(row.price2 ?? row.price_2 ?? 0) || undefined,
+    price3: Number(row.price3 ?? row.price_3 ?? 0) || undefined,
+    price4: Number(row.price4 ?? row.price_4 ?? 0) || undefined,
+    cost,
     firstCost: Number(row.first_cost ?? row.firstCost ?? cost),
     lastCost: Number(row.last_cost ?? row.lastCost ?? row.weighted_avg_cost ?? cost),
     avgCost: Number(row.weighted_avg_cost ?? row.avg_cost ?? row.avgCost ?? cost),
