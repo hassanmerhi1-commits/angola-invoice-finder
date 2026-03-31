@@ -856,6 +856,13 @@ export default function Inventory() {
           refreshProducts();
         }}
       />
+
+      {/* Shelf Label Print Dialog */}
+      <ShelfLabelPrintDialog
+        open={labelPrintDialogOpen}
+        onOpenChange={setLabelPrintDialogOpen}
+        products={selectedProduct ? [selectedProduct] : displayProducts}
+      />
     </div>
   );
 }
