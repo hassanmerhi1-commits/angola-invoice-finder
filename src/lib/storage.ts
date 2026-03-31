@@ -365,9 +365,14 @@ export async function getSuppliers(): Promise<Supplier[]> {
 
 export async function saveSupplier(supplier: Supplier): Promise<void> {
   if (isElectronMode()) {
-    const result = await dbInsert('suppliers', mapSupplierToDb(supplier));
-    if (!result) {
-      console.error('[Storage] Failed to save supplier to database:', supplier.id);
+    const existing = await dbGetById('suppliers', supplier.id);
+    const payload = mapSupplierToDb(supplier);
+    if (existing?.data) {
+      const result = await dbUpdate('suppliers', supplier.id, payload);
+      if (!result) console.error('[Storage] Failed to update supplier:', supplier.id);
+    } else {
+      const result = await dbInsert('suppliers', payload);
+      if (!result) console.error('[Storage] Failed to insert supplier:', supplier.id);
     }
     return;
   }
