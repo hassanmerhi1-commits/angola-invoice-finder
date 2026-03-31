@@ -12,6 +12,7 @@ const MIGRATIONS = [
   '005_transaction_engine.sql',
   '006_tax_engine.sql',
   '007_enterprise_controls.sql',
+  '008_multi_currency.sql',
 ];
 
 async function runMigrations() {

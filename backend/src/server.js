@@ -143,6 +143,8 @@ const paymentRoutes = require('./routes/payments');
 const auditRoutes = require('./routes/audit');
 const budgetRoutes = require('./routes/budgets');
 const approvalRoutes = require('./routes/approvals');
+const saftRoutes = require('./routes/saft');
+const dashboardRoutes = require('./routes/dashboard');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -163,6 +165,8 @@ app.use('/api/tax', taxRoutes(broadcastTable));
 app.use('/api/audit', auditRoutes(broadcastTable));
 app.use('/api/budgets', budgetRoutes(broadcastTable));
 app.use('/api/approvals', approvalRoutes(broadcastTable));
+app.use('/api/saft', saftRoutes(broadcastTable));
+app.use('/api/dashboard', dashboardRoutes(broadcastTable));
 
 // Health check with extended info
 app.get('/api/health', (req, res) => {
