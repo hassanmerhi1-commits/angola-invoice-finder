@@ -126,7 +126,7 @@ export default function ExchangeRates() {
                   <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
                   <Badge variant="outline" className="text-lg font-mono">AOA</Badge>
                 </div>
-                <TrendingUp className="w-5 h-5 text-green-500" />
+                <TrendingUp className="w-5 h-5 text-primary" />
               </div>
               <p className="text-3xl font-bold mt-3 text-foreground">{fmt(parseFloat(String(r.rate)))}</p>
               <p className="text-xs text-muted-foreground mt-1">
