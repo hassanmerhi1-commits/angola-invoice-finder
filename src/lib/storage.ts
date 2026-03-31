@@ -359,18 +359,21 @@ export async function getClients(): Promise<Client[]> {
 export async function saveClient(client: Client): Promise<void> {
   if (isElectronMode()) {
     await dbInsert('clients', mapClientToDb(client));
-    return;
+  } else {
+    const clients = lsGet<Client[]>(STORAGE_KEYS.clients, []);
+    const index = clients.findIndex(c => c.id === client.id);
+    const isNew = index < 0;
+    if (index >= 0) clients[index] = { ...client, updatedAt: new Date().toISOString() };
+    else clients.push(client);
+    lsSet(STORAGE_KEYS.clients, clients);
   }
-  const clients = lsGet<Client[]>(STORAGE_KEYS.clients, []);
-  const index = clients.findIndex(c => c.id === client.id);
-  if (index >= 0) clients[index] = { ...client, updatedAt: new Date().toISOString() };
-  else clients.push(client);
-  lsSet(STORAGE_KEYS.clients, clients);
+  auditLog('create', 'clients', `Cliente "${client.name}" guardado`, 'Sistema');
 }
 
 export async function deleteClient(clientId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('clients', clientId); return; }
-  lsSet(STORAGE_KEYS.clients, lsGet<Client[]>(STORAGE_KEYS.clients, []).filter(c => c.id !== clientId));
+  if (isElectronMode()) { await dbDelete('clients', clientId); }
+  else { lsSet(STORAGE_KEYS.clients, lsGet<Client[]>(STORAGE_KEYS.clients, []).filter(c => c.id !== clientId)); }
+  auditLog('delete', 'clients', `Cliente ${clientId} eliminado`, 'Sistema');
 }
 
 // ============= SUPPLIER FUNCTIONS =============
