@@ -1,4 +1,4 @@
-// Kwanza ERP Dashboard - With Real KPIs from Transaction Engine
+// Kwanza ERP Dashboard - With Real KPIs and Financial Charts
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBranchContext } from '@/contexts/BranchContext';
@@ -7,6 +7,11 @@ import { useCompanyLogo } from '@/hooks/useCompanyLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  RevenueExpensesChart, CashFlowChart, TopProductsChart,
+  ARAgingChart, DailySalesChart,
+} from '@/components/dashboard/FinancialCharts';
 import {
   FileText, ShoppingCart, Package, BarChart3, TrendingUp,
   ArrowRight, ClipboardList, Receipt, DollarSign, FileCheck,
@@ -187,18 +192,46 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Financial Charts */}
+        <div>
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Análise Financeira</h3>
+          <Tabs defaultValue="overview" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+              <TabsTrigger value="cashflow">Fluxo Caixa</TabsTrigger>
+              <TabsTrigger value="products">Produtos</TabsTrigger>
+              <TabsTrigger value="aging">Aging AR</TabsTrigger>
+            </TabsList>
+            <TabsContent value="overview" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RevenueExpensesChart />
+                <DailySalesChart />
+              </div>
+            </TabsContent>
+            <TabsContent value="cashflow">
+              <CashFlowChart />
+            </TabsContent>
+            <TabsContent value="products">
+              <TopProductsChart />
+            </TabsContent>
+            <TabsContent value="aging">
+              <ARAgingChart />
+            </TabsContent>
+          </Tabs>
+        </div>
+
         {/* Quick Checks */}
         <div className="flex gap-3 flex-wrap">
           <Button variant="outline" className="rounded-xl gap-2 shadow-sm" onClick={() => navigate('/fiscal-documents')}>
-            <CheckCircle className="w-4 h-4 text-green-600" />
+            <CheckCircle className="w-4 h-4 text-primary" />
             Verificar Fatura
           </Button>
           <Button variant="outline" className="rounded-xl gap-2 shadow-sm" onClick={() => navigate('/proforma')}>
-            <Search className="w-4 h-4 text-blue-500" />
+            <Search className="w-4 h-4 text-primary" />
             Check Proforma
           </Button>
           <Button variant="outline" className="rounded-xl gap-2 shadow-sm" onClick={() => navigate('/daily-reports')}>
-            <Calendar className="w-4 h-4 text-orange-500" />
+            <Calendar className="w-4 h-4 text-primary" />
             Relatório Diário
           </Button>
         </div>
