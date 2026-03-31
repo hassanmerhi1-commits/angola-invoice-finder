@@ -40,6 +40,10 @@ import CaixaManagement from "./pages/CaixaManagement";
 import Vendas from "./pages/Vendas";
 import PaymentsPage from "./pages/Payments";
 import AccountingPeriods from "./pages/AccountingPeriods";
+import TaxManagement from "./pages/TaxManagement";
+import AuditTrail from "./pages/AuditTrail";
+import BudgetControl from "./pages/BudgetControl";
+import Approvals from "./pages/Approvals";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -180,6 +184,10 @@ function AppRoutes() {
         <Route path="/import" element={<ImportModule />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/accounting-periods" element={<AccountingPeriods />} />
+        <Route path="/tax-management" element={<TaxManagement />} />
+        <Route path="/audit-trail" element={<AuditTrail />} />
+        <Route path="/budget-control" element={<BudgetControl />} />
+        <Route path="/approvals" element={<Approvals />} />
       </Route>
       <Route path="/purchase-invoices-window" element={<Navigate to="/purchase-invoices" replace />} />
       <Route path="*" element={<NotFound />} />

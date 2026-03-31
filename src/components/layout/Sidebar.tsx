@@ -26,6 +26,9 @@ import {
   Wallet,
   CreditCard,
   CalendarCheck,
+  Calculator,
+  Target,
+  GitBranch,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -57,6 +60,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { icon: CreditCard, label: 'Pagamentos', path: '/payments' },
     { icon: BookOpen, label: t.nav.chartOfAccounts, path: '/chart-of-accounts' },
     { icon: CalendarCheck, label: 'Períodos', path: '/accounting-periods' },
+    { icon: Calculator, label: 'Impostos', path: '/tax-management' },
+    { icon: Target, label: 'Orçamentos', path: '/budget-control' },
+    { icon: GitBranch, label: 'Aprovações', path: '/approvals' },
+    { icon: Shield, label: 'Auditoria', path: '/audit-trail' },
     { icon: Shield, label: 'User Management', path: '/users' },
     { icon: Building2, label: 'Branches', path: '/branches' },
     { icon: BarChart3, label: 'Reports', path: '/reports' },

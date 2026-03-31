@@ -287,4 +287,68 @@ export const api = {
       return apiFetch<any[]>(`/tax/summary?${sp}`);
     },
   },
+
+  // Audit Trail
+  audit: {
+    list: (params?: { tableName?: string; action?: string; userId?: string; startDate?: string; endDate?: string; limit?: number }) => {
+      const sp = new URLSearchParams();
+      if (params?.tableName) sp.append('tableName', params.tableName);
+      if (params?.action) sp.append('action', params.action);
+      if (params?.userId) sp.append('userId', params.userId);
+      if (params?.startDate) sp.append('startDate', params.startDate);
+      if (params?.endDate) sp.append('endDate', params.endDate);
+      if (params?.limit) sp.append('limit', params.limit.toString());
+      return apiFetch<any[]>(`/audit?${sp}`);
+    },
+    recordHistory: (tableName: string, recordId: string) =>
+      apiFetch<any[]>(`/audit/record/${tableName}/${recordId}`),
+    stats: (days?: number) =>
+      apiFetch<any[]>(`/audit/stats?days=${days || 30}`),
+  },
+
+  // Budgets & Cost Centers
+  budgets: {
+    costCenters: () => apiFetch<any[]>('/budgets/cost-centers'),
+    createCostCenter: (data: any) =>
+      apiFetch<any>('/budgets/cost-centers', { method: 'POST', body: JSON.stringify(data) }),
+    list: (params?: { year?: number; month?: number; costCenterId?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.year) sp.append('year', params.year.toString());
+      if (params?.month) sp.append('month', params.month.toString());
+      if (params?.costCenterId) sp.append('costCenterId', params.costCenterId);
+      return apiFetch<any[]>(`/budgets/budgets?${sp}`);
+    },
+    create: (data: any) =>
+      apiFetch<any>('/budgets/budgets', { method: 'POST', body: JSON.stringify(data) }),
+    summary: (year?: number) =>
+      apiFetch<any[]>(`/budgets/summary?year=${year || new Date().getFullYear()}`),
+  },
+
+  // Approvals
+  approvals: {
+    workflows: (documentType?: string) => {
+      const sp = documentType ? `?documentType=${documentType}` : '';
+      return apiFetch<any[]>(`/approvals/workflows${sp}`);
+    },
+    createWorkflow: (data: any) =>
+      apiFetch<any>('/approvals/workflows', { method: 'POST', body: JSON.stringify(data) }),
+    requests: (params?: { status?: string; documentType?: string; branchId?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.status) sp.append('status', params.status);
+      if (params?.documentType) sp.append('documentType', params.documentType);
+      if (params?.branchId) sp.append('branchId', params.branchId);
+      return apiFetch<any[]>(`/approvals/requests?${sp}`);
+    },
+    submitRequest: (data: any) =>
+      apiFetch<any>('/approvals/requests', { method: 'POST', body: JSON.stringify(data) }),
+    approve: (id: string, userId: string, userName: string, comments?: string) =>
+      apiFetch<any>(`/approvals/requests/${id}/approve`, {
+        method: 'POST', body: JSON.stringify({ userId, userName, comments }),
+      }),
+    reject: (id: string, userId: string, userName: string, comments: string) =>
+      apiFetch<any>(`/approvals/requests/${id}/reject`, {
+        method: 'POST', body: JSON.stringify({ userId, userName, comments }),
+      }),
+    pendingCount: () => apiFetch<any[]>('/approvals/pending-count'),
+  },
 };
