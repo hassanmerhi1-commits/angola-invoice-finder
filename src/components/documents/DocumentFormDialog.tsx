@@ -313,11 +313,12 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
                       <th className="px-2 py-1.5 text-left w-20">Código</th>
                       <th className="px-2 py-1.5 text-left">Descrição</th>
                       <th className="px-2 py-1.5 text-right w-16">Qtd</th>
-                      <th className="px-2 py-1.5 text-right w-24">Preço Unit.</th>
+                      <th className="px-2 py-1.5 text-right w-24">Preço (s/IVA)</th>
                       <th className="px-2 py-1.5 text-right w-16">Desc%</th>
+                      <th className="px-2 py-1.5 text-right w-20">Base Trib.</th>
                       <th className="px-2 py-1.5 text-right w-14">IVA%</th>
-                      <th className="px-2 py-1.5 text-right w-24">IVA</th>
-                      <th className="px-2 py-1.5 text-right w-28">Total</th>
+                      <th className="px-2 py-1.5 text-right w-24">Valor IVA</th>
+                      <th className="px-2 py-1.5 text-right w-28">Total c/IVA</th>
                       <th className="px-2 py-1.5 w-8"></th>
                     </tr>
                   </thead>
