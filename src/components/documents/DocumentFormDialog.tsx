@@ -90,6 +90,20 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
   // Totals
   const totals = useMemo(() => calculateDocumentTotals(lines), [lines]);
 
+  // IVA summary grouped by rate (AGT requirement)
+  const ivaSummary = useMemo(() => {
+    const map = new Map<number, { base: number; iva: number; total: number }>();
+    for (const line of lines) {
+      const base = (line.quantity * line.unitPrice) * (1 - (line.discount || 0) / 100);
+      const existing = map.get(line.taxRate) || { base: 0, iva: 0, total: 0 };
+      existing.base += base;
+      existing.iva += line.taxAmount;
+      existing.total += line.lineTotal;
+      map.set(line.taxRate, existing);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  }, [lines]);
+
   const addLine = (productId?: string) => {
     const product = productId ? products.find(p => p.id === productId) : null;
     const newLine = calculateLineTotals({
