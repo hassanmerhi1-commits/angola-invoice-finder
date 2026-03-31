@@ -64,6 +64,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { icon: Calculator, label: 'Impostos', path: '/tax-management' },
     { icon: Target, label: 'Orçamentos', path: '/budget-control' },
     { icon: GitBranch, label: 'Aprovações', path: '/approvals' },
+    { icon: Coins, label: 'Câmbio', path: '/exchange-rates' },
     { icon: Shield, label: 'Auditoria', path: '/audit-trail' },
     { icon: Shield, label: 'User Management', path: '/users' },
     { icon: Building2, label: 'Branches', path: '/branches' },

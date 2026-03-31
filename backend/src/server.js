@@ -169,6 +169,8 @@ app.use('/api/budgets', budgetRoutes(broadcastTable));
 app.use('/api/approvals', approvalRoutes(broadcastTable));
 app.use('/api/saft', saftRoutes(broadcastTable));
 app.use('/api/dashboard', dashboardRoutes(broadcastTable));
+app.use('/api/exchange-rates', exchangeRateRoutes(broadcastTable));
+app.use('/api/saft-xml', saftXmlRoutes(broadcastTable));
 
 // Health check with extended info
 app.get('/api/health', (req, res) => {

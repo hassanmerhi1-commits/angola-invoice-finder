@@ -370,4 +370,31 @@ export const api = {
     kpis: (branchId?: string) =>
       apiFetch<any>(`/dashboard${branchId ? `?branchId=${branchId}` : ''}`),
   },
+
+  // Exchange Rates
+  exchangeRates: {
+    list: (limit?: number) => {
+      const sp = limit ? `?limit=${limit}` : '';
+      return apiFetch<any[]>(`/exchange-rates${sp}`);
+    },
+    latest: () => apiFetch<any[]>('/exchange-rates/latest'),
+    create: (data: any) =>
+      apiFetch<any>('/exchange-rates', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      apiFetch<any>(`/exchange-rates/${id}`, { method: 'DELETE' }),
+    convert: (from: string, to: string, amount: number, date?: string) => {
+      const sp = new URLSearchParams({ from, to, amount: amount.toString() });
+      if (date) sp.append('date', date);
+      return apiFetch<any>(`/exchange-rates/convert?${sp}`);
+    },
+  },
+
+  // SAF-T XML
+  saftXml: {
+    downloadUrl: (year?: number) => {
+      const baseUrl = getApiUrl();
+      const sp = year ? `?year=${year}` : '';
+      return `${baseUrl}/api/saft-xml/download${sp}`;
+    },
+  },
 };

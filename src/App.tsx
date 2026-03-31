@@ -189,6 +189,7 @@ function AppRoutes() {
         <Route path="/audit-trail" element={<AuditTrail />} />
         <Route path="/budget-control" element={<BudgetControl />} />
         <Route path="/approvals" element={<Approvals />} />
+        <Route path="/exchange-rates" element={<ExchangeRates />} />
       </Route>
       <Route path="/purchase-invoices-window" element={<Navigate to="/purchase-invoices" replace />} />
       <Route path="*" element={<NotFound />} />
