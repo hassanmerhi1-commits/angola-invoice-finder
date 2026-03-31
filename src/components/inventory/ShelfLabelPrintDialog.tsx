@@ -44,7 +44,7 @@ export function ShelfLabelPrintDialog({ open, onOpenChange, products }: ShelfLab
 
     const labelsHtml = products.flatMap(product => {
       const taxRate = product.taxRate || 0;
-      const basePrice = taxRate > 0 ? product.price / (1 + taxRate / 100) : product.price;
+      const priceWithIVA = product.price * (1 + taxRate / 100);
       const labels: string[] = [];
 
       for (let c = 0; c < copies; c++) {
@@ -54,8 +54,8 @@ export function ShelfLabelPrintDialog({ open, onOpenChange, products }: ShelfLab
             <div class="sku">${product.sku || ''}</div>
             ${showBarcode && product.barcode ? `<div class="barcode">||||| ${product.barcode} |||||</div>` : ''}
             <div class="prices">
-              <div class="price-main">${product.price.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</div>
-              ${showBasePrice ? `<div class="price-base">s/IVA: ${basePrice.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</div>` : ''}
+            <div class="price-main">${priceWithIVA.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</div>
+              ${showBasePrice ? `<div class="price-base">s/IVA: ${product.price.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz</div>` : ''}
               ${taxRate > 0 ? `<div class="tax-info">IVA ${taxRate}%</div>` : '<div class="tax-info">Isento</div>'}
             </div>
           </div>
@@ -218,11 +218,11 @@ export function ShelfLabelPrintDialog({ open, onOpenChange, products }: ShelfLab
               <div className="text-[10px] text-muted-foreground">{products[0]?.sku || 'SKU'}</div>
               {showBarcode && <div className="text-[10px] font-mono my-0.5">||||| {products[0]?.barcode || '0000000'} |||||</div>}
               <div className="text-sm font-bold mt-1">
-                {(products[0]?.price || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz
+                {((products[0]?.price || 0) * (1 + (products[0]?.taxRate || 0) / 100)).toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz
               </div>
               {showBasePrice && (
                 <div className="text-[10px] text-muted-foreground">
-                  s/IVA: {((products[0]?.price || 0) / (1 + (products[0]?.taxRate || 0) / 100)).toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz
+                  s/IVA: {(products[0]?.price || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 })} Kz
                 </div>
               )}
               <div className="text-[9px] text-muted-foreground">IVA {products[0]?.taxRate || 0}%</div>
