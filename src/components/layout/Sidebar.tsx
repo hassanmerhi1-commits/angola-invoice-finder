@@ -24,6 +24,8 @@ import {
   Receipt,
   Landmark,
   Wallet,
+  CreditCard,
+  CalendarCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
