@@ -134,7 +134,7 @@ module.exports = function(broadcastTable) {
     }
   });
 
-  // Receive — ALL logic handled by Transaction Engine
+  // Receive — Check approval status first, then Transaction Engine
   router.post('/:id/receive', async (req, res) => {
     const client = await db.pool.connect();
     try {
@@ -142,6 +142,20 @@ module.exports = function(broadcastTable) {
       
       const { id } = req.params;
       const { receivedBy, receivedQuantities } = req.body;
+
+      // Check if PO requires approval and is approved
+      try {
+        const approvalResult = await client.query(
+          `SELECT status FROM approval_requests WHERE document_type = 'purchase_order' AND document_id = $1 ORDER BY created_at DESC LIMIT 1`,
+          [id]
+        );
+        if (approvalResult.rows.length > 0 && approvalResult.rows[0].status !== 'approved') {
+          throw new Error(`Ordem de compra aguarda aprovação (estado: ${approvalResult.rows[0].status}). Não é possível receber.`);
+        }
+      } catch (e) {
+        if (e.message.includes('aguarda aprovação')) throw e;
+        // approval_requests table may not exist — continue
+      }
       
       await processPurchaseReceive(client, id, receivedQuantities, receivedBy);
       
