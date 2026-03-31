@@ -933,6 +933,7 @@ function mapSupplierFromDb(row: any): Supplier {
     city: row.city, country: row.country ?? row.province ?? 'Angola',
     contactPerson: row.contact_person ?? row.contactPerson,
     paymentTerms: row.payment_terms ?? row.paymentTerms ?? '30_days',
+    balance: Number(row.balance ?? 0),
     isActive: !!(row.is_active ?? row.isActive ?? true),
     notes: row.notes,
     createdAt: row.created_at ?? row.createdAt ?? '',
