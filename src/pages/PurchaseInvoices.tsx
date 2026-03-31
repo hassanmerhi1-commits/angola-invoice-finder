@@ -971,23 +971,24 @@ export default function PurchaseInvoices() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="text-xs">
-                      <TableHead className="w-8">#</TableHead>
-                      <TableHead>Produto</TableHead>
-                      <TableHead className="min-w-[200px]">Descrição</TableHead>
-                      <TableHead className="w-20 text-right">Qtd</TableHead>
-                      <TableHead className="w-16 text-right">Emb.</TableHead>
-                      <TableHead className="w-24 text-right">Preço</TableHead>
-                      <TableHead className="w-16 text-right">Desc %</TableHead>
-                      <TableHead className="w-16 text-right">% 2</TableHead>
-                      <TableHead className="w-20 text-right">Total QTD</TableHead>
-                      <TableHead className="w-28 text-right">Total</TableHead>
-                      <TableHead className="w-16 text-right">IVA</TableHead>
-                      <TableHead className="w-24">Armazém</TableHead>
-                      <TableHead className="w-20 text-right">Qtd Atual</TableHead>
-                      <TableHead className="w-28 text-right">Preço IVA</TableHead>
-                      <TableHead className="w-16">Unidade</TableHead>
-                      <TableHead className="w-8" />
+                     <TableRow className="text-xs">
+                       <TableHead className="w-8">#</TableHead>
+                       <TableHead>Produto</TableHead>
+                       <TableHead className="min-w-[200px]">Descrição</TableHead>
+                       <TableHead className="w-20 text-right">Qtd</TableHead>
+                       <TableHead className="w-16 text-right">Emb.</TableHead>
+                       <TableHead className="w-24 text-right">Preço (s/IVA)</TableHead>
+                       <TableHead className="w-16 text-right">Desc %</TableHead>
+                       <TableHead className="w-16 text-right">% 2</TableHead>
+                       <TableHead className="w-20 text-right">Total QTD</TableHead>
+                       <TableHead className="w-28 text-right">Base Trib.</TableHead>
+                       <TableHead className="w-16 text-right">IVA%</TableHead>
+                       <TableHead className="w-20 text-right">Valor IVA</TableHead>
+                       <TableHead className="w-24">Armazém</TableHead>
+                       <TableHead className="w-20 text-right">Qtd Atual</TableHead>
+                       <TableHead className="w-28 text-right">Total c/IVA</TableHead>
+                       <TableHead className="w-16">Unidade</TableHead>
+                       <TableHead className="w-8" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
