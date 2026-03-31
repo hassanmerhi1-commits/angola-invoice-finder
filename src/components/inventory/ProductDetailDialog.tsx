@@ -169,10 +169,15 @@ export function ProductDetailDialog({
 
   const set = (field: string, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
 
-  // Auto-calculate price with IVA when price or IVA changes
+  // Auto-calculate price with IVA when price or IVA changes (bidirectional)
   const updatePrice = (newPrice: number) => {
     set('price', newPrice);
     set('priceIVA', +(newPrice * (1 + formData.iva / 100)).toFixed(2));
+  };
+
+  const updatePriceFromIVA = (newPriceIVA: number) => {
+    set('priceIVA', newPriceIVA);
+    set('price', +(newPriceIVA / (1 + formData.iva / 100)).toFixed(2));
   };
 
   const updateIVA = (newIVA: number) => {
