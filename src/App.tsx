@@ -38,6 +38,8 @@ import Expenses from "./pages/Expenses";
 import BankAccounts from "./pages/BankAccounts";
 import CaixaManagement from "./pages/CaixaManagement";
 import Vendas from "./pages/Vendas";
+import PaymentsPage from "./pages/Payments";
+import AccountingPeriods from "./pages/AccountingPeriods";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -176,6 +178,8 @@ function AppRoutes() {
         <Route path="/hr" element={<HRModule />} />
         <Route path="/production" element={<ProductionModule />} />
         <Route path="/import" element={<ImportModule />} />
+        <Route path="/payments" element={<PaymentsPage />} />
+        <Route path="/accounting-periods" element={<AccountingPeriods />} />
       </Route>
       <Route path="/purchase-invoices-window" element={<Navigate to="/purchase-invoices" replace />} />
       <Route path="*" element={<NotFound />} />
