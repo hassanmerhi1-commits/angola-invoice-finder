@@ -345,6 +345,9 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
                           <Input type="number" value={line.discount} onChange={e => updateLine(idx, 'discount', Number(e.target.value))}
                             className="h-6 text-xs text-right border-0 bg-transparent p-0 focus:bg-background focus:border w-full" />
                         </td>
+                        <td className="px-2 py-1 text-right font-mono text-muted-foreground">
+                          {((line.quantity * line.unitPrice) * (1 - (line.discount || 0) / 100)).toLocaleString('pt-AO')}
+                        </td>
                         <td className="px-2 py-1">
                           <Input type="number" value={line.taxRate} onChange={e => updateLine(idx, 'taxRate', Number(e.target.value))}
                             className="h-6 text-xs text-right border-0 bg-transparent p-0 focus:bg-background focus:border w-full" />
