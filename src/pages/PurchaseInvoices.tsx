@@ -680,6 +680,7 @@ export default function PurchaseInvoices() {
 
     // Phase 5: Price update
     await applyPriceUpdate(invoice);
+    await refreshProducts();
 
     toast({
       title: 'Fatura de Compra Guardada',
@@ -688,7 +689,7 @@ export default function PurchaseInvoices() {
 
     setInvoices(getPurchaseInvoices(currentBranch?.id));
     setMode('list');
-  }, [form, lines, journalLines, totals, currentBranch, user, toast]);
+  }, [form, lines, journalLines, totals, currentBranch, user, toast, refreshProducts]);
 
   // ═══════════════ RENDER ═══════════════
 
