@@ -150,10 +150,16 @@ export default function Dashboard() {
 
         {/* Alerts Row */}
         <div className="flex gap-2 flex-wrap">
-          {(kpis?.lowStockCount ?? 0) > 0 && (
+          {lowStockProducts.length > 0 && (
             <Badge variant="destructive" className="cursor-pointer gap-1.5 py-1" onClick={() => navigate('/inventory')}>
               <AlertTriangle className="w-3 h-3" />
-              {kpis?.lowStockCount} produtos com stock baixo
+              {lowStockProducts.length} produtos com stock baixo
+            </Badge>
+          )}
+          {overstockProducts.length > 0 && (
+            <Badge variant="outline" className="cursor-pointer gap-1.5 py-1 border-amber-300 text-amber-600" onClick={() => navigate('/inventory')}>
+              <Package className="w-3 h-3" />
+              {overstockProducts.length} produtos acima do máximo
             </Badge>
           )}
           {(kpis?.pendingApprovals ?? 0) > 0 && (
@@ -169,6 +175,37 @@ export default function Dashboard() {
             </Badge>
           )}
         </div>
+
+        {/* Low Stock Alerts Widget */}
+        {lowStockProducts.length > 0 && (
+          <Card className="border-destructive/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-destructive uppercase tracking-widest flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Alertas de Stock Baixo
+                </h3>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => navigate('/inventory')}>
+                  Ver todos →
+                </Button>
+              </div>
+              <div className="space-y-1.5">
+                {lowStockProducts.map(p => (
+                  <div key={p.id} className="flex items-center justify-between text-xs p-2 rounded bg-destructive/5">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-3.5 h-3.5 text-destructive" />
+                      <span className="font-medium">{p.name}</span>
+                      <span className="text-muted-foreground font-mono">{p.sku}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-destructive font-bold">{p.stock} {p.unit}</span>
+                      <span className="text-muted-foreground">min: {p.minStock}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Document Flow */}
         <Card className="shadow-card overflow-hidden">
