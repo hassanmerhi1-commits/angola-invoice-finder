@@ -446,30 +446,186 @@ export default function HRModule() {
         </TabsContent>
 
         {/* Attendance Tab */}
-        <TabsContent value="presenca" className="flex-1 m-0 p-4">
-          <Card><CardContent className="pt-6 text-center text-muted-foreground">
-            <Clock className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>Registo de Presença</p>
-            <p className="text-xs mt-1">Check-in / Check-out diário dos funcionários</p>
-          </CardContent></Card>
+        <TabsContent value="presenca" className="flex-1 m-0 overflow-auto">
+          <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b">
+            <span className="text-xs font-medium">Data:</span>
+            <Input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="h-7 text-xs w-40" />
+            <div className="flex-1" />
+            <div className="flex gap-3 text-xs">
+              <Badge variant="outline" className="gap-1"><CheckCircle className="w-3 h-3 text-emerald-500" /> {dayAttendance.filter(a => a.status === 'present').length} Presentes</Badge>
+              <Badge variant="outline" className="gap-1"><XCircle className="w-3 h-3 text-destructive" /> {dayAttendance.filter(a => a.status === 'absent').length} Ausentes</Badge>
+              <Badge variant="outline" className="gap-1"><AlertCircle className="w-3 h-3 text-orange-500" /> {dayAttendance.filter(a => a.status === 'late').length} Atrasados</Badge>
+            </div>
+          </div>
+          <table className="w-full text-xs">
+            <thead className="bg-muted/60 border-b sticky top-0 z-10">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold w-20">Nº</th>
+                <th className="px-3 py-2 text-left font-semibold">Funcionário</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Departamento</th>
+                <th className="px-3 py-2 text-center font-semibold w-20">Entrada</th>
+                <th className="px-3 py-2 text-center font-semibold w-20">Saída</th>
+                <th className="px-3 py-2 text-center font-semibold w-16">Horas</th>
+                <th className="px-3 py-2 text-center font-semibold w-20">Estado</th>
+                <th className="px-3 py-2 text-center font-semibold w-48">Acções</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {employees.filter(e => e.status === 'active').map(emp => {
+                const att = getEmpAttendance(emp.id);
+                return (
+                  <tr key={emp.id} className="hover:bg-accent/30">
+                    <td className="px-3 py-1.5 font-mono">{emp.employeeNumber}</td>
+                    <td className="px-3 py-1.5 font-medium">{emp.fullName}</td>
+                    <td className="px-3 py-1.5">{emp.department}</td>
+                    <td className="px-3 py-1.5 text-center font-mono">{att?.checkIn || '—'}</td>
+                    <td className="px-3 py-1.5 text-center font-mono">{att?.checkOut || '—'}</td>
+                    <td className="px-3 py-1.5 text-center">{att?.hoursWorked || 0}h</td>
+                    <td className="px-3 py-1.5 text-center">
+                      {att ? (
+                        <Badge variant={att.status === 'present' ? 'default' : att.status === 'absent' ? 'destructive' : 'secondary'} className="text-[9px] px-1.5 py-0">
+                          {att.status === 'present' ? 'Presente' : att.status === 'absent' ? 'Ausente' : att.status === 'late' ? 'Atrasado' : att.status === 'leave' ? 'Licença' : att.status}
+                        </Badge>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-3 py-1.5 text-center">
+                      <div className="flex gap-1 justify-center">
+                        <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => markAttendance(emp.id, 'present')}>
+                          <CheckCircle className="w-3 h-3" /> {att?.checkIn && !att?.checkOut ? 'Saída' : 'Entrada'}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => markAttendance(emp.id, 'absent')}>Ausente</Button>
+                        <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => markAttendance(emp.id, 'late')}>Atraso</Button>
+                        <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => markAttendance(emp.id, 'leave')}>Licença</Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {employees.filter(e => e.status === 'active').length === 0 && (
+            <div className="text-center py-12 text-muted-foreground text-sm">
+              <Clock className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>Nenhum funcionário activo</p>
+            </div>
+          )}
         </TabsContent>
 
         {/* Leaves Tab */}
-        <TabsContent value="ferias" className="flex-1 m-0 p-4">
-          <Card><CardContent className="pt-6 text-center text-muted-foreground">
-            <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>Férias e Licenças</p>
-            <p className="text-xs mt-1">Pedidos de férias, licenças médicas, maternidade</p>
-          </CardContent></Card>
+        <TabsContent value="ferias" className="flex-1 m-0 overflow-auto">
+          <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b">
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => { setLeaveForm({ employeeId: '', leaveType: 'annual', startDate: '', endDate: '', reason: '' }); setLeaveFormOpen(true); }}>
+              <Plus className="w-3 h-3" /> Novo Pedido
+            </Button>
+            <div className="flex-1" />
+            <div className="flex gap-2 text-xs">
+              <Badge variant="outline" className="gap-1">{leaves.filter(l => l.status === 'pending').length} pendentes</Badge>
+              <Badge variant="outline" className="gap-1">{leaves.filter(l => l.status === 'approved').length} aprovados</Badge>
+            </div>
+          </div>
+          <table className="w-full text-xs">
+            <thead className="bg-muted/60 border-b sticky top-0 z-10">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold">Funcionário</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Tipo</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Início</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Fim</th>
+                <th className="px-3 py-2 text-center font-semibold w-16">Dias</th>
+                <th className="px-3 py-2 text-left font-semibold">Motivo</th>
+                <th className="px-3 py-2 text-center font-semibold w-20">Estado</th>
+                <th className="px-3 py-2 text-center font-semibold w-36">Acções</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {leaves.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(leave => (
+                <tr key={leave.id} className="hover:bg-accent/30">
+                  <td className="px-3 py-1.5 font-medium">{leave.employeeName}</td>
+                  <td className="px-3 py-1.5">{leaveTypeLabel(leave.leaveType)}</td>
+                  <td className="px-3 py-1.5 font-mono">{leave.startDate}</td>
+                  <td className="px-3 py-1.5 font-mono">{leave.endDate}</td>
+                  <td className="px-3 py-1.5 text-center font-bold">{leave.days}</td>
+                  <td className="px-3 py-1.5 text-muted-foreground">{leave.reason || '—'}</td>
+                  <td className="px-3 py-1.5 text-center">
+                    <Badge variant={leave.status === 'approved' ? 'default' : leave.status === 'rejected' ? 'destructive' : 'secondary'} className="text-[9px] px-1.5 py-0">
+                      {leave.status === 'pending' ? 'Pendente' : leave.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-1.5 text-center">
+                    {leave.status === 'pending' && (
+                      <div className="flex gap-1 justify-center">
+                        <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => approveLeave(leave.id)}>
+                          <CheckCircle className="w-3 h-3" /> Aprovar
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 text-[10px] text-destructive" onClick={() => rejectLeave(leave.id)}>
+                          <XCircle className="w-3 h-3" /> Rejeitar
+                        </Button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {leaves.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground text-sm">
+              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>Nenhum pedido de férias/licença</p>
+            </div>
+          )}
         </TabsContent>
 
         {/* Contracts Tab */}
-        <TabsContent value="contratos" className="flex-1 m-0 p-4">
-          <Card><CardContent className="pt-6 text-center text-muted-foreground">
-            <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>Gestão de Contratos</p>
-            <p className="text-xs mt-1">Contratos de trabalho, renovações, términos</p>
-          </CardContent></Card>
+        <TabsContent value="contratos" className="flex-1 m-0 overflow-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/60 border-b sticky top-0 z-10">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold w-20">Nº</th>
+                <th className="px-3 py-2 text-left font-semibold">Funcionário</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Tipo</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Início</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Fim</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Departamento</th>
+                <th className="px-3 py-2 text-left font-semibold w-24">Cargo</th>
+                <th className="px-3 py-2 text-right font-semibold w-28">Salário</th>
+                <th className="px-3 py-2 text-center font-semibold w-20">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {employees.map(emp => {
+                const isExpiring = emp.contractType === 'fixed_term' && emp.endDate && differenceInCalendarDays(new Date(emp.endDate), new Date()) <= 30 && differenceInCalendarDays(new Date(emp.endDate), new Date()) >= 0;
+                const isExpired = emp.endDate && new Date(emp.endDate) < new Date();
+                return (
+                  <tr key={emp.id} className={cn("hover:bg-accent/30", isExpiring && "bg-orange-50 dark:bg-orange-950/20", isExpired && "bg-destructive/5")}>
+                    <td className="px-3 py-1.5 font-mono">{emp.employeeNumber}</td>
+                    <td className="px-3 py-1.5 font-medium">{emp.fullName}</td>
+                    <td className="px-3 py-1.5 capitalize">{emp.contractType.replace('_', ' ')}</td>
+                    <td className="px-3 py-1.5 font-mono">{emp.startDate}</td>
+                    <td className="px-3 py-1.5 font-mono">{emp.endDate || 'Indeterminado'}</td>
+                    <td className="px-3 py-1.5">{emp.department}</td>
+                    <td className="px-3 py-1.5">{emp.position}</td>
+                    <td className="px-3 py-1.5 text-right font-mono">{emp.baseSalary.toLocaleString('pt-AO')} Kz</td>
+                    <td className="px-3 py-1.5 text-center">
+                      {isExpired ? (
+                        <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Expirado</Badge>
+                      ) : isExpiring ? (
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 border-orange-300 text-orange-600">A expirar</Badge>
+                      ) : emp.status === 'terminated' ? (
+                        <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Terminado</Badge>
+                      ) : (
+                        <Badge variant="default" className="text-[9px] px-1.5 py-0">Activo</Badge>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {employees.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground text-sm">
+              <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>Nenhum contrato registado</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
