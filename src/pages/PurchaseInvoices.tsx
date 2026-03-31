@@ -424,13 +424,12 @@ export default function PurchaseInvoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { currentBranch, branches } = useBranchContext();
-  const { products } = useProducts(currentBranch?.id);
+  const { products, addProduct: addProductToStock, refreshProducts } = useProducts(currentBranch?.id);
   const { suppliers } = useSuppliers();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   // State
-  const { addProduct: addProductToStock } = useProductsHook(currentBranch?.id);
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [mode, setMode] = useState<'list' | 'create'>('list');
   const [searchTerm, setSearchTerm] = useState('');
