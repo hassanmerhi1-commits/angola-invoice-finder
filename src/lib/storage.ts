@@ -1033,8 +1033,8 @@ function mapDailyReportFromDb(row: any): DailySummary {
 // ============= DEFAULT DATA (Web Preview / Demo) =============
 function getDefaultBranches(): Branch[] {
   return [
-    { id: 'branch-001', name: 'Sede Principal - Luanda', code: 'LDA', address: 'Rua Principal 123, Luanda', phone: '+244 923 456 789', isMain: true, createdAt: new Date().toISOString() },
-    { id: 'branch-002', name: 'Filial Viana', code: 'VIA', address: 'Av. Deolinda Rodrigues, Viana', phone: '+244 923 456 790', isMain: false, createdAt: new Date().toISOString() },
+    { id: 'branch-001', name: 'Sede Principal - Luanda', code: 'LDA', address: 'Rua Principal 123, Luanda', phone: '+244 923 456 789', isMain: true, priceLevel: 1, createdAt: new Date().toISOString() },
+    { id: 'branch-002', name: 'Filial Viana', code: 'VIA', address: 'Av. Deolinda Rodrigues, Viana', phone: '+244 923 456 790', isMain: false, priceLevel: 1, createdAt: new Date().toISOString() },
   ];
 }
 

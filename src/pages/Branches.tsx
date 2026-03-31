@@ -131,6 +131,7 @@ export default function Branches() {
             address: formData.address || '',
             phone: formData.phone || '',
             isMain: formData.isMain,
+            priceLevel: (formData as any).priceLevel || 1,
             createdAt: new Date().toISOString(),
           };
           storage.saveBranch(newBranch);
