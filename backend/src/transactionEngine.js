@@ -447,7 +447,15 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
     });
   }
 
-  console.log(`[TX ENGINE] Purchase ${order.order_number}: Stock IN, Journal, Open Item ✓`);
+  // Audit log
+  await auditLog(client, {
+    tableName: 'purchase_orders', recordId: orderId, action: 'create',
+    userId: receivedBy, branchId: order.branch_id,
+    newValues: { orderNumber: order.order_number, total: subtotal + freightCost + taxAmount },
+    description: `Recepção ${order.order_number} - ${order.supplier_name}`,
+  });
+
+  console.log(`[TX ENGINE] Purchase ${order.order_number}: Stock IN, Journal, Open Item, Audit ✓`);
   return order;
 }
 
