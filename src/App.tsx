@@ -184,6 +184,10 @@ function AppRoutes() {
         <Route path="/import" element={<ImportModule />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/accounting-periods" element={<AccountingPeriods />} />
+        <Route path="/tax-management" element={<TaxManagement />} />
+        <Route path="/audit-trail" element={<AuditTrail />} />
+        <Route path="/budget-control" element={<BudgetControl />} />
+        <Route path="/approvals" element={<Approvals />} />
       </Route>
       <Route path="/purchase-invoices-window" element={<Navigate to="/purchase-invoices" replace />} />
       <Route path="*" element={<NotFound />} />
