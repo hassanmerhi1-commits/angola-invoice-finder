@@ -154,6 +154,7 @@ app.use('/api/stock-transfers', stockTransferRoutes(broadcastTable));
 app.use('/api/purchase-orders', purchaseOrderRoutes(broadcastTable));
 app.use('/api/chart-of-accounts', chartOfAccountsRoutes(broadcastTable));
 app.use('/api/journal-entries', journalEntryRoutes(broadcastTable));
+app.use('/api/payments', paymentRoutes(broadcastTable));
 
 // Health check with extended info
 app.get('/api/health', (req, res) => {
