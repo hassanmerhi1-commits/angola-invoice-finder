@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit, Trash2, Truck, Phone, Mail, FileSpreadsheet, Upload } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Truck, Phone, Mail, FileSpreadsheet, Upload, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
