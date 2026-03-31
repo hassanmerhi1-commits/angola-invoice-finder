@@ -203,7 +203,7 @@ export function ProductDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-0">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0" onWheel={e => e.stopPropagation()}>
         <DialogHeader className="px-4 py-3 border-b bg-muted/50">
           <DialogTitle className="text-lg">Stock Produto</DialogTitle>
         </DialogHeader>
