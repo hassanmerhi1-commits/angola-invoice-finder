@@ -41,7 +41,8 @@ interface AdvancedDataGridProps {
 const BASE_COLUMNS: ColumnDef[] = [
   { key: 'sku', label: 'Produto', width: 'w-24' },
   { key: 'name', label: 'Descrição', width: 'w-48' },
-  { key: 'price', label: 'Preço', width: 'w-20', type: 'number' },
+  { key: 'basePrice', label: 'Preço s/IVA', width: 'w-24', type: 'number', computed: true },
+  { key: 'price', label: 'Preço c/IVA', width: 'w-24', type: 'number' },
   { key: 'firstCost', label: 'Custo Inicial', width: 'w-24', type: 'number' },
   { key: 'lastCost', label: 'Últ. Custo', width: 'w-24', type: 'number' },
   { key: 'avgCost', label: 'Custo Médio', width: 'w-24', type: 'number' },
@@ -187,6 +188,13 @@ export function AdvancedDataGrid({
   };
 
   const formatValue = (product: Product, key: string) => {
+    // Handle base price (without IVA) computed column
+    if (key === 'basePrice') {
+      const taxRate = product.taxRate || 0;
+      const basePrice = taxRate > 0 ? product.price / (1 + taxRate / 100) : product.price;
+      return (basePrice || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 });
+    }
+    
     // Handle computed columns
     if (key === 'profitMargin') {
       const margin = calculateProfitMargin(product);

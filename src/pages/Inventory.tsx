@@ -32,6 +32,7 @@ import {
   Building2
 } from 'lucide-react';
 import { AdvancedDataGrid } from '@/components/inventory/AdvancedDataGrid';
+import { ShelfLabelPrintDialog } from '@/components/inventory/ShelfLabelPrintDialog';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { BranchStockDetail } from '@/components/inventory/BranchStockDetail';
 import { BranchSelector } from '@/components/BranchSelector';
@@ -96,6 +97,7 @@ export default function Inventory() {
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [stockEntryDialogOpen, setStockEntryDialogOpen] = useState(false);
   const [stockExitDialogOpen, setStockExitDialogOpen] = useState(false);
+  const [labelPrintDialogOpen, setLabelPrintDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
 
   const handleOpenDialog = (product?: Product) => {
@@ -373,6 +375,16 @@ export default function Inventory() {
         >
           <Calculator className="w-3 h-3" />
           Ajustar Stock
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs gap-1"
+          onClick={() => setLabelPrintDialogOpen(true)}
+          disabled={!selectedProduct && displayProducts.length === 0}
+        >
+          <Printer className="w-3 h-3" />
+          Etiquetas
         </Button>
 
         <div className="flex-1" />
@@ -843,6 +855,13 @@ export default function Inventory() {
 
           refreshProducts();
         }}
+      />
+
+      {/* Shelf Label Print Dialog */}
+      <ShelfLabelPrintDialog
+        open={labelPrintDialogOpen}
+        onOpenChange={setLabelPrintDialogOpen}
+        products={selectedProduct ? [selectedProduct] : displayProducts}
       />
     </div>
   );
