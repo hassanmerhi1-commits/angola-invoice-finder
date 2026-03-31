@@ -525,6 +525,19 @@ export async function generateA4InvoiceHTML(
           <span>TOTAL A PAGAR (c/ IVA):</span>
           <span>${formatMoney(sale.total)} Kz</span>
         </div>
+        ${(() => {
+          const usdRate = company.exchangeRateUSD;
+          const eurRate = company.exchangeRateEUR;
+          if (!usdRate && !eurRate) return '';
+          const lines: string[] = [];
+          if (usdRate && usdRate > 0) {
+            lines.push(`<div class="total-row" style="font-size:10px;color:#555;"><span>Equivalente USD (1 USD = ${formatMoney(usdRate)} Kz):</span><span>$ ${(sale.total / usdRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>`);
+          }
+          if (eurRate && eurRate > 0) {
+            lines.push(`<div class="total-row" style="font-size:10px;color:#555;"><span>Equivalente EUR (1 EUR = ${formatMoney(eurRate)} Kz):</span><span>€ ${(sale.total / eurRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>`);
+          }
+          return lines.join('');
+        })()}
       </div>
     </div>
 
