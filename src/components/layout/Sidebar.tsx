@@ -29,6 +29,7 @@ import {
   Calculator,
   Target,
   GitBranch,
+  Coins,
 } from 'lucide-react';
 
 interface SidebarProps {
