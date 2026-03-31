@@ -364,6 +364,7 @@ export default function PurchaseInvoices() {
   const navigate = useNavigate();
 
   // State
+  const { addProduct: addProductToStock } = useProductsHook(currentBranch?.id);
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [mode, setMode] = useState<'list' | 'create'>('list');
   const [searchTerm, setSearchTerm] = useState('');
@@ -374,7 +375,7 @@ export default function PurchaseInvoices() {
   const [editingJournalIdx, setEditingJournalIdx] = useState<number | null>(null);
   const [viewInvoice, setViewInvoice] = useState<PurchaseInvoice | null>(null);
   const [activeTab, setActiveTab] = useState('fatura');
-
+  const [showCreateProduct, setShowCreateProduct] = useState(false);
   // Form state
   const [form, setForm] = useState<Partial<PurchaseInvoice>>({});
   const [lines, setLines] = useState<PurchaseInvoiceLine[]>([]);
