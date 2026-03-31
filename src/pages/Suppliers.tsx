@@ -382,6 +382,9 @@ export default function Suppliers() {
                     <TableCell>
                       {PAYMENT_TERMS.find(t => t.value === supplier.paymentTerms)?.label}
                     </TableCell>
+                    <TableCell className="text-right font-mono font-bold">
+                      {(supplier.balance || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 })}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={supplier.isActive ? 'default' : 'secondary'}>
                         {supplier.isActive ? 'Activo' : 'Inactivo'}
