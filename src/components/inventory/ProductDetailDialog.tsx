@@ -88,6 +88,9 @@ export function ProductDetailDialog({
     qtdMaxima: 0,
     // Prices
     price: 0,
+    price2: 0,
+    price3: 0,
+    price4: 0,
     priceIVA: 0,
     // Costs
     cost: 0,
