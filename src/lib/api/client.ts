@@ -351,4 +351,23 @@ export const api = {
       }),
     pendingCount: () => apiFetch<any[]>('/approvals/pending-count'),
   },
+
+  // SAF-T AO
+  saft: {
+    generate: (year?: number, startDate?: string, endDate?: string) => {
+      const sp = new URLSearchParams();
+      if (year) sp.append('year', year.toString());
+      if (startDate) sp.append('startDate', startDate);
+      if (endDate) sp.append('endDate', endDate);
+      return apiFetch<any>(`/saft/generate?${sp}`);
+    },
+    summary: (year?: number) =>
+      apiFetch<any>(`/saft/summary?year=${year || new Date().getFullYear()}`),
+  },
+
+  // Dashboard KPIs
+  dashboard: {
+    kpis: (branchId?: string) =>
+      apiFetch<any>(`/dashboard${branchId ? `?branchId=${branchId}` : ''}`),
+  },
 };

@@ -1,34 +1,59 @@
-// Kwanza ERP Dashboard - Modern Design
-import { useMemo } from 'react';
+// Kwanza ERP Dashboard - With Real KPIs from Transaction Engine
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useTranslation } from '@/i18n';
 import { useCompanyLogo } from '@/hooks/useCompanyLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   FileText, ShoppingCart, Package, BarChart3, TrendingUp,
   ArrowRight, ClipboardList, Receipt, DollarSign, FileCheck,
   PieChart, Truck, CheckCircle, Search, BookOpen, ArrowRightLeft,
-  Users, Calendar,
+  Users, Calendar, AlertTriangle, CreditCard, GitBranch,
 } from 'lucide-react';
+
+interface DashboardKPIs {
+  todaySales: { count: number; total: number };
+  monthSales: { count: number; total: number };
+  openAR: { count: number; total: number };
+  openAP: { count: number; total: number };
+  lowStockCount: number;
+  pendingApprovals: number;
+  monthExpenses: number;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { currentBranch } = useBranchContext();
   const { language } = useTranslation();
   const { companyName, logo } = useCompanyLogo();
+  const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
 
-  // Document flow steps
+  // Fetch real KPIs
+  useEffect(() => {
+    (async () => {
+      try {
+        const { api } = await import('@/lib/api/client');
+        const result = await api.dashboard.kpis(currentBranch?.id);
+        if (result.data) setKpis(result.data);
+      } catch {
+        // API not available — use zeros
+      }
+    })();
+  }, [currentBranch?.id]);
+
+  const fmt = (n: number) => (n || 0).toLocaleString('pt-AO');
+
   const documentFlow = useMemo(() => [
     { label: 'Proforma', icon: ClipboardList, path: '/proforma' },
     { label: 'Fatura De Venda', icon: FileText, path: '/invoices' },
     { label: 'Recibo', icon: Receipt, path: '/invoices' },
-    { label: 'Pagamento', icon: DollarSign, path: '/expenses' },
+    { label: 'Pagamento', icon: DollarSign, path: '/payments' },
     { label: 'Extracto', icon: FileCheck, path: '/extracto' },
   ], []);
 
-  // Quick action grid
   const quickActions = useMemo(() => [
     { label: 'POS / Vendas', icon: ShoppingCart, path: '/pos', gradient: 'gradient-primary' },
     { label: 'Facturas', icon: FileText, path: '/invoices', gradient: 'gradient-accent' },
@@ -40,20 +65,9 @@ export default function Dashboard() {
     { label: 'Relatórios', icon: BarChart3, path: '/reports', gradient: 'gradient-warm' },
   ], []);
 
-  // BI Cards
-  const biCards = useMemo(() => [
-    { label: 'Balancete', icon: PieChart, path: '/reports', color: 'bg-primary/10 text-primary' },
-    { label: 'Faturas', icon: FileText, path: '/invoices', color: 'bg-success/10 text-success' },
-    { label: 'Vendas / Lucro', icon: TrendingUp, path: '/reports', color: 'bg-warning/10 text-warning' },
-    { label: 'Compras', icon: Truck, path: '/purchase-orders', color: 'bg-info/10 text-info' },
-    { label: 'Charts', icon: BarChart3, path: '/reports', color: 'bg-destructive/10 text-destructive' },
-    { label: 'Stock', icon: Package, path: '/inventory', color: 'bg-primary/10 text-primary' },
-  ], []);
-
   return (
     <div className="h-full flex flex-col lg:flex-row">
-      {/* ====== MAIN CONTENT ====== */}
-      <div className="flex-1 p-6 overflow-auto space-y-8">
+      <div className="flex-1 p-6 overflow-auto space-y-6">
         {/* Company Header */}
         <div className="flex items-center gap-3">
           {logo && (
@@ -65,6 +79,72 @@ export default function Dashboard() {
               {currentBranch?.name || 'Sede'} • {new Date().toLocaleDateString('pt-AO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/vendas')}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground font-medium">Vendas Hoje</span>
+                <ShoppingCart className="w-4 h-4 text-primary" />
+              </div>
+              <p className="text-xl font-bold">{fmt(kpis?.todaySales?.total ?? 0)} Kz</p>
+              <p className="text-[10px] text-muted-foreground">{kpis?.todaySales?.count ?? 0} transacções</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/reports')}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground font-medium">Vendas Mês</span>
+                <TrendingUp className="w-4 h-4 text-green-600" />
+              </div>
+              <p className="text-xl font-bold">{fmt(kpis?.monthSales?.total ?? 0)} Kz</p>
+              <p className="text-[10px] text-muted-foreground">{kpis?.monthSales?.count ?? 0} facturas</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/payments')}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground font-medium">Contas a Receber</span>
+                <CreditCard className="w-4 h-4 text-orange-500" />
+              </div>
+              <p className="text-xl font-bold text-orange-600">{fmt(kpis?.openAR?.total ?? 0)} Kz</p>
+              <p className="text-[10px] text-muted-foreground">{kpis?.openAR?.count ?? 0} itens abertos</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/payments')}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground font-medium">Contas a Pagar</span>
+                <Truck className="w-4 h-4 text-destructive" />
+              </div>
+              <p className="text-xl font-bold text-destructive">{fmt(kpis?.openAP?.total ?? 0)} Kz</p>
+              <p className="text-[10px] text-muted-foreground">{kpis?.openAP?.count ?? 0} itens abertos</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Alerts Row */}
+        <div className="flex gap-2 flex-wrap">
+          {(kpis?.lowStockCount ?? 0) > 0 && (
+            <Badge variant="destructive" className="cursor-pointer gap-1.5 py-1" onClick={() => navigate('/inventory')}>
+              <AlertTriangle className="w-3 h-3" />
+              {kpis?.lowStockCount} produtos com stock baixo
+            </Badge>
+          )}
+          {(kpis?.pendingApprovals ?? 0) > 0 && (
+            <Badge variant="outline" className="cursor-pointer gap-1.5 py-1 border-orange-300 text-orange-600" onClick={() => navigate('/approvals')}>
+              <GitBranch className="w-3 h-3" />
+              {kpis?.pendingApprovals} aprovações pendentes
+            </Badge>
+          )}
+          {(kpis?.monthExpenses ?? 0) > 0 && (
+            <Badge variant="secondary" className="gap-1.5 py-1">
+              <Receipt className="w-3 h-3" />
+              Despesas mês: {fmt(kpis?.monthExpenses ?? 0)} Kz
+            </Badge>
+          )}
         </div>
 
         {/* Document Flow */}
@@ -110,15 +190,15 @@ export default function Dashboard() {
         {/* Quick Checks */}
         <div className="flex gap-3 flex-wrap">
           <Button variant="outline" className="rounded-xl gap-2 shadow-sm" onClick={() => navigate('/fiscal-documents')}>
-            <CheckCircle className="w-4 h-4 text-success" />
+            <CheckCircle className="w-4 h-4 text-green-600" />
             Verificar Fatura
           </Button>
           <Button variant="outline" className="rounded-xl gap-2 shadow-sm" onClick={() => navigate('/proforma')}>
-            <Search className="w-4 h-4 text-info" />
+            <Search className="w-4 h-4 text-blue-500" />
             Check Proforma
           </Button>
           <Button variant="outline" className="rounded-xl gap-2 shadow-sm" onClick={() => navigate('/daily-reports')}>
-            <Calendar className="w-4 h-4 text-warning" />
+            <Calendar className="w-4 h-4 text-orange-500" />
             Relatório Diário
           </Button>
         </div>
@@ -130,7 +210,14 @@ export default function Dashboard() {
           <h3 className="font-extrabold text-sm text-center tracking-tight">Business Intelligence</h3>
         </div>
         <div className="flex-1 flex flex-col gap-2 p-3">
-          {biCards.map((item) => (
+          {[
+            { label: 'Balancete', icon: PieChart, path: '/reports', color: 'bg-primary/10 text-primary' },
+            { label: 'Faturas', icon: FileText, path: '/invoices', color: 'bg-green-500/10 text-green-600' },
+            { label: 'Vendas / Lucro', icon: TrendingUp, path: '/reports', color: 'bg-orange-500/10 text-orange-600' },
+            { label: 'Compras', icon: Truck, path: '/purchase-orders', color: 'bg-blue-500/10 text-blue-600' },
+            { label: 'Impostos', icon: Receipt, path: '/tax-management', color: 'bg-destructive/10 text-destructive' },
+            { label: 'Stock', icon: Package, path: '/inventory', color: 'bg-primary/10 text-primary' },
+          ].map((item) => (
             <button
               key={item.label}
               onClick={() => navigate(item.path)}

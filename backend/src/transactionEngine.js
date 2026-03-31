@@ -9,6 +9,28 @@
 const db = require('./db');
 const { createJournalEntry, findAccountByCode } = require('./accounting');
 
+// ==================== AUDIT LOGGING ====================
+
+/**
+ * Write an audit log entry within a transaction
+ */
+async function auditLog(client, params) {
+  const { tableName, recordId, action, userId, userName, branchId, oldValues, newValues, description } = params;
+  try {
+    await client.query(
+      `INSERT INTO audit_log (table_name, record_id, action, user_id, user_name, branch_id, old_values, new_values, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [tableName, recordId, action, userId, userName, branchId,
+       oldValues ? JSON.stringify(oldValues) : null,
+       newValues ? JSON.stringify(newValues) : null,
+       description]
+    );
+  } catch (e) {
+    // audit_log table may not exist yet — non-critical
+    console.warn('[AUDIT] Log skipped:', e.message);
+  }
+}
+
 // ==================== STOCK MOVEMENTS ====================
 
 /**
@@ -289,7 +311,15 @@ async function processSale(client, saleData) {
     console.warn('[TX ENGINE] Tax summary skipped:', e.message);
   }
 
-  console.log(`[TX ENGINE] Sale ${invoiceNumber}: Stock OUT, Journal, Tax, ${clientId ? 'Open Item' : 'Cash'} ✓`);
+  // 6. Audit log
+  await auditLog(client, {
+    tableName: 'sales', recordId: sale.id, action: 'create',
+    userId: cashierId, userName: cashierName, branchId,
+    newValues: { invoiceNumber, total, paymentMethod, items: items.length },
+    description: `Venda ${invoiceNumber} - ${parseFloat(total).toLocaleString()} AOA - ${items.length} itens`,
+  });
+
+  console.log(`[TX ENGINE] Sale ${invoiceNumber}: Stock OUT, Journal, Tax, Audit, ${clientId ? 'Open Item' : 'Cash'} ✓`);
   return sale;
 }
 
@@ -417,7 +447,15 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
     });
   }
 
-  console.log(`[TX ENGINE] Purchase ${order.order_number}: Stock IN, Journal, Open Item ✓`);
+  // Audit log
+  await auditLog(client, {
+    tableName: 'purchase_orders', recordId: orderId, action: 'create',
+    userId: receivedBy, branchId: order.branch_id,
+    newValues: { orderNumber: order.order_number, total: subtotal + freightCost + taxAmount },
+    description: `Recepção ${order.order_number} - ${order.supplier_name}`,
+  });
+
+  console.log(`[TX ENGINE] Purchase ${order.order_number}: Stock IN, Journal, Open Item, Audit ✓`);
   return order;
 }
 
@@ -623,7 +661,15 @@ async function processPayment(client, paymentData) {
     lines,
   });
 
-  console.log(`[TX ENGINE] Payment ${paymentNumber}: ${amount} AOA, Journal, Clearing ✓`);
+  // Audit log
+  await auditLog(client, {
+    tableName: 'payments', recordId: payment.id, action: 'create',
+    userId: createdBy, branchId,
+    newValues: { paymentNumber, paymentType, entityName, amount, paymentMethod },
+    description: `${paymentType === 'receipt' ? 'Recebimento' : 'Pagamento'} ${paymentNumber} - ${entityName} - ${amount} AOA`,
+  });
+
+  console.log(`[TX ENGINE] Payment ${paymentNumber}: ${amount} AOA, Journal, Clearing, Audit ✓`);
   return payment;
 }
 
