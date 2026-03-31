@@ -351,3 +351,193 @@ export function DailySalesChart() {
     </Card>
   );
 }
+
+// ==================== PROFIT MARGIN GAUGE ====================
+
+export function ProfitMarginWidget() {
+  const data = useMemo(() => {
+    const sales = getSalesFromStorage();
+    const products = getProductsFromStorage();
+    const productCostMap = new Map<string, number>();
+    for (const p of products) {
+      productCostMap.set(p.id, p.avgCost || p.cost || 0);
+    }
+
+    let totalRevenue = 0;
+    let totalCost = 0;
+
+    for (const sale of sales) {
+      for (const item of (sale.items || [])) {
+        const revenue = (item.subtotal || item.unitPrice * item.quantity) || 0;
+        const cost = (productCostMap.get(item.productId) || 0) * item.quantity;
+        totalRevenue += revenue;
+        totalCost += cost;
+      }
+    }
+
+    const grossProfit = totalRevenue - totalCost;
+    const margin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+
+    return { totalRevenue, totalCost, grossProfit, margin };
+  }, []);
+
+  const marginColor = data.margin >= 30 ? 'hsl(142, 76%, 36%)' : data.margin >= 15 ? 'hsl(38, 92%, 50%)' : 'hsl(var(--destructive))';
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold">Margem de Lucro Bruto</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-6">
+          <div className="relative w-28 h-28">
+            <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(var(--muted))" strokeWidth="10" />
+              <circle cx="50" cy="50" r="40" fill="none" stroke={marginColor} strokeWidth="10"
+                strokeDasharray={`${Math.min(data.margin, 100) * 2.51} 251`} strokeLinecap="round" />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-xl font-bold" style={{ color: marginColor }}>{data.margin.toFixed(1)}%</span>
+            </div>
+          </div>
+          <div className="flex-1 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Receita Total</span>
+              <span className="font-medium">{data.totalRevenue.toLocaleString('pt-AO')} Kz</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Custo Total</span>
+              <span className="font-medium">{data.totalCost.toLocaleString('pt-AO')} Kz</span>
+            </div>
+            <div className="flex justify-between border-t pt-1">
+              <span className="font-semibold">Lucro Bruto</span>
+              <span className="font-bold" style={{ color: marginColor }}>{data.grossProfit.toLocaleString('pt-AO')} Kz</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== PAYMENT METHOD BREAKDOWN ====================
+
+export function PaymentMethodChart() {
+  const data = useMemo(() => {
+    const sales = getSalesFromStorage();
+    const methods: Record<string, { name: string; value: number; count: number }> = {
+      cash: { name: 'Numerário', value: 0, count: 0 },
+      card: { name: 'Cartão', value: 0, count: 0 },
+      transfer: { name: 'Transferência', value: 0, count: 0 },
+      mixed: { name: 'Misto', value: 0, count: 0 },
+    };
+
+    for (const sale of sales) {
+      const method = sale.paymentMethod || 'cash';
+      if (methods[method]) {
+        methods[method].value += sale.total || 0;
+        methods[method].count += 1;
+      }
+    }
+
+    return Object.values(methods).filter(m => m.value > 0);
+  }, []);
+
+  const colors = ['hsl(142, 76%, 36%)', 'hsl(var(--primary))', 'hsl(38, 92%, 50%)', 'hsl(262, 83%, 58%)'];
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold">Métodos de Pagamento</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data.length > 0 ? (
+          <div className="flex items-center gap-4">
+            <ResponsiveContainer width="45%" height={160}>
+              <PieChart>
+                <Pie data={data} cx="50%" cy="50%" innerRadius={35} outerRadius={60} dataKey="value" paddingAngle={3}>
+                  {data.map((_, i) => (
+                    <Cell key={i} fill={colors[i % colors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => `${value.toLocaleString('pt-AO')} Kz`} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex-1 space-y-2">
+              {data.map((item, i) => (
+                <div key={item.name} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
+                    <span className="text-muted-foreground">{item.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-medium">{item.value.toLocaleString('pt-AO')} Kz</span>
+                    <span className="text-muted-foreground ml-1">({item.count})</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="h-40 flex items-center justify-center text-muted-foreground text-sm">
+            Sem dados de vendas
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== STOCK VALUATION SUMMARY ====================
+
+export function StockValuationWidget() {
+  const data = useMemo(() => {
+    const products = getProductsFromStorage();
+    let totalCostValue = 0;
+    let totalSaleValue = 0;
+    let totalItems = 0;
+    let activeProducts = 0;
+
+    for (const p of products) {
+      if (!p.isActive) continue;
+      activeProducts++;
+      const qty = p.stock || 0;
+      totalItems += qty;
+      totalCostValue += qty * (p.avgCost || p.cost || 0);
+      totalSaleValue += qty * (p.price || 0);
+    }
+
+    const potentialProfit = totalSaleValue - totalCostValue;
+    const profitPercent = totalCostValue > 0 ? (potentialProfit / totalCostValue) * 100 : 0;
+
+    return { totalCostValue, totalSaleValue, potentialProfit, profitPercent, totalItems, activeProducts };
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold">Valorização de Stock</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-lg bg-accent/50">
+            <p className="text-[10px] text-muted-foreground uppercase font-medium">Valor ao Custo</p>
+            <p className="text-lg font-bold">{data.totalCostValue.toLocaleString('pt-AO')} Kz</p>
+          </div>
+          <div className="p-3 rounded-lg bg-accent/50">
+            <p className="text-[10px] text-muted-foreground uppercase font-medium">Valor de Venda</p>
+            <p className="text-lg font-bold">{data.totalSaleValue.toLocaleString('pt-AO')} Kz</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Lucro Potencial</span>
+          <span className="font-bold text-green-600">{data.potentialProfit.toLocaleString('pt-AO')} Kz ({data.profitPercent.toFixed(1)}%)</span>
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{data.activeProducts} produtos activos</span>
+          <span>{data.totalItems.toLocaleString('pt-AO')} unidades em stock</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   RevenueExpensesChart, CashFlowChart, TopProductsChart,
-  ARAgingChart, DailySalesChart,
+  ARAgingChart, DailySalesChart, ProfitMarginWidget,
+  PaymentMethodChart, StockValuationWidget,
 } from '@/components/dashboard/FinancialCharts';
 import {
   FileText, ShoppingCart, Package, BarChart3, TrendingUp,
@@ -256,8 +257,13 @@ export default function Dashboard() {
               <TabsTrigger value="cashflow">Fluxo Caixa</TabsTrigger>
               <TabsTrigger value="products">Produtos</TabsTrigger>
               <TabsTrigger value="aging">Aging AR</TabsTrigger>
+              <TabsTrigger value="payments">Pagamentos</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <ProfitMarginWidget />
+                <StockValuationWidget />
+              </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <RevenueExpensesChart />
                 <DailySalesChart />
@@ -271,6 +277,9 @@ export default function Dashboard() {
             </TabsContent>
             <TabsContent value="aging">
               <ARAgingChart />
+            </TabsContent>
+            <TabsContent value="payments">
+              <PaymentMethodChart />
             </TabsContent>
           </Tabs>
         </div>
