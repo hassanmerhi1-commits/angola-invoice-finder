@@ -751,7 +751,7 @@ export default function PurchaseInvoices() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                       <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
                       Nenhuma fatura de compra encontrada
                     </TableCell>
