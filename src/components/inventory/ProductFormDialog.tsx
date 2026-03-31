@@ -59,6 +59,8 @@ export function ProductFormDialog({
     price: 0,
     cost: 0,
     stock: 0,
+    minStock: 0,
+    maxStock: 0,
     unit: 'un',
     taxRate: 14,
     branchId: 'all',
