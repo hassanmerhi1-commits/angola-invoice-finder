@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Employee, PayrollEntry, AttendanceRecord, LeaveRequest, DEPARTMENTS, calculatePayroll, calculateIRT, INSS_EMPLOYEE_RATE } from '@/types/hr';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format, differenceInCalendarDays } from 'date-fns';
+import { pt } from 'date-fns/locale';
 
 // Storage helpers
 const STORAGE_KEYS = {
