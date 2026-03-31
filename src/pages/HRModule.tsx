@@ -44,6 +44,9 @@ export default function HRModule() {
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [leaveFormOpen, setLeaveFormOpen] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({ employeeId: '', leaveType: 'annual' as LeaveRequest['leaveType'], startDate: '', endDate: '', reason: '' });
 
   // Employee form
   const [formOpen, setFormOpen] = useState(false);
