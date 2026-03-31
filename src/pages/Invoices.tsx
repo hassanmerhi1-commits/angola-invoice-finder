@@ -66,7 +66,7 @@ function buildFlowNodes(doc: ERPDocument): { type: string; number: string; date:
       nodes.push({
         type: currentTypeMap[child.type] || child.type,
         number: child.number,
-        date: child.date || doc.issueDate,
+        date: doc.issueDate,
         status: 'completed',
       });
     }
