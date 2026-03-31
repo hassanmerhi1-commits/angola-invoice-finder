@@ -44,6 +44,7 @@ import TaxManagement from "./pages/TaxManagement";
 import AuditTrail from "./pages/AuditTrail";
 import BudgetControl from "./pages/BudgetControl";
 import Approvals from "./pages/Approvals";
+import ExchangeRates from "./pages/ExchangeRates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
