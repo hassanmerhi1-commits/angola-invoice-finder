@@ -41,8 +41,8 @@ interface AdvancedDataGridProps {
 const BASE_COLUMNS: ColumnDef[] = [
   { key: 'sku', label: 'Produto', width: 'w-24' },
   { key: 'name', label: 'Descrição', width: 'w-48' },
-  { key: 'basePrice', label: 'Preço s/IVA', width: 'w-24', type: 'number', computed: true },
-  { key: 'price', label: 'Preço c/IVA', width: 'w-24', type: 'number' },
+  { key: 'price', label: 'Preço s/IVA', width: 'w-24', type: 'number' },
+  { key: 'priceWithIVA', label: 'Preço c/IVA', width: 'w-24', type: 'number', computed: true },
   { key: 'firstCost', label: 'Custo Inicial', width: 'w-24', type: 'number' },
   { key: 'lastCost', label: 'Últ. Custo', width: 'w-24', type: 'number' },
   { key: 'avgCost', label: 'Custo Médio', width: 'w-24', type: 'number' },
