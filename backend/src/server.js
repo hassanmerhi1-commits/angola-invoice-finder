@@ -114,11 +114,32 @@ io.on('connection', (socket) => {
     await broadcastTable('purchase_orders');
   });
 
+  // Subscribe to specific table changes
+  socket.on('subscribe', (tables) => {
+    if (Array.isArray(tables)) {
+      tables.forEach(t => socket.join(`table:${t}`));
+      console.log(`[SUBSCRIBE] ${socket.id} → ${tables.join(', ')}`);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`[DISCONNECTED] Client: ${socket.id}`);
     discoveryBroadcaster.setConnectedClients(io.sockets.sockets.size);
   });
 });
+
+// Enhanced broadcast: also emit targeted events for real-time listeners
+const _origBroadcast = broadcastTable;
+async function enhancedBroadcast(tableName) {
+  await _origBroadcast(tableName);
+  io.to(`table:${tableName}`).emit('table_updated', { table: tableName, timestamp: Date.now() });
+}
+
+// Transaction event broadcasting (called by transaction engine)
+function broadcastTransactionEvent(eventType, data) {
+  io.emit('transaction_event', { type: eventType, data, timestamp: Date.now() });
+  console.log(`[TX EVENT] ${eventType}`);
+}
 
 // ============================================
 // API ROUTES
