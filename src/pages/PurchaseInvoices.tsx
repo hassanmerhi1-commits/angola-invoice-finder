@@ -1062,7 +1062,7 @@ export default function PurchaseInvoices() {
                     ))}
                     {lines.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={16} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={18} className="text-center py-8 text-muted-foreground">
                           <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
                           Clique em "Inserir Produto" ou pressione F2 para adicionar produtos
                         </TableCell>
