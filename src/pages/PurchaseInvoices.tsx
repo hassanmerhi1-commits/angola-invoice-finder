@@ -20,7 +20,6 @@ import {
 } from '@/lib/purchaseInvoiceStorage';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
-import { useProducts as useProductsHook } from '@/hooks/useERP';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -425,13 +424,12 @@ export default function PurchaseInvoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { currentBranch, branches } = useBranchContext();
-  const { products } = useProducts(currentBranch?.id);
+  const { products, addProduct: addProductToStock, refreshProducts } = useProducts(currentBranch?.id);
   const { suppliers } = useSuppliers();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   // State
-  const { addProduct: addProductToStock } = useProductsHook(currentBranch?.id);
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [mode, setMode] = useState<'list' | 'create'>('list');
   const [searchTerm, setSearchTerm] = useState('');
@@ -682,6 +680,7 @@ export default function PurchaseInvoices() {
 
     // Phase 5: Price update
     await applyPriceUpdate(invoice);
+    await refreshProducts();
 
     toast({
       title: 'Fatura de Compra Guardada',
@@ -690,7 +689,7 @@ export default function PurchaseInvoices() {
 
     setInvoices(getPurchaseInvoices(currentBranch?.id));
     setMode('list');
-  }, [form, lines, journalLines, totals, currentBranch, user, toast]);
+  }, [form, lines, journalLines, totals, currentBranch, user, toast, refreshProducts]);
 
   // ═══════════════ RENDER ═══════════════
 
@@ -1257,8 +1256,8 @@ export default function PurchaseInvoices() {
         open={showCreateProduct}
         onOpenChange={setShowCreateProduct}
         product={null}
-        onSave={(newProduct) => {
-          addProductToStock(newProduct);
+        onSave={async (newProduct) => {
+          await addProductToStock(newProduct);
           handleAddProduct(newProduct);
           toast({ title: 'Produto criado', description: `${newProduct.name} adicionado ao stock e à fatura` });
         }}

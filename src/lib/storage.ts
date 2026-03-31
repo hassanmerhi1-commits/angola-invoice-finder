@@ -145,7 +145,10 @@ export async function getAllProducts(): Promise<Product[]> {
 
 export async function saveProduct(product: Product): Promise<void> {
   if (isElectronMode()) {
-    await dbInsert('products', mapProductToDb(product));
+    const existing = await window.electronAPI!.db.getById('products', product.id);
+    const payload = mapProductToDb(product);
+    if (existing?.data) await dbUpdate('products', product.id, payload);
+    else await dbInsert('products', payload);
     return;
   }
   const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());

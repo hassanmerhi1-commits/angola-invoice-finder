@@ -226,10 +226,14 @@ export async function applyPriceUpdate(invoice: PurchaseInvoice): Promise<void> 
     const product = products.find(p => p.id === line.productId);
     if (!product) continue;
 
-    // Weighted average cost
-    const previousTotalValue = product.stock * (product.avgCost || product.cost || 0);
+    // Stock was already updated in applyStockUpdate, so reverse the incoming qty
+    // to get the true previous stock before this purchase.
+    const currentStock = product.stock || 0;
+    const previousStock = Math.max(currentStock - line.totalQty, 0);
+    const previousAverageCost = product.avgCost || product.cost || 0;
+    const previousTotalValue = previousStock * previousAverageCost;
     const newItemsTotalValue = line.totalQty * line.unitPrice;
-    const newTotalStock = product.stock + line.totalQty;
+    const newTotalStock = previousStock + line.totalQty;
     const newAvgCost = newTotalStock > 0
       ? (previousTotalValue + newItemsTotalValue) / newTotalStock
       : line.unitPrice;
