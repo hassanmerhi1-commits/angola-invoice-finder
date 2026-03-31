@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useTranslation } from '@/i18n';
 import { useCompanyLogo } from '@/hooks/useCompanyLogo';
+import { useProducts } from '@/hooks/useERP';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,7 @@ import {
   PieChart, Truck, CheckCircle, Search, BookOpen, ArrowRightLeft,
   Users, Calendar, AlertTriangle, CreditCard, GitBranch,
 } from 'lucide-react';
+import { Product } from '@/types/erp';
 
 interface DashboardKPIs {
   todaySales: { count: number; total: number };
