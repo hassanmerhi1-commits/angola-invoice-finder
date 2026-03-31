@@ -189,7 +189,7 @@ export function ProductDetailDialog({
     ? (((formData.price - formData.cost) / formData.cost) * 100).toFixed(2)
     : '0.00';
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const savedProduct: Product = {
       id: formData.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: formData.name,
@@ -213,7 +213,7 @@ export function ProductDetailDialog({
       createdAt: product?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    onSave(savedProduct);
+    await onSave(savedProduct);
     onOpenChange(false);
   };
 

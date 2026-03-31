@@ -1414,7 +1414,14 @@ function runMigrations() {
   migrate(`ALTER TABLE audit_logs ADD COLUMN branch_id TEXT`);
   migrate(`ALTER TABLE audit_logs ADD COLUMN session_id TEXT`);
 
-  // Migration 3: Add caixa1 default user
+  // Migration 3: Add missing columns to products
+  migrate(`ALTER TABLE products ADD COLUMN price_2 REAL DEFAULT 0`);
+  migrate(`ALTER TABLE products ADD COLUMN price_3 REAL DEFAULT 0`);
+  migrate(`ALTER TABLE products ADD COLUMN price_4 REAL DEFAULT 0`);
+  migrate(`ALTER TABLE products ADD COLUMN first_cost REAL DEFAULT 0`);
+  migrate(`ALTER TABLE products ADD COLUMN supplier_name TEXT`);
+
+  // Migration 4: Add caixa1 default user
   migrate(`INSERT OR IGNORE INTO users (id, username, password, name, role) VALUES ('user-caixa1', 'caixa1', 'caixa123', 'Caixa 1', 'cashier')`);
 
   // Migration 4: Default chart of accounts
