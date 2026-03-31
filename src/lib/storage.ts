@@ -156,19 +156,25 @@ export async function saveProduct(product: Product): Promise<void> {
     const payload = mapProductToDb(product);
     if (existing?.data) await dbUpdate('products', product.id, payload);
     else await dbInsert('products', payload);
+    auditLog(existing?.data ? 'update' : 'create', 'products', `Produto "${product.name}" (${product.sku}) ${existing?.data ? 'actualizado' : 'criado'}`, 'Sistema');
     return;
   }
   const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
   const index = products.findIndex(p => p.id === product.id);
+  const isNew = index < 0;
   if (index >= 0) products[index] = product;
   else products.push(product);
   lsSet(STORAGE_KEYS.products, products);
+  auditLog(isNew ? 'create' : 'update', 'products', `Produto "${product.name}" (${product.sku}) ${isNew ? 'criado' : 'actualizado'}`, 'Sistema');
 }
 
 export async function deleteProduct(productId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('products', productId); return; }
-  const products = lsGet<Product[]>(STORAGE_KEYS.products, []).filter(p => p.id !== productId);
-  lsSet(STORAGE_KEYS.products, products);
+  if (isElectronMode()) { await dbDelete('products', productId); }
+  else {
+    const products = lsGet<Product[]>(STORAGE_KEYS.products, []).filter(p => p.id !== productId);
+    lsSet(STORAGE_KEYS.products, products);
+  }
+  auditLog('delete', 'products', `Produto ${productId} eliminado`, 'Sistema');
 }
 
 export async function updateProductStock(productId: string, quantityChange: number): Promise<void> {
