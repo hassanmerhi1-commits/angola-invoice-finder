@@ -346,6 +346,7 @@ export default function Suppliers() {
                   <TableHead>NIF</TableHead>
                   <TableHead>Contacto</TableHead>
                   <TableHead>Prazo Pagamento</TableHead>
+                  <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acções</TableHead>
                 </TableRow>
