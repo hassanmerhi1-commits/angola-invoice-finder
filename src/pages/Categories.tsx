@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useCategories, useProducts } from '@/hooks/useERP';
 import { Category } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
