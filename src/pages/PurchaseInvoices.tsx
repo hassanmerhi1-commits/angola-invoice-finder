@@ -772,8 +772,18 @@ export default function PurchaseInvoices() {
                     <Input value={form.ref || ''} onChange={e => setForm(p => ({ ...p, ref: e.target.value }))} placeholder="Auto" className="h-8 text-xs" />
                   </div>
                   <div>
+                    <Label className="text-xs">Nº Fatura Fornecedor</Label>
+                    <Input value={(form as any).supplierInvoiceNo || ''} onChange={e => setForm(p => ({ ...p, supplierInvoiceNo: e.target.value }))} placeholder="Nº da fatura do fornecedor" className="h-8 text-xs" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
                     <Label className="text-xs">Ref</Label>
                     <Input value={form.ref2 || ''} onChange={e => setForm(p => ({ ...p, ref2: e.target.value }))} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Departamento</Label>
+                    <Input value={form.department || ''} onChange={e => setForm(p => ({ ...p, department: e.target.value }))} className="h-8 text-xs" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
