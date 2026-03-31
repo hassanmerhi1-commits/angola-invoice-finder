@@ -26,6 +26,9 @@ import {
   Wallet,
   CreditCard,
   CalendarCheck,
+  Calculator,
+  Target,
+  GitBranch,
 } from 'lucide-react';
 
 interface SidebarProps {
