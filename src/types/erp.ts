@@ -434,3 +434,70 @@ export interface SAFTExport {
   fileName: string;
   xmlContent?: string;
 }
+
+// ==================== OPEN ITEM MANAGEMENT ====================
+
+export interface OpenItem {
+  id: string;
+  entityType: 'customer' | 'supplier';
+  entityId: string;
+  documentType: 'invoice' | 'credit_note' | 'debit_note' | 'payment' | 'advance';
+  documentId: string;
+  documentNumber: string;
+  documentDate: string;
+  dueDate?: string;
+  currency: string;
+  originalAmount: number;
+  remainingAmount: number;
+  isDebit: boolean;
+  status: 'open' | 'partial' | 'cleared';
+  branchId: string;
+  createdAt: string;
+  clearedAt?: string;
+}
+
+// ==================== PAYMENTS ====================
+
+export interface Payment {
+  id: string;
+  paymentNumber: string;
+  paymentType: 'receipt' | 'payment';
+  entityType: 'customer' | 'supplier';
+  entityId: string;
+  entityName: string;
+  paymentMethod: 'cash' | 'card' | 'transfer' | 'cheque' | 'mixed';
+  amount: number;
+  currency: string;
+  bankAccount?: string;
+  reference?: string;
+  notes?: string;
+  branchId: string;
+  createdBy: string;
+  createdAt: string;
+  postedAt?: string;
+}
+
+// ==================== ACCOUNTING PERIOD ====================
+
+export interface AccountingPeriod {
+  id: string;
+  year: number;
+  month: number;
+  name: string;
+  status: 'open' | 'closed' | 'locked';
+  closedBy?: string;
+  closedAt?: string;
+}
+
+// ==================== DOCUMENT LINK ====================
+
+export interface DocumentLink {
+  id: string;
+  sourceType: string;
+  sourceId: string;
+  sourceNumber: string;
+  targetType: string;
+  targetId: string;
+  targetNumber: string;
+  createdAt: string;
+}
