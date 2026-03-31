@@ -443,6 +443,7 @@ export default function HRModule() {
                 <td className="px-3 py-2 text-right font-mono text-destructive" colSpan={2}>{payrollTotals.deductions.toLocaleString('pt-AO')} Kz</td>
                 <td className="px-3 py-2 text-right font-mono text-green-600">{payrollTotals.net.toLocaleString('pt-AO')} Kz</td>
                 <td colSpan={2}></td>
+              </tr>
             </tfoot>
           </table>
           {currentPayroll.length === 0 && (
