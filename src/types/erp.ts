@@ -3,6 +3,7 @@
 export interface Category {
   id: string;
   name: string;
+  parentId?: string | null; // null = root/mother category
   description?: string;
   color?: string;
   isActive: boolean;
