@@ -116,12 +116,13 @@ function SupplierPickerDialog({
 
 // ─────────── Product Picker Dialog ───────────
 function ProductPickerDialog({
-  open, onClose, products, onSelect,
+  open, onClose, products, onSelect, onCreateNew,
 }: {
   open: boolean;
   onClose: () => void;
   products: Product[];
   onSelect: (p: Product) => void;
+  onCreateNew: () => void;
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(() => {
@@ -138,7 +139,12 @@ function ProductPickerDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[80vh]">
         <DialogHeader>
-          <DialogTitle>Lista de Produtos</DialogTitle>
+          <DialogTitle className="flex items-center justify-between">
+            <span>Lista de Produtos</span>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => { onClose(); onCreateNew(); }}>
+              <Plus className="h-4 w-4" /> Novo Produto
+            </Button>
+          </DialogTitle>
         </DialogHeader>
         <Input
           placeholder="Pesquisar produto por nome, SKU ou código de barras..."
@@ -181,6 +187,10 @@ function ProductPickerDialog({
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     Nenhum produto encontrado
+                    <br />
+                    <Button variant="link" size="sm" className="mt-2 gap-1" onClick={() => { onClose(); onCreateNew(); }}>
+                      <Plus className="h-4 w-4" /> Criar novo produto
+                    </Button>
                   </TableCell>
                 </TableRow>
               )}
