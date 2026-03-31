@@ -138,6 +138,7 @@ const stockTransferRoutes = require('./routes/stockTransfers');
 const purchaseOrderRoutes = require('./routes/purchaseOrders');
 const chartOfAccountsRoutes = require('./routes/chartOfAccounts');
 const journalEntryRoutes = require('./routes/journalEntries');
+const paymentRoutes = require('./routes/payments');
 
 // Use routes
 app.use('/api/auth', authRoutes);
