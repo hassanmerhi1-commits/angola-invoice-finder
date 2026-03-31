@@ -202,6 +202,7 @@ export default function Suppliers() {
           city: item.cidade || '',
           country: item.pais || 'Angola',
           paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || 'immediate',
+          balance: 0,
           isActive: true,
           notes: item.notas || '',
         });

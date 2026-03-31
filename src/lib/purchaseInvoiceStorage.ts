@@ -294,3 +294,25 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
 
   return lines;
 }
+
+// ---------- Phase 6: Update supplier balance ----------
+
+export async function applySupplierBalanceUpdate(invoice: PurchaseInvoice): Promise<void> {
+  if (invoice.total <= 0) return;
+  const suppliers = await getSuppliers();
+  // Match by account code or name
+  const supplier = suppliers.find(
+    s => s.id === invoice.supplierAccountCode || s.name === invoice.supplierName || s.nif === invoice.supplierNif
+  );
+  if (!supplier) {
+    console.warn(`[PurchaseInvoice] Supplier not found for balance update: ${invoice.supplierName}`);
+    return;
+  }
+  const updated = {
+    ...supplier,
+    balance: (supplier.balance || 0) + invoice.total,
+    updatedAt: new Date().toISOString(),
+  };
+  await saveSupplier(updated);
+  console.log(`[PurchaseInvoice] Updated supplier ${supplier.name} balance: ${supplier.balance} → ${updated.balance}`);
+}
