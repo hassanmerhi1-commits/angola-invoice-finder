@@ -1,7 +1,7 @@
-// Sales API routes
+// Sales API routes - Using Central Transaction Engine
 const express = require('express');
 const db = require('../db');
-const { recordSaleJournal } = require('../accounting');
+const { processSale } = require('../transactionEngine');
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
@@ -37,71 +37,26 @@ module.exports = function(broadcastTable) {
     }
   });
 
-  // Create sale
+  // Create sale — ALL logic handled by Transaction Engine
   router.post('/', async (req, res) => {
     const client = await db.pool.connect();
     
     try {
       await client.query('BEGIN');
       
-      const { 
-        invoiceNumber, branchId, cashierId, cashierName, items, 
-        subtotal, taxAmount, discount, total, 
-        paymentMethod, amountPaid, change,
-        customerNif, customerName 
-      } = req.body;
+      const sale = await processSale(client, req.body);
       
-      // Insert sale
-      const saleResult = await client.query(
-        `INSERT INTO sales (
-          invoice_number, branch_id, cashier_id, cashier_name,
-          subtotal, tax_amount, discount, total,
-          payment_method, amount_paid, change,
-          customer_nif, customer_name, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'completed')
-        RETURNING *`,
-        [invoiceNumber, branchId, cashierId, cashierName, subtotal, taxAmount, 
-         discount || 0, total, paymentMethod, amountPaid, change, customerNif, customerName]
-      );
-      
-      const sale = saleResult.rows[0];
-      
-      // Insert items and update stock
-      for (const item of items) {
-        await client.query(
-          `INSERT INTO sale_items (
-            sale_id, product_id, product_name, sku, quantity, 
-            unit_price, discount, tax_rate, tax_amount, subtotal
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [sale.id, item.productId, item.productName, item.sku, item.quantity,
-           item.unitPrice, item.discount || 0, item.taxRate, item.taxAmount, item.subtotal]
-        );
-        
-        // Update product stock
-        await client.query(
-          'UPDATE products SET stock = stock - $1 WHERE id = $2',
-          [item.quantity, item.productId]
-        );
-      }
-      
-      // Create automatic journal entry for this sale
-      try {
-        await recordSaleJournal(client, { ...sale, items: req.body.items }, branchId, cashierId);
-      } catch (jeError) {
-        console.warn('[SALES] Journal entry creation failed (non-fatal):', jeError.message);
-      }
-
       await client.query('COMMIT');
       
       // Broadcast updates
       await broadcastTable('sales');
-      await broadcastTable('products'); // Stock changed
+      await broadcastTable('products');
       
-      res.status(201).json({ ...sale, items });
+      res.status(201).json({ ...sale, items: req.body.items });
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('[SALES ERROR]', error);
-      res.status(500).json({ error: 'Failed to create sale' });
+      res.status(500).json({ error: error.message || 'Failed to create sale' });
     } finally {
       client.release();
     }

@@ -1,7 +1,7 @@
-// Stock Transfers API routes
+// Stock Transfers API routes - Using Central Transaction Engine
 const express = require('express');
 const db = require('../db');
-const { recordTransferJournal } = require('../accounting');
+const { processTransferApprove, processTransferReceive } = require('../transactionEngine');
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
@@ -20,7 +20,6 @@ module.exports = function(broadcastTable) {
       query += ' ORDER BY created_at DESC';
       const result = await db.query(query, params);
       
-      // Get items for each transfer
       for (let transfer of result.rows) {
         const itemsResult = await db.query(
           'SELECT * FROM stock_transfer_items WHERE transfer_id = $1',
@@ -43,11 +42,9 @@ module.exports = function(broadcastTable) {
       
       const { fromBranchId, toBranchId, items, requestedBy, notes } = req.body;
       
-      // Get branch names
       const fromBranch = await client.query('SELECT name FROM branches WHERE id = $1', [fromBranchId]);
       const toBranch = await client.query('SELECT name FROM branches WHERE id = $1', [toBranchId]);
       
-      // Generate transfer number
       const countResult = await client.query('SELECT COUNT(*) as count FROM stock_transfers');
       const count = parseInt(countResult.rows[0].count) + 1;
       const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
@@ -80,6 +77,7 @@ module.exports = function(broadcastTable) {
     }
   });
 
+  // Approve — Transaction Engine handles stock OUT
   router.post('/:id/approve', async (req, res) => {
     const client = await db.pool.connect();
     try {
@@ -88,24 +86,7 @@ module.exports = function(broadcastTable) {
       const { id } = req.params;
       const { approvedBy } = req.body;
       
-      // Get transfer with items
-      const transferResult = await client.query('SELECT * FROM stock_transfers WHERE id = $1', [id]);
-      const transfer = transferResult.rows[0];
-      
-      const itemsResult = await client.query('SELECT * FROM stock_transfer_items WHERE transfer_id = $1', [id]);
-      
-      // Deduct stock from source branch
-      for (const item of itemsResult.rows) {
-        await client.query(
-          'UPDATE products SET stock = stock - $1 WHERE id = $2 AND branch_id = $3',
-          [item.quantity, item.product_id, transfer.from_branch_id]
-        );
-      }
-      
-      await client.query(
-        'UPDATE stock_transfers SET status = $1, approved_by = $2, approved_at = CURRENT_TIMESTAMP WHERE id = $3',
-        ['in_transit', approvedBy, id]
-      );
+      await processTransferApprove(client, id, approvedBy);
       
       await client.query('COMMIT');
       await broadcastTable('stock_transfers');
@@ -114,12 +95,13 @@ module.exports = function(broadcastTable) {
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('[STOCK TRANSFERS ERROR]', error);
-      res.status(500).json({ error: 'Failed to approve transfer' });
+      res.status(500).json({ error: error.message || 'Failed to approve transfer' });
     } finally {
       client.release();
     }
   });
 
+  // Receive — Transaction Engine handles stock IN + journal
   router.post('/:id/receive', async (req, res) => {
     const client = await db.pool.connect();
     try {
@@ -128,47 +110,7 @@ module.exports = function(broadcastTable) {
       const { id } = req.params;
       const { receivedBy, receivedQuantities } = req.body;
       
-      const transferResult = await client.query('SELECT * FROM stock_transfers WHERE id = $1', [id]);
-      const transfer = transferResult.rows[0];
-      
-      const itemsResult = await client.query('SELECT * FROM stock_transfer_items WHERE transfer_id = $1', [id]);
-      
-      // Add stock to destination branch
-      for (const item of itemsResult.rows) {
-        const receivedQty = receivedQuantities?.[item.product_id] ?? item.quantity;
-        
-        // Update received quantity
-        await client.query(
-          'UPDATE stock_transfer_items SET received_quantity = $1 WHERE id = $2',
-          [receivedQty, item.id]
-        );
-        
-        // Add to destination branch stock
-        await client.query(
-          'UPDATE products SET stock = stock + $1 WHERE id = $2 AND branch_id = $3',
-          [receivedQty, item.product_id, transfer.to_branch_id]
-        );
-      }
-      
-      await client.query(
-        'UPDATE stock_transfers SET status = $1, received_by = $2, received_at = CURRENT_TIMESTAMP WHERE id = $3',
-        ['received', receivedBy, id]
-      );
-
-      // Create automatic journal entry for this transfer
-      try {
-        let totalTransferValue = 0;
-        for (const item of itemsResult.rows) {
-          const productResult = await client.query('SELECT cost FROM products WHERE id = $1', [item.product_id]);
-          if (productResult.rows.length > 0) {
-            const receivedQty = receivedQuantities?.[item.product_id] ?? item.quantity;
-            totalTransferValue += parseFloat(productResult.rows[0].cost) * receivedQty;
-          }
-        }
-        await recordTransferJournal(client, transfer, totalTransferValue, receivedBy);
-      } catch (jeError) {
-        console.warn('[TRANSFER] Journal entry creation failed (non-fatal):', jeError.message);
-      }
+      await processTransferReceive(client, id, receivedQuantities, receivedBy);
       
       await client.query('COMMIT');
       await broadcastTable('stock_transfers');
@@ -177,7 +119,7 @@ module.exports = function(broadcastTable) {
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('[STOCK TRANSFERS ERROR]', error);
-      res.status(500).json({ error: 'Failed to receive transfer' });
+      res.status(500).json({ error: error.message || 'Failed to receive transfer' });
     } finally {
       client.release();
     }
