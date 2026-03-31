@@ -3,6 +3,7 @@
 export interface Category {
   id: string;
   name: string;
+  parentId?: string | null; // null = root/mother category
   description?: string;
   color?: string;
   isActive: boolean;
@@ -17,6 +18,7 @@ export interface Branch {
   address: string;
   phone: string;
   isMain: boolean;
+  priceLevel: number; // 1-4, which price column this branch uses
   createdAt: string;
 }
 
@@ -26,15 +28,17 @@ export interface Product {
   sku: string;
   barcode?: string;
   category: string;
-  price: number;
-  cost: number; // Current cost (legacy/fallback)
-  // Multi-cost tracking for accounting
-  firstCost: number; // First purchase cost (Custo Inicial)
-  lastCost: number; // Last purchase cost (Último Custo)
-  avgCost: number; // Weighted average cost (Custo Médio)
+  price: number;       // Price 1 (base price)
+  price2?: number;     // Price 2
+  price3?: number;     // Price 3
+  price4?: number;     // Price 4
+  cost: number;
+  firstCost: number;
+  lastCost: number;
+  avgCost: number;
   stock: number;
   unit: string;
-  taxRate: number; // IVA rate for Angola
+  taxRate: number;
   branchId: string;
   supplierId?: string;
   supplierName?: string;

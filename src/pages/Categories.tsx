@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useCategories, useProducts } from '@/hooks/useERP';
 import { Category } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,10 +20,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit, Trash2, Tags, Package } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Tags, Package, ChevronRight, FolderOpen, Folder } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -47,6 +54,7 @@ const initialFormData = {
   description: '',
   color: '#3b82f6',
   isActive: true,
+  parentId: '' as string | null,
 };
 
 export default function Categories() {
@@ -58,15 +66,46 @@ export default function Categories() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState(initialFormData);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
-  const filteredCategories = categories.filter(category =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    category.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Build tree structure
+  const rootCategories = useMemo(() => {
+    return categories.filter(c => !c.parentId);
+  }, [categories]);
 
-  // Count products per category
+  const getChildren = (parentId: string) => {
+    return categories.filter(c => c.parentId === parentId);
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const filteredCategories = useMemo(() => {
+    if (!searchTerm) return null; // use tree view
+    return categories.filter(category =>
+      category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      category.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [categories, searchTerm]);
+
   const getProductCount = (categoryName: string) => {
     return products.filter(p => p.category === categoryName).length;
+  };
+
+  // Get total product count including children
+  const getTotalProductCount = (categoryId: string, categoryName: string): number => {
+    let count = getProductCount(categoryName);
+    const children = getChildren(categoryId);
+    for (const child of children) {
+      count += getTotalProductCount(child.id, child.name);
+    }
+    return count;
   };
 
   const handleOpenDialog = (category?: Category) => {
@@ -77,6 +116,7 @@ export default function Categories() {
         description: category.description || '',
         color: category.color || '#3b82f6',
         isActive: category.isActive,
+        parentId: category.parentId || '',
       });
     } else {
       setSelectedCategory(null);
@@ -85,47 +125,47 @@ export default function Categories() {
     setDialogOpen(true);
   };
 
+  const handleAddChild = (parent: Category) => {
+    setSelectedCategory(null);
+    setFormData({
+      ...initialFormData,
+      parentId: parent.id,
+      color: parent.color || '#3b82f6',
+    });
+    setDialogOpen(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      toast({
-        title: 'Erro',
-        description: 'Nome da categoria é obrigatório',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: 'Nome da categoria é obrigatório', variant: 'destructive' });
       return;
     }
 
-    // Check for duplicate names
     const existingCategory = categories.find(
       c => c.name.toLowerCase() === formData.name.trim().toLowerCase() && c.id !== selectedCategory?.id
     );
     if (existingCategory) {
-      toast({
-        title: 'Erro',
-        description: 'Já existe uma categoria com este nome',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: 'Já existe uma categoria com este nome', variant: 'destructive' });
       return;
     }
+
+    const categoryData = {
+      ...formData,
+      parentId: formData.parentId || null,
+    };
 
     if (selectedCategory) {
       saveCategory({
         ...selectedCategory,
-        ...formData,
+        ...categoryData,
         updatedAt: new Date().toISOString(),
       });
-      toast({
-        title: 'Categoria actualizada',
-        description: `${formData.name} foi actualizada com sucesso`,
-      });
+      toast({ title: 'Categoria actualizada', description: `${formData.name} foi actualizada com sucesso` });
     } else {
-      createCategory(formData);
-      toast({
-        title: 'Categoria criada',
-        description: `${formData.name} foi criada com sucesso`,
-      });
+      createCategory(categoryData);
+      toast({ title: 'Categoria criada', description: `${formData.name} foi criada com sucesso` });
     }
 
     setDialogOpen(false);
@@ -133,22 +173,20 @@ export default function Categories() {
 
   const handleDelete = () => {
     if (selectedCategory) {
-      const productCount = getProductCount(selectedCategory.name);
-      if (productCount > 0) {
-        toast({
-          title: 'Não é possível eliminar',
-          description: `Esta categoria tem ${productCount} produto(s) associado(s)`,
-          variant: 'destructive',
-        });
+      const children = getChildren(selectedCategory.id);
+      if (children.length > 0) {
+        toast({ title: 'Não é possível eliminar', description: 'Esta categoria tem sub-categorias. Elimine-as primeiro.', variant: 'destructive' });
         setDeleteDialogOpen(false);
         return;
       }
-
+      const productCount = getProductCount(selectedCategory.name);
+      if (productCount > 0) {
+        toast({ title: 'Não é possível eliminar', description: `Esta categoria tem ${productCount} produto(s) associado(s)`, variant: 'destructive' });
+        setDeleteDialogOpen(false);
+        return;
+      }
       deleteCategory(selectedCategory.id);
-      toast({
-        title: 'Categoria eliminada',
-        description: `${selectedCategory.name} foi eliminada`,
-      });
+      toast({ title: 'Categoria eliminada', description: `${selectedCategory.name} foi eliminada` });
       setDeleteDialogOpen(false);
       setSelectedCategory(null);
     }
@@ -159,20 +197,89 @@ export default function Categories() {
     setDeleteDialogOpen(true);
   };
 
+  // Get parent categories (those without a parent) for the select dropdown
+  const parentOptions = categories.filter(c => !c.parentId && c.id !== selectedCategory?.id);
+
   const activeCount = categories.filter(c => c.isActive).length;
+
+  const renderCategoryRow = (category: Category, depth: number = 0) => {
+    const children = getChildren(category.id);
+    const hasChildren = children.length > 0;
+    const isExpanded = expandedCategories.has(category.id);
+    const totalProducts = getTotalProductCount(category.id, category.name);
+    const directProducts = getProductCount(category.name);
+
+    return (
+      <React.Fragment key={category.id}>
+        <TableRow className={depth > 0 ? 'bg-muted/30' : ''}>
+          <TableCell>
+            <div className="flex items-center gap-1" style={{ paddingLeft: `${depth * 20}px` }}>
+              {hasChildren ? (
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => toggleExpand(category.id)}>
+                  <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                </Button>
+              ) : (
+                <span className="w-5" />
+              )}
+              <div
+                className="w-5 h-5 rounded-full border-2 border-background shadow-sm"
+                style={{ backgroundColor: category.color || '#6b7280' }}
+              />
+            </div>
+          </TableCell>
+          <TableCell className="font-medium">
+            <div className="flex items-center gap-2">
+              {hasChildren ? <FolderOpen className="w-4 h-4 text-muted-foreground" /> : depth > 0 ? null : <Folder className="w-4 h-4 text-muted-foreground" />}
+              {category.name}
+              {!category.parentId && <Badge variant="outline" className="text-[10px] ml-1">Família</Badge>}
+            </div>
+          </TableCell>
+          <TableCell className="text-muted-foreground text-sm">
+            {category.description || '-'}
+          </TableCell>
+          <TableCell className="text-center">
+            <Badge variant="secondary">
+              {directProducts}{hasChildren ? ` (${totalProducts})` : ''}
+            </Badge>
+          </TableCell>
+          <TableCell>
+            <Badge variant={category.isActive ? 'default' : 'secondary'}>
+              {category.isActive ? 'Activa' : 'Inactiva'}
+            </Badge>
+          </TableCell>
+          <TableCell className="text-right">
+            <div className="flex justify-end gap-1">
+              {!category.parentId && (
+                <Button variant="ghost" size="icon" className="h-7 w-7" title="Adicionar sub-categoria" onClick={() => handleAddChild(category)}>
+                  <Plus className="w-3 h-3" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenDialog(category)}>
+                <Edit className="w-3 h-3" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDeleteDialog(category)}>
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          </TableCell>
+        </TableRow>
+        {isExpanded && children.map(child => renderCategoryRow(child, depth + 1))}
+      </React.Fragment>
+    );
+  };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Categorias</h1>
+          <h1 className="text-2xl font-bold">Categorias (Famílias)</h1>
           <p className="text-muted-foreground">
-            Organização de produtos por categoria
+            Organização hierárquica — Família → Sub-categorias → Produtos
           </p>
         </div>
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="w-4 h-4 mr-2" />
-          Nova Categoria
+          Nova Família
         </Button>
       </div>
 
@@ -194,8 +301,8 @@ export default function Categories() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-500/10 rounded-lg">
-                <Tags className="w-6 h-6 text-green-500" />
+              <div className="p-3 bg-accent/50 rounded-lg">
+                <Tags className="w-6 h-6 text-accent-foreground" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Activas</p>
@@ -207,8 +314,8 @@ export default function Categories() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-500/10 rounded-lg">
-                <Package className="w-6 h-6 text-blue-500" />
+              <div className="p-3 bg-secondary rounded-lg">
+                <Package className="w-6 h-6 text-secondary-foreground" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Produtos</p>
@@ -222,7 +329,7 @@ export default function Categories() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Lista de Categorias</CardTitle>
+            <CardTitle>Árvore de Categorias</CardTitle>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -235,16 +342,17 @@ export default function Categories() {
           </div>
         </CardHeader>
         <CardContent>
-          {filteredCategories.length === 0 ? (
+          {(filteredCategories || rootCategories).length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Tags className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>Nenhuma categoria encontrada</p>
+              <p className="text-sm mt-1">Crie famílias como: Bebidas, Mercearia, Limpeza, etc.</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cor</TableHead>
+                  <TableHead className="w-16">Cor</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead className="text-center">Produtos</TableHead>
@@ -253,48 +361,10 @@ export default function Categories() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCategories.map(category => (
-                  <TableRow key={category.id}>
-                    <TableCell>
-                      <div
-                        className="w-6 h-6 rounded-full border-2 border-white shadow"
-                        style={{ backgroundColor: category.color || '#6b7280' }}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{category.name}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {category.description || '-'}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="secondary">
-                        {getProductCount(category.name)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={category.isActive ? 'default' : 'secondary'}>
-                        {category.isActive ? 'Activa' : 'Inactiva'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleOpenDialog(category)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openDeleteDialog(category)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredCategories
+                  ? filteredCategories.map(c => renderCategoryRow(c))
+                  : rootCategories.map(c => renderCategoryRow(c))
+                }
               </TableBody>
             </Table>
           )}
@@ -306,18 +376,34 @@ export default function Categories() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {selectedCategory ? 'Editar Categoria' : 'Nova Categoria'}
+              {selectedCategory ? 'Editar Categoria' : formData.parentId ? 'Nova Sub-Categoria' : 'Nova Família'}
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label>Família (Pai)</Label>
+              <Select
+                value={formData.parentId || '__root__'}
+                onValueChange={v => setFormData({ ...formData, parentId: v === '__root__' ? null : v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover border shadow-lg z-50">
+                  <SelectItem value="__root__">— Raiz (Família Principal) —</SelectItem>
+                  {parentOptions.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <Label htmlFor="name">Nome *</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ex: Alimentação"
+                placeholder={formData.parentId ? 'Ex: Água, Gasosa, Sumo...' : 'Ex: Bebidas, Mercearia, Limpeza...'}
               />
             </div>
 
@@ -393,6 +479,11 @@ export default function Categories() {
               {getProductCount(selectedCategory?.name || '') > 0 && (
                 <span className="block mt-2 text-destructive font-medium">
                   ⚠️ Esta categoria tem {getProductCount(selectedCategory?.name || '')} produto(s) associado(s).
+                </span>
+              )}
+              {selectedCategory && getChildren(selectedCategory.id).length > 0 && (
+                <span className="block mt-2 text-destructive font-medium">
+                  ⚠️ Esta categoria tem sub-categorias. Elimine-as primeiro.
                 </span>
               )}
             </AlertDialogDescription>

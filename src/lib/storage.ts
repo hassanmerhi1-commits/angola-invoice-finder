@@ -395,7 +395,7 @@ export async function saveCategory(category: Category): Promise<void> {
       id: category.id,
       name: category.name,
       description: category.description || '',
-      parent_id: '',
+      parent_id: category.parentId || '',
       is_active: category.isActive ? 1 : 0,
     });
     return;
@@ -792,6 +792,7 @@ function mapBranchFromDb(row: any): Branch {
     id: row.id, name: row.name, code: row.code || '',
     address: row.address || '', phone: row.phone || '',
     isMain: !!(row.is_main ?? row.isMain),
+    priceLevel: row.price_level ?? row.priceLevel ?? 1,
     createdAt: row.created_at ?? row.createdAt ?? '',
   };
 }
@@ -801,6 +802,7 @@ function mapBranchToDb(branch: Branch): any {
     id: branch.id, name: branch.name, code: branch.code,
     address: branch.address, phone: branch.phone,
     is_main: branch.isMain ? 1 : 0, is_active: 1,
+    price_level: branch.priceLevel || 1,
   };
 }
 
@@ -809,7 +811,11 @@ function mapProductFromDb(row: any): Product {
   return {
     id: row.id, name: row.name, sku: row.sku || '', barcode: row.barcode,
     category: row.category_id ?? row.category ?? '',
-    price: Number(row.price || 0), cost,
+    price: Number(row.price || 0),
+    price2: Number(row.price2 ?? row.price_2 ?? 0) || undefined,
+    price3: Number(row.price3 ?? row.price_3 ?? 0) || undefined,
+    price4: Number(row.price4 ?? row.price_4 ?? 0) || undefined,
+    cost,
     firstCost: Number(row.first_cost ?? row.firstCost ?? cost),
     lastCost: Number(row.last_cost ?? row.lastCost ?? row.weighted_avg_cost ?? cost),
     avgCost: Number(row.weighted_avg_cost ?? row.avg_cost ?? row.avgCost ?? cost),
@@ -829,7 +835,9 @@ function mapProductToDb(product: Product): any {
   return {
     id: product.id, sku: product.sku, barcode: product.barcode || '',
     name: product.name, description: '', category_id: product.category,
-    unit: product.unit, price: product.price, cost: product.cost,
+    unit: product.unit, price: product.price,
+    price_2: product.price2 || 0, price_3: product.price3 || 0, price_4: product.price4 || 0,
+    cost: product.cost,
     last_cost: product.lastCost || product.cost,
     weighted_avg_cost: product.avgCost || product.cost,
     stock: product.stock, min_stock: 0, max_stock: 0,
@@ -944,6 +952,8 @@ function mapSupplierToDb(supplier: Supplier): any {
 function mapCategoryFromDb(row: any): Category {
   return {
     id: row.id, name: row.name, description: row.description,
+    parentId: row.parent_id || null,
+    color: row.color,
     isActive: !!(row.is_active ?? row.isActive ?? true),
     createdAt: row.created_at ?? row.createdAt ?? '',
     updatedAt: row.updated_at ?? row.updatedAt ?? '',
@@ -1032,8 +1042,8 @@ function mapDailyReportFromDb(row: any): DailySummary {
 // ============= DEFAULT DATA (Web Preview / Demo) =============
 function getDefaultBranches(): Branch[] {
   return [
-    { id: 'branch-001', name: 'Sede Principal - Luanda', code: 'LDA', address: 'Rua Principal 123, Luanda', phone: '+244 923 456 789', isMain: true, createdAt: new Date().toISOString() },
-    { id: 'branch-002', name: 'Filial Viana', code: 'VIA', address: 'Av. Deolinda Rodrigues, Viana', phone: '+244 923 456 790', isMain: false, createdAt: new Date().toISOString() },
+    { id: 'branch-001', name: 'Sede Principal - Luanda', code: 'LDA', address: 'Rua Principal 123, Luanda', phone: '+244 923 456 789', isMain: true, priceLevel: 1, createdAt: new Date().toISOString() },
+    { id: 'branch-002', name: 'Filial Viana', code: 'VIA', address: 'Av. Deolinda Rodrigues, Viana', phone: '+244 923 456 790', isMain: false, priceLevel: 1, createdAt: new Date().toISOString() },
   ];
 }
 
@@ -1050,12 +1060,23 @@ function getDefaultUsers(): User[] {
 }
 
 function getDefaultCategories(): Category[] {
+  const ts = new Date().toISOString();
   return [
-    { id: 'cat-001', name: 'Alimentação', description: 'Produtos alimentares', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-002', name: 'Bebidas', description: 'Bebidas e sumos', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-003', name: 'Limpeza', description: 'Produtos de limpeza', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-004', name: 'Higiene', description: 'Higiene pessoal', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-005', name: 'Electrónicos', description: 'Electrónicos e acessórios', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 'cat-006', name: 'Outros', description: 'Outros produtos', isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    // Root families
+    { id: 'cat-001', name: 'Alimentação', description: 'Produtos alimentares', parentId: null, isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-002', name: 'Bebidas', description: 'Bebidas e sumos', parentId: null, isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-003', name: 'Limpeza', description: 'Produtos de limpeza', parentId: null, isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-004', name: 'Higiene', description: 'Higiene pessoal', parentId: null, isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-005', name: 'Electrónicos', description: 'Electrónicos e acessórios', parentId: null, isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-006', name: 'Outros', description: 'Outros produtos', parentId: null, isActive: true, createdAt: ts, updatedAt: ts },
+    // Sub-categories
+    { id: 'cat-101', name: 'Arroz', description: '', parentId: 'cat-001', isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-102', name: 'Açúcar', description: '', parentId: 'cat-001', isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-103', name: 'Farinha', description: '', parentId: 'cat-001', isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-104', name: 'Óleo', description: '', parentId: 'cat-001', isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-201', name: 'Água', description: '', parentId: 'cat-002', isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-202', name: 'Gasosa', description: '', parentId: 'cat-002', isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-203', name: 'Sumos', description: '', parentId: 'cat-002', isActive: true, createdAt: ts, updatedAt: ts },
+    { id: 'cat-204', name: 'Cerveja', description: '', parentId: 'cat-002', isActive: true, createdAt: ts, updatedAt: ts },
   ];
 }
