@@ -365,9 +365,14 @@ export async function getSuppliers(): Promise<Supplier[]> {
 
 export async function saveSupplier(supplier: Supplier): Promise<void> {
   if (isElectronMode()) {
-    const result = await dbInsert('suppliers', mapSupplierToDb(supplier));
-    if (!result) {
-      console.error('[Storage] Failed to save supplier to database:', supplier.id);
+    const existing = await window.electronAPI!.db.getById('suppliers', supplier.id);
+    const payload = mapSupplierToDb(supplier);
+    if (existing?.data) {
+      const result = await dbUpdate('suppliers', supplier.id, payload);
+      if (!result) console.error('[Storage] Failed to update supplier:', supplier.id);
+    } else {
+      const result = await dbInsert('suppliers', payload);
+      if (!result) console.error('[Storage] Failed to insert supplier:', supplier.id);
     }
     return;
   }
@@ -933,6 +938,7 @@ function mapSupplierFromDb(row: any): Supplier {
     city: row.city, country: row.country ?? row.province ?? 'Angola',
     contactPerson: row.contact_person ?? row.contactPerson,
     paymentTerms: row.payment_terms ?? row.paymentTerms ?? '30_days',
+    balance: Number(row.balance ?? 0),
     isActive: !!(row.is_active ?? row.isActive ?? true),
     notes: row.notes,
     createdAt: row.created_at ?? row.createdAt ?? '',
@@ -947,7 +953,7 @@ function mapSupplierToDb(supplier: Supplier): any {
     address: supplier.address || '', city: supplier.city || '',
     province: supplier.country || 'Angola',
     contact_person: supplier.contactPerson || '',
-    payment_terms: supplier.paymentTerms, balance: 0,
+    payment_terms: supplier.paymentTerms, balance: supplier.balance || 0,
     is_active: supplier.isActive ? 1 : 0, notes: supplier.notes || '',
   };
 }

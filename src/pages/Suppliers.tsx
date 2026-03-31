@@ -131,7 +131,7 @@ export default function Suppliers() {
         description: `${formData.name} foi actualizado com sucesso`,
       });
     } else {
-      createSupplier(formData);
+      createSupplier({ ...formData, balance: 0 });
       toast({
         title: 'Fornecedor criado',
         description: `${formData.name} foi criado com sucesso`,
@@ -202,6 +202,7 @@ export default function Suppliers() {
           city: item.cidade || '',
           country: item.pais || 'Angola',
           paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || 'immediate',
+          balance: 0,
           isActive: true,
           notes: item.notas || '',
         });
@@ -345,6 +346,7 @@ export default function Suppliers() {
                   <TableHead>NIF</TableHead>
                   <TableHead>Contacto</TableHead>
                   <TableHead>Prazo Pagamento</TableHead>
+                  <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acções</TableHead>
                 </TableRow>
@@ -379,6 +381,9 @@ export default function Suppliers() {
                     </TableCell>
                     <TableCell>
                       {PAYMENT_TERMS.find(t => t.value === supplier.paymentTerms)?.label}
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-bold">
+                      {(supplier.balance || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell>
                       <Badge variant={supplier.isActive ? 'default' : 'secondary'}>

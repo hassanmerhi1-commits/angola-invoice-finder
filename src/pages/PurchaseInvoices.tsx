@@ -17,6 +17,7 @@ import {
   generatePurchaseInvoiceNumber,
   applyStockUpdate,
   applyPriceUpdate,
+  applySupplierBalanceUpdate,
 } from '@/lib/purchaseInvoiceStorage';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
@@ -680,6 +681,10 @@ export default function PurchaseInvoices() {
 
     // Phase 5: Price update
     await applyPriceUpdate(invoice);
+
+    // Phase 6: Supplier balance update
+    await applySupplierBalanceUpdate(invoice);
+
     await refreshProducts();
 
     toast({
