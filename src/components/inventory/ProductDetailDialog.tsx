@@ -295,8 +295,17 @@ export function ProductDetailDialog({
               {/* ── Column 2: Preços & Custos ── */}
               <div className="border-r p-3 space-y-1">
                 <h4 className="text-[11px] font-semibold border-b pb-1 mb-1">Preços de Venda</h4>
-                <Row label="Preço Venda (Kz)">
+                <Row label="Preço 1 (Base)">
                   <Input type="number" step="0.01" value={formData.price} onChange={e => updatePrice(parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
+                </Row>
+                <Row label="Preço 2">
+                  <Input type="number" step="0.01" value={formData.price2} onChange={e => set('price2', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
+                </Row>
+                <Row label="Preço 3">
+                  <Input type="number" step="0.01" value={formData.price3} onChange={e => set('price3', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
+                </Row>
+                <Row label="Preço 4">
+                  <Input type="number" step="0.01" value={formData.price4} onChange={e => set('price4', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
                 <Row label="Preço c/ IVA">
                   <Input type="number" step="0.01" value={formData.priceIVA} onChange={e => set('priceIVA', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
