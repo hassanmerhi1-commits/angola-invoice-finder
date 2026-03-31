@@ -299,6 +299,7 @@ export async function saveSale(sale: Sale): Promise<void> {
       ...(sale.taxAmount > 0 ? [{ accountCode: '3.3.1', debit: 0, credit: sale.taxAmount }] : []),
     ],
   });
+  auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
 }
 
 export function generateInvoiceNumber(branchCode: string): string {
