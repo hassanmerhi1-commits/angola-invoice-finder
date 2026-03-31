@@ -952,6 +952,8 @@ function mapSupplierToDb(supplier: Supplier): any {
 function mapCategoryFromDb(row: any): Category {
   return {
     id: row.id, name: row.name, description: row.description,
+    parentId: row.parent_id || null,
+    color: row.color,
     isActive: !!(row.is_active ?? row.isActive ?? true),
     createdAt: row.created_at ?? row.createdAt ?? '',
     updatedAt: row.updated_at ?? row.updatedAt ?? '',
