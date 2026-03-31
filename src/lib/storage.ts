@@ -320,19 +320,23 @@ export async function getUsers(): Promise<User[]> {
 export async function saveUser(user: User): Promise<void> {
   if (isElectronMode()) {
     await dbInsert('users', mapUserToDb(user));
-    return;
+  } else {
+    const users = lsGet<User[]>(STORAGE_KEYS.users, getDefaultUsers());
+    const index = users.findIndex(u => u.id === user.id);
+    if (index >= 0) users[index] = { ...user, updatedAt: new Date().toISOString() };
+    else users.push(user);
+    lsSet(STORAGE_KEYS.users, users);
   }
-  const users = lsGet<User[]>(STORAGE_KEYS.users, getDefaultUsers());
-  const index = users.findIndex(u => u.id === user.id);
-  if (index >= 0) users[index] = { ...user, updatedAt: new Date().toISOString() };
-  else users.push(user);
-  lsSet(STORAGE_KEYS.users, users);
+  auditLog('create', 'users', `Utilizador "${user.name}" guardado`, 'Sistema');
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('users', userId); return; }
-  const users = lsGet<User[]>(STORAGE_KEYS.users, []).filter(u => u.id !== userId);
-  lsSet(STORAGE_KEYS.users, users);
+  if (isElectronMode()) { await dbDelete('users', userId); }
+  else {
+    const users = lsGet<User[]>(STORAGE_KEYS.users, []).filter(u => u.id !== userId);
+    lsSet(STORAGE_KEYS.users, users);
+  }
+  auditLog('delete', 'users', `Utilizador ${userId} eliminado`, 'Sistema');
 }
 
 export function getCurrentUser(): User | null {
