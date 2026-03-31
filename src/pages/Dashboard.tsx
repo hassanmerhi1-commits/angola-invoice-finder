@@ -1,4 +1,4 @@
-// Kwanza ERP Dashboard - With Real KPIs from Transaction Engine
+// Kwanza ERP Dashboard - With Real KPIs and Financial Charts
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBranchContext } from '@/contexts/BranchContext';
@@ -7,6 +7,11 @@ import { useCompanyLogo } from '@/hooks/useCompanyLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  RevenueExpensesChart, CashFlowChart, TopProductsChart,
+  ARAgingChart, DailySalesChart,
+} from '@/components/dashboard/FinancialCharts';
 import {
   FileText, ShoppingCart, Package, BarChart3, TrendingUp,
   ArrowRight, ClipboardList, Receipt, DollarSign, FileCheck,
