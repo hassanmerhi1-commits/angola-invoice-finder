@@ -40,7 +40,7 @@ module.exports = function(broadcastTable) {
     try {
       await client.query('BEGIN');
       
-      const { supplierId, branchId, items, createdBy, notes, expectedDeliveryDate } = req.body;
+      const { supplierId, branchId, items, createdBy, createdByName, notes, expectedDeliveryDate } = req.body;
       
       const supplierResult = await client.query('SELECT name FROM suppliers WHERE id = $1', [supplierId]);
       const branchResult = await client.query('SELECT name FROM branches WHERE id = $1', [branchId]);
@@ -70,6 +70,38 @@ module.exports = function(broadcastTable) {
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [order.id, item.productId, item.productName, item.sku, item.quantity, item.unitCost, item.taxRate, item.subtotal]
         );
+      }
+
+      // Auto-submit for approval if workflow exists
+      try {
+        const workflowResult = await client.query(
+          `SELECT * FROM approval_workflows 
+           WHERE document_type = 'purchase_order' AND is_active = true AND min_amount <= $1
+           AND (max_amount IS NULL OR max_amount >= $1)
+           ORDER BY min_amount DESC LIMIT 1`,
+          [total]
+        );
+        if (workflowResult.rows.length > 0) {
+          const workflow = workflowResult.rows[0];
+          const steps = typeof workflow.steps === 'string' ? JSON.parse(workflow.steps) : workflow.steps;
+          await client.query(
+            `INSERT INTO approval_requests 
+             (workflow_id, document_type, document_id, document_number, amount, total_steps, 
+              requested_by, requested_by_name, branch_id, notes)
+             VALUES ($1, 'purchase_order', $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [workflow.id, order.id, orderNumber, total, steps.length,
+             createdBy, createdByName || '', branchId, 'Auto-submetido na criação']
+          );
+          // Set PO to awaiting_approval
+          await client.query(
+            `UPDATE purchase_orders SET status = 'awaiting_approval' WHERE id = $1`,
+            [order.id]
+          );
+          order.status = 'awaiting_approval';
+        }
+      } catch (e) {
+        // approval_requests table may not exist — continue without approval
+        console.warn('[PO] Approval submission skipped:', e.message);
       }
       
       await client.query('COMMIT');
