@@ -44,7 +44,7 @@ export function ShelfLabelPrintDialog({ open, onOpenChange, products }: ShelfLab
 
     const labelsHtml = products.flatMap(product => {
       const taxRate = product.taxRate || 0;
-      const basePrice = taxRate > 0 ? product.price / (1 + taxRate / 100) : product.price;
+      const priceWithIVA = product.price * (1 + taxRate / 100);
       const labels: string[] = [];
 
       for (let c = 0; c < copies; c++) {
