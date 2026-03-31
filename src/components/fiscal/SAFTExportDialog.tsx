@@ -117,6 +117,26 @@ export function SAFTExportDialog({
     }
   };
   
+  const handleDownloadXmlFromServer = async () => {
+    try {
+      setIsGenerating(true);
+      const { getApiUrl } = await import('@/lib/api/config');
+      const baseUrl = getApiUrl();
+      const sp = new URLSearchParams({ startDate: options.startDate, endDate: options.endDate });
+      
+      const a = document.createElement('a');
+      a.href = `${baseUrl}/api/saft-xml/download?${sp}`;
+      a.download = `SAFT-AO_${company.nif}_${options.startDate}_${options.endDate}.xml`;
+      a.click();
+      
+      toast.success('Ficheiro SAF-T XML (servidor) descarregado');
+    } catch (error) {
+      toast.error('Servidor indisponível — use a exportação local');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  
   const handleReset = () => {
     setGeneratedSAFT(null);
     setSummary(null);
@@ -397,7 +417,11 @@ export function SAFTExportDialog({
               </Button>
               <Button onClick={handleDownload} className="flex-1">
                 <Download className="w-4 h-4 mr-2" />
-                Descarregar Ficheiro
+                Descarregar Local
+              </Button>
+              <Button variant="secondary" onClick={handleDownloadXmlFromServer} disabled={isGenerating} className="flex-1">
+                <FileCode className="w-4 h-4 mr-2" />
+                XML Servidor
               </Button>
             </div>
           </div>
