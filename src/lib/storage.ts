@@ -104,19 +104,25 @@ export async function getBranches(): Promise<Branch[]> {
 export async function saveBranch(branch: Branch): Promise<void> {
   if (isElectronMode()) {
     await dbInsert('branches', mapBranchToDb(branch));
+    auditLog('create', 'branches', `Filial "${branch.name}" guardada`, 'Sistema');
     return;
   }
   const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
   const index = branches.findIndex(b => b.id === branch.id);
+  const isNew = index < 0;
   if (index >= 0) branches[index] = branch;
   else branches.push(branch);
   lsSet(STORAGE_KEYS.branches, branches);
+  auditLog(isNew ? 'create' : 'update', 'branches', `Filial "${branch.name}" ${isNew ? 'criada' : 'actualizada'}`, 'Sistema');
 }
 
 export async function deleteBranch(branchId: string): Promise<void> {
-  if (isElectronMode()) { await dbDelete('branches', branchId); return; }
-  const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, []).filter(b => b.id !== branchId);
-  lsSet(STORAGE_KEYS.branches, branches);
+  if (isElectronMode()) { await dbDelete('branches', branchId); }
+  else {
+    const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, []).filter(b => b.id !== branchId);
+    lsSet(STORAGE_KEYS.branches, branches);
+  }
+  auditLog('delete', 'branches', `Filial ${branchId} eliminada`, 'Sistema');
 }
 
 export function getCurrentBranch(): Branch | null {
