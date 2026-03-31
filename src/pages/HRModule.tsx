@@ -734,6 +734,58 @@ export default function HRModule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Leave Request Dialog */}
+      <Dialog open={leaveFormOpen} onOpenChange={setLeaveFormOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Novo Pedido de Férias / Licença</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Funcionário *</Label>
+              <Select value={leaveForm.employeeId} onValueChange={v => setLeaveForm(p => ({ ...p, employeeId: v }))}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                <SelectContent>
+                  {employees.filter(e => e.status === 'active').map(emp => (
+                    <SelectItem key={emp.id} value={emp.id}>{emp.fullName} ({emp.employeeNumber})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo *</Label>
+              <Select value={leaveForm.leaveType} onValueChange={v => setLeaveForm(p => ({ ...p, leaveType: v as LeaveRequest['leaveType'] }))}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="annual">Férias Anuais</SelectItem>
+                  <SelectItem value="sick">Doença</SelectItem>
+                  <SelectItem value="maternity">Maternidade</SelectItem>
+                  <SelectItem value="paternity">Paternidade</SelectItem>
+                  <SelectItem value="unpaid">Sem Vencimento</SelectItem>
+                  <SelectItem value="other">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Data Início *</Label>
+                <Input type="date" value={leaveForm.startDate} onChange={e => setLeaveForm(p => ({ ...p, startDate: e.target.value }))} className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Data Fim *</Label>
+                <Input type="date" value={leaveForm.endDate} onChange={e => setLeaveForm(p => ({ ...p, endDate: e.target.value }))} className="h-8 text-xs" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Motivo</Label>
+              <Input value={leaveForm.reason} onChange={e => setLeaveForm(p => ({ ...p, reason: e.target.value }))} className="h-8 text-xs" placeholder="Opcional" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeaveFormOpen(false)}>Cancelar</Button>
+            <Button onClick={submitLeave}>Submeter Pedido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
