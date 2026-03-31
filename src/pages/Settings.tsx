@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '@/i18n';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,12 +17,16 @@ import {
   Loader2,
   Server,
   MonitorSmartphone,
-  RotateCcw
+  RotateCcw,
+  Upload,
+  HardDrive,
+  Shield,
 } from 'lucide-react';
 import { CompanySettingsDialog } from '@/components/settings/CompanySettingsDialog';
 import { NetworkSettingsCard } from '@/components/settings/NetworkSettingsCard';
 import { HotUpdateSettingsCard } from '@/components/settings/HotUpdateSettingsCard';
 import { toast } from 'sonner';
+import { downloadBackup, parseBackupFile, restoreBackup, getStorageStats } from '@/lib/backup';
 import type { UpdateStatus, SetupConfig } from '@/types/electron';
 
 export default function Settings() {
