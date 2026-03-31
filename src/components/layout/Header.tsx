@@ -160,6 +160,9 @@ export function Header({
           </Tooltip>
         </TooltipProvider>
 
+        {/* Notifications */}
+        <NotificationBell />
+
         {/* Language Switcher */}
         <LanguageSwitcher />
         {/* Branch Selector */}
