@@ -1,17 +1,32 @@
-// Run database migrations
+// Run database migrations in order
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const db = require('../db');
 
+const MIGRATIONS = [
+  '001_initial_schema.sql',
+  '002_agt_compliance.sql',
+  '003_chart_of_accounts.sql',
+  '004_purchase_order_freight.sql',
+  '005_transaction_engine.sql',
+  '006_tax_engine.sql',
+];
+
 async function runMigrations() {
   console.log('[MIGRATE] Starting database migrations...');
   
   try {
-    const sqlFile = path.join(__dirname, '001_initial_schema.sql');
-    const sql = fs.readFileSync(sqlFile, 'utf8');
-    
-    await db.query(sql);
+    for (const file of MIGRATIONS) {
+      const sqlFile = path.join(__dirname, file);
+      if (!fs.existsSync(sqlFile)) {
+        console.warn(`[MIGRATE] ⚠ Skipping ${file} (not found)`);
+        continue;
+      }
+      const sql = fs.readFileSync(sqlFile, 'utf8');
+      await db.query(sql);
+      console.log(`[MIGRATE] ✅ ${file} applied`);
+    }
     
     console.log('[MIGRATE] ✅ All migrations completed successfully!');
     console.log('[MIGRATE] Database is ready.');

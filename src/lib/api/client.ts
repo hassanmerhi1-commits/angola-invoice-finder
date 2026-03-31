@@ -264,4 +264,27 @@ export const api = {
     documentFlow: (docType: string, docId: string) =>
       apiFetch<any[]>(`/payments/document-flow/${docType}/${docId}`),
   },
+
+  // Tax Engine
+  tax: {
+    codes: () => apiFetch<any[]>('/tax/codes'),
+    createCode: (data: any) =>
+      apiFetch<any>('/tax/codes', { method: 'POST', body: JSON.stringify(data) }),
+    updateCode: (id: string, data: any) =>
+      apiFetch<any>(`/tax/codes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    taxLines: (docType: string, docId: string) =>
+      apiFetch<any[]>(`/tax/lines/${docType}/${docId}`),
+    ivaReport: (year?: number, month?: number) => {
+      const sp = new URLSearchParams();
+      if (year) sp.append('year', year.toString());
+      if (month) sp.append('month', month.toString());
+      return apiFetch<any>(`/tax/iva-report?${sp}`);
+    },
+    summary: (year?: number, month?: number) => {
+      const sp = new URLSearchParams();
+      if (year) sp.append('year', year.toString());
+      if (month) sp.append('month', month.toString());
+      return apiFetch<any[]>(`/tax/summary?${sp}`);
+    },
+  },
 };

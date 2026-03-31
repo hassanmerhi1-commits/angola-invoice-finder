@@ -170,17 +170,20 @@ export function useSales(branchId?: string) {
     const taxAmount = saleItems.reduce((sum, item) => sum + item.taxAmount, 0);
     const total = subtotal + taxAmount;
 
-    const sale: Sale = {
-      id: crypto.randomUUID(),
+    const cashierName = (() => {
+      try {
+        const u = JSON.parse(sessionStorage.getItem('kwanzaerp_current_user') || localStorage.getItem('kwanzaerp_current_user') || '{}');
+        return u?.name || '';
+      } catch { return ''; }
+    })();
+
+    // Try API first (Transaction Engine — atomic stock + journal + open items)
+    const { api } = await import('@/lib/api/client');
+    const apiResult = await api.sales.create({
       invoiceNumber: storage.generateInvoiceNumber(branchCode),
       branchId,
       cashierId,
-      cashierName: (() => {
-        try {
-          const u = JSON.parse(sessionStorage.getItem('kwanzaerp_current_user') || localStorage.getItem('kwanzaerp_current_user') || '{}');
-          return u?.name || '';
-        } catch { return ''; }
-      })(),
+      cashierName,
       items: saleItems,
       subtotal,
       taxAmount,
@@ -191,13 +194,58 @@ export function useSales(branchId?: string) {
       change: amountPaid - total,
       customerNif,
       customerName,
-      status: 'completed',
-      createdAt: new Date().toISOString(),
-    };
+    });
 
-    await storage.saveSale(sale);
+    let sale: Sale;
 
-    // Update Caixa balance for cash payments
+    if (apiResult.data) {
+      // API succeeded — transaction engine handled stock, journals, open items
+      sale = {
+        id: apiResult.data.id,
+        invoiceNumber: apiResult.data.invoice_number || apiResult.data.invoiceNumber,
+        branchId,
+        cashierId,
+        cashierName,
+        items: saleItems,
+        subtotal,
+        taxAmount,
+        discount: 0,
+        total,
+        paymentMethod,
+        amountPaid,
+        change: amountPaid - total,
+        customerNif,
+        customerName,
+        status: 'completed',
+        createdAt: apiResult.data.created_at || new Date().toISOString(),
+      };
+      console.log(`[POS] Sale ${sale.invoiceNumber} processed via Transaction Engine ✓`);
+    } else {
+      // Fallback to localStorage mode (demo/offline)
+      console.warn('[POS] API unavailable, falling back to localStorage:', apiResult.error);
+      sale = {
+        id: crypto.randomUUID(),
+        invoiceNumber: storage.generateInvoiceNumber(branchCode),
+        branchId,
+        cashierId,
+        cashierName,
+        items: saleItems,
+        subtotal,
+        taxAmount,
+        discount: 0,
+        total,
+        paymentMethod,
+        amountPaid,
+        change: amountPaid - total,
+        customerNif,
+        customerName,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+      };
+      await storage.saveSale(sale);
+    }
+
+    // Update Caixa balance for cash payments (always local for real-time feedback)
     const caixaResult = processSalePayment(
       branchId,
       sale.id,
