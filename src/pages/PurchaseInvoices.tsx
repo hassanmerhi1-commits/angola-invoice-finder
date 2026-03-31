@@ -43,6 +43,8 @@ import {
   Search, Plus, Save, X, Trash2, Eye, FileText, BookOpen,
   Package, ArrowLeft, CheckCircle, Printer,
 } from 'lucide-react';
+import { saveDocument } from '@/lib/documentStorage';
+import type { ERPDocument } from '@/types/documents';
 
 // ─────────── Supplier Picker Dialog ───────────
 function SupplierPickerDialog({
@@ -112,6 +114,67 @@ function SupplierPickerDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function syncPurchaseInvoiceDocument(invoice: PurchaseInvoice) {
+  const lines = invoice.lines.map(line => {
+    const gross = line.totalQty * line.unitPrice;
+    const discountAmount = Math.max(gross - line.total, 0);
+    const discount = gross > 0 ? (discountAmount / gross) * 100 : 0;
+
+    return {
+      id: line.id,
+      productId: line.productId || undefined,
+      productSku: line.productCode,
+      description: line.description,
+      quantity: line.totalQty,
+      unit: line.unit,
+      unitPrice: line.unitPrice,
+      discount: Math.round(discount * 100) / 100,
+      discountAmount: Math.round(discountAmount * 100) / 100,
+      taxRate: line.ivaRate,
+      taxAmount: line.ivaAmount,
+      lineTotal: line.totalWithIva,
+      accountCode: invoice.purchaseAccountCode,
+    };
+  });
+
+  const document: ERPDocument = {
+    id: invoice.id,
+    documentType: 'fatura_compra',
+    documentNumber: invoice.invoiceNumber,
+    branchId: invoice.branchId,
+    branchName: invoice.branchName,
+    entityType: 'supplier',
+    entityName: invoice.supplierName,
+    entityNif: invoice.supplierNif,
+    entityPhone: invoice.supplierPhone,
+    entityCode: invoice.supplierAccountCode || undefined,
+    paymentCondition: invoice.paymentDate ? `Pagamento até ${invoice.paymentDate}` : undefined,
+    lines,
+    subtotal: invoice.subtotal,
+    totalDiscount: lines.reduce((sum, line) => sum + line.discountAmount, 0),
+    totalTax: invoice.ivaTotal,
+    total: invoice.total,
+    currency: invoice.currency === 'KZ' ? 'AOA' : invoice.currency,
+    amountPaid: 0,
+    amountDue: invoice.total,
+    accountCode: invoice.supplierAccountCode,
+    status: 'confirmed',
+    issueDate: invoice.date,
+    issueTime: invoice.createdAt.includes('T') ? invoice.createdAt.split('T')[1].slice(0, 8) : new Date().toTimeString().slice(0, 8),
+    dueDate: invoice.paymentDate,
+    notes: invoice.extraNote,
+    internalNotes: invoice.supplierInvoiceNo ? `Nº Fatura Fornecedor: ${invoice.supplierInvoiceNo}` : undefined,
+    createdBy: invoice.createdBy,
+    createdByName: invoice.createdByName,
+    createdAt: invoice.createdAt,
+    updatedAt: invoice.updatedAt,
+    confirmedBy: invoice.createdBy,
+    confirmedAt: invoice.updatedAt,
+  };
+
+  saveDocument(document);
 }
 
 // ─────────── Product Picker Dialog ───────────
@@ -426,7 +489,7 @@ export default function PurchaseInvoices() {
   const { user } = useAuth();
   const { currentBranch, branches } = useBranchContext();
   const { products, addProduct: addProductToStock, refreshProducts } = useProducts(currentBranch?.id);
-  const { suppliers } = useSuppliers();
+  const { suppliers, refreshSuppliers } = useSuppliers();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -673,28 +736,30 @@ export default function PurchaseInvoices() {
     const autoJournal = generateAutoJournalLines(invoice);
     invoice.journalLines = [...autoJournal, ...finalJournalLines];
 
-    // Save
-    savePurchaseInvoice(invoice);
+    try {
+      savePurchaseInvoice(invoice);
+      await applyStockUpdate(invoice);
+      await applyPriceUpdate(invoice);
+      await applySupplierBalanceUpdate(invoice);
+      syncPurchaseInvoiceDocument(invoice);
+      await Promise.all([refreshProducts(), refreshSuppliers()]);
 
-    // Phase 2: Stock update
-    await applyStockUpdate(invoice);
+      toast({
+        title: 'Fatura de Compra Guardada',
+        description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
+      });
 
-    // Phase 5: Price update
-    await applyPriceUpdate(invoice);
-
-    // Phase 6: Supplier balance update
-    await applySupplierBalanceUpdate(invoice);
-
-    await refreshProducts();
-
-    toast({
-      title: 'Fatura de Compra Guardada',
-      description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
-    });
-
-    setInvoices(getPurchaseInvoices(currentBranch?.id));
-    setMode('list');
-  }, [form, lines, journalLines, totals, currentBranch, user, toast, refreshProducts]);
+      setInvoices(getPurchaseInvoices(currentBranch?.id));
+      setMode('list');
+    } catch (error) {
+      console.error('[PurchaseInvoices] Failed to save purchase invoice:', error);
+      toast({
+        title: 'Erro ao guardar a fatura de compra',
+        description: 'A compra não foi sincronizada corretamente com stock e fornecedor.',
+        variant: 'destructive',
+      });
+    }
+  }, [form, lines, journalLines, totals, currentBranch, user, toast, refreshProducts, refreshSuppliers]);
 
   // ═══════════════ RENDER ═══════════════
 
