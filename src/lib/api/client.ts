@@ -236,4 +236,32 @@ export const api = {
       return apiFetch<any[]>(`/journal-entries/reports/summary?${searchParams}`);
     },
   },
+
+  // Payments & Open Items
+  payments: {
+    list: (params?: { entityType?: string; entityId?: string; branchId?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.entityType) sp.append('entityType', params.entityType);
+      if (params?.entityId) sp.append('entityId', params.entityId);
+      if (params?.branchId) sp.append('branchId', params.branchId);
+      return apiFetch<any[]>(`/payments?${sp}`);
+    },
+    create: (data: any) =>
+      apiFetch<any>('/payments', { method: 'POST', body: JSON.stringify(data) }),
+    openItems: (entityType: string, entityId: string) =>
+      apiFetch<any[]>(`/payments/open-items/${entityType}/${entityId}`),
+    balance: (entityType: string, entityId: string) =>
+      apiFetch<any>(`/payments/balance/${entityType}/${entityId}`),
+    periods: () => apiFetch<any[]>('/payments/periods'),
+    closePeriod: (id: string, closedBy: string) =>
+      apiFetch<any>(`/payments/periods/${id}/close`, { method: 'POST', body: JSON.stringify({ closedBy }) }),
+    stockMovements: (params?: { productId?: string; warehouseId?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.productId) sp.append('productId', params.productId);
+      if (params?.warehouseId) sp.append('warehouseId', params.warehouseId);
+      return apiFetch<any[]>(`/payments/stock-movements?${sp}`);
+    },
+    documentFlow: (docType: string, docId: string) =>
+      apiFetch<any[]>(`/payments/document-flow/${docType}/${docId}`),
+  },
 };
