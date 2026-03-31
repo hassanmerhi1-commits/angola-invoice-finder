@@ -802,6 +802,7 @@ function mapBranchToDb(branch: Branch): any {
     id: branch.id, name: branch.name, code: branch.code,
     address: branch.address, phone: branch.phone,
     is_main: branch.isMain ? 1 : 0, is_active: 1,
+    price_level: branch.priceLevel || 1,
   };
 }
 
