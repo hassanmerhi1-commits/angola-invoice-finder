@@ -715,6 +715,7 @@ export default function PurchaseInvoices() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nº Fatura</TableHead>
+                  <TableHead>Nº Fatura Fornecedor</TableHead>
                   <TableHead>Fornecedor</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Armazém</TableHead>
