@@ -294,22 +294,26 @@ export default function Invoices() {
         </div>
       </Tabs>
 
-      {/* Selected document info bar */}
+      {/* Selected document info bar with Document Flow */}
       {selectedDoc && (
-        <div className="h-7 bg-primary/10 border-t flex items-center px-3 text-[10px] gap-4">
-          <span className={cn("font-bold", DOCUMENT_TYPE_CONFIG[selectedDoc.documentType].color)}>
-            {selectedDoc.documentNumber}
-          </span>
-          <span>{selectedDoc.entityName}</span>
-          <span>Total: {selectedDoc.total.toLocaleString('pt-AO')} Kz</span>
-          {selectedDoc.parentDocumentNumber && (
-            <span className="text-blue-500">Origem: {selectedDoc.parentDocumentNumber}</span>
-          )}
-          {selectedDoc.childDocuments && selectedDoc.childDocuments.length > 0 && (
-            <span className="text-green-600">
-              Gerou: {selectedDoc.childDocuments.map(c => c.number).join(', ')}
+        <div className="border-t">
+          <div className="h-7 bg-primary/10 flex items-center px-3 text-[10px] gap-4">
+            <span className={cn("font-bold", DOCUMENT_TYPE_CONFIG[selectedDoc.documentType].color)}>
+              {selectedDoc.documentNumber}
             </span>
-          )}
+            <span>{selectedDoc.entityName}</span>
+            <span>Total: {selectedDoc.total.toLocaleString('pt-AO')} Kz</span>
+            {selectedDoc.parentDocumentNumber && (
+              <span className="text-blue-500">Origem: {selectedDoc.parentDocumentNumber}</span>
+            )}
+            {selectedDoc.childDocuments && selectedDoc.childDocuments.length > 0 && (
+              <span className="text-green-600">
+                Gerou: {selectedDoc.childDocuments.map(c => c.number).join(', ')}
+              </span>
+            )}
+          </div>
+          {/* Document Flow Chain */}
+          <DocumentFlowViewer nodes={buildFlowNodes(selectedDoc)} className="border-t bg-muted/20 px-3 py-1" />
         </div>
       )}
 
