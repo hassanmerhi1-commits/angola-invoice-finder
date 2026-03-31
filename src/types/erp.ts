@@ -37,6 +37,8 @@ export interface Product {
   lastCost: number;
   avgCost: number;
   stock: number;
+  minStock?: number;    // Minimum stock level (reorder point)
+  maxStock?: number;    // Maximum stock level
   unit: string;
   taxRate: number;
   branchId: string;
