@@ -20,7 +20,6 @@ import {
 } from '@/lib/purchaseInvoiceStorage';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
-import { useProducts as useProductsHook } from '@/hooks/useERP';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

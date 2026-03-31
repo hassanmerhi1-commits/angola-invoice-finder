@@ -25,7 +25,7 @@ interface ProductDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product?: Product | null;
-  onSave: (product: Product) => void;
+  onSave: (product: Product) => void | Promise<void>;
 }
 
 const UNITS = [
