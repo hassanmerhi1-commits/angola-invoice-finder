@@ -792,6 +792,7 @@ function mapBranchFromDb(row: any): Branch {
     id: row.id, name: row.name, code: row.code || '',
     address: row.address || '', phone: row.phone || '',
     isMain: !!(row.is_main ?? row.isMain),
+    priceLevel: row.price_level ?? row.priceLevel ?? 1,
     createdAt: row.created_at ?? row.createdAt ?? '',
   };
 }
