@@ -199,6 +199,7 @@ export function generateDocumentHTML(doc: ERPDocument, options: PDFOptions = {})
   <div class="header">
     <div class="company-block">
       <div class="company-name">${company.name || company.tradeName || 'Kwanza ERP'}</div>
+      ${company.logo ? `<div style="margin-bottom: 4px;"><img src="${company.logo}" alt="Logo" style="max-height: 50px; max-width: 160px; object-fit: contain;"></div>` : ''}
       <div class="company-detail">
         <span>Contribuinte N.º:</span> ${company.nif || ''}<br>
         ${company.address ? `${company.address}<br>` : ''}
