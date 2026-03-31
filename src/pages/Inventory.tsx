@@ -100,6 +100,7 @@ export default function Inventory() {
   const [stockExitDialogOpen, setStockExitDialogOpen] = useState(false);
   const [labelPrintDialogOpen, setLabelPrintDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('lista');
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
 
   const handleOpenDialog = (product?: Product) => {
     setSelectedProduct(product || null);
