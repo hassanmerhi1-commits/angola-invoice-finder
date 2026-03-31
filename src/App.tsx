@@ -45,6 +45,7 @@ import AuditTrail from "./pages/AuditTrail";
 import BudgetControl from "./pages/BudgetControl";
 import Approvals from "./pages/Approvals";
 import ExchangeRates from "./pages/ExchangeRates";
+import BankReconciliation from "./pages/BankReconciliation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
