@@ -262,6 +262,33 @@ export default function Inventory() {
     { key: 'categoria', label: 'Categoria' },
   ];
 
+  const selectedProductMovements = useMemo(() => {
+    if (!selectedProduct) return [];
+
+    return stockMovements
+      .filter(m => m.productId === selectedProduct.id || m.sku === selectedProduct.sku)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [selectedProduct, stockMovements]);
+
+  const movementSummary = useMemo(() => selectedProductMovements.reduce((acc, movement) => ({
+    entries: acc.entries + (movement.type === 'IN' ? movement.quantity : 0),
+    exits: acc.exits + (movement.type === 'OUT' ? movement.quantity : 0),
+  }), { entries: 0, exits: 0 }), [selectedProductMovements]);
+
+  const getMovementReasonLabel = (reason: StockMovement['reason']) => {
+    switch (reason) {
+      case 'purchase': return 'Compra';
+      case 'sale': return 'Venda';
+      case 'transfer_in': return 'Transferência Entrada';
+      case 'transfer_out': return 'Transferência Saída';
+      case 'adjustment': return 'Ajuste';
+      case 'damage': return 'Dano/Avaria';
+      case 'return': return 'Devolução';
+      case 'initial': return 'Stock Inicial';
+      default: return reason;
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Head Office Notice */}
