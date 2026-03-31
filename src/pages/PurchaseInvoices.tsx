@@ -973,7 +973,15 @@ export default function PurchaseInvoices() {
                         </TableCell>
                         <TableCell className="text-right font-mono">{line.totalQty}</TableCell>
                         <TableCell className="text-right font-mono font-medium">{line.total.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell className="text-right font-mono">{line.ivaRate}%</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={line.ivaRate}
+                            onChange={e => updateLineField(idx, 'ivaRate', parseFloat(e.target.value) || 0)}
+                            className="h-7 w-14 text-xs text-right font-mono"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                          />
+                        </TableCell>
                         <TableCell className="text-xs">{line.warehouseName}</TableCell>
                         <TableCell className="text-right font-mono">{line.currentStock}</TableCell>
                         <TableCell className="text-right font-mono">{line.totalWithIva.toLocaleString('pt-AO')}</TableCell>
