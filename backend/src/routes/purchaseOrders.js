@@ -1,7 +1,7 @@
-// Purchase Orders API routes
+// Purchase Orders API routes - Using Central Transaction Engine
 const express = require('express');
 const db = require('../db');
-const { recordPurchaseJournal } = require('../accounting');
+const { processPurchaseReceive } = require('../transactionEngine');
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
@@ -102,6 +102,7 @@ module.exports = function(broadcastTable) {
     }
   });
 
+  // Receive — ALL logic handled by Transaction Engine
   router.post('/:id/receive', async (req, res) => {
     const client = await db.pool.connect();
     try {
@@ -110,80 +111,7 @@ module.exports = function(broadcastTable) {
       const { id } = req.params;
       const { receivedBy, receivedQuantities } = req.body;
       
-      // Get order with freight costs
-      const orderResult = await client.query('SELECT * FROM purchase_orders WHERE id = $1', [id]);
-      const order = orderResult.rows[0];
-      
-      const itemsResult = await client.query('SELECT * FROM purchase_order_items WHERE order_id = $1', [id]);
-      
-      // Calculate total order value for freight allocation
-      const orderItemsTotal = itemsResult.rows.reduce((sum, item) => sum + (item.quantity * parseFloat(item.unit_cost)), 0);
-      const freightCost = parseFloat(order.freight_cost) || 0;
-      const otherCosts = parseFloat(order.other_costs) || 0;
-      const totalLandingCosts = freightCost + otherCosts;
-      
-      for (const item of itemsResult.rows) {
-        const receivedQty = receivedQuantities[item.product_id] ?? item.quantity;
-        
-        // Update received quantity
-        await client.query(
-          'UPDATE purchase_order_items SET received_quantity = $1 WHERE id = $2',
-          [receivedQty, item.id]
-        );
-        
-        if (receivedQty > 0) {
-          // Calculate freight allocation for this item (proportional to value)
-          let freightPerUnit = 0;
-          if (orderItemsTotal > 0 && totalLandingCosts > 0) {
-            const itemValue = item.quantity * parseFloat(item.unit_cost);
-            const proportion = itemValue / orderItemsTotal;
-            freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
-          }
-          
-          // Effective cost = unit cost + freight allocation
-          const effectiveCost = parseFloat(item.unit_cost) + freightPerUnit;
-          
-          // Get current product data for weighted average calculation
-          const productResult = await client.query(
-            'SELECT id, stock, cost FROM products WHERE id = $1 AND branch_id = $2',
-            [item.product_id, order.branch_id]
-          );
-          
-          if (productResult.rows.length > 0) {
-            const product = productResult.rows[0];
-            const currentStock = parseInt(product.stock) || 0;
-            const currentCost = parseFloat(product.cost) || 0;
-            
-            // Calculate weighted average cost
-            // WAC = (Previous Stock × Previous Cost + Received Qty × Landed Cost) / Total Stock
-            const previousTotalValue = currentStock * currentCost;
-            const newItemsTotalValue = receivedQty * effectiveCost;
-            const newTotalStock = currentStock + receivedQty;
-            
-            const newAverageCost = newTotalStock > 0 
-              ? (previousTotalValue + newItemsTotalValue) / newTotalStock
-              : effectiveCost;
-            
-            // Update product with new stock AND weighted average cost
-            await client.query(
-              'UPDATE products SET stock = $1, cost = $2 WHERE id = $3 AND branch_id = $4',
-              [newTotalStock, newAverageCost.toFixed(2), item.product_id, order.branch_id]
-            );
-          }
-        }
-      }
-      
-      await client.query(
-        'UPDATE purchase_orders SET status = $1, received_by = $2, received_at = CURRENT_TIMESTAMP, freight_distributed = true WHERE id = $3',
-        ['received', receivedBy, id]
-      );
-
-      // Create automatic journal entry for this purchase
-      try {
-        await recordPurchaseJournal(client, order, order.branch_id, receivedBy);
-      } catch (jeError) {
-        console.warn('[PURCHASE] Journal entry creation failed (non-fatal):', jeError.message);
-      }
+      await processPurchaseReceive(client, id, receivedQuantities, receivedBy);
       
       await client.query('COMMIT');
       await broadcastTable('purchase_orders');
@@ -192,7 +120,7 @@ module.exports = function(broadcastTable) {
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('[PURCHASE ORDERS ERROR]', error);
-      res.status(500).json({ error: 'Failed to receive order' });
+      res.status(500).json({ error: error.message || 'Failed to receive order' });
     } finally {
       client.release();
     }
