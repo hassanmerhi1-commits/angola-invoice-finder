@@ -81,6 +81,7 @@ export function createDocument(
     parentDocumentType: data.parentDocumentType,
     status: data.status || 'draft',
     issueDate: data.issueDate || now,
+    issueTime: data.issueTime || new Date().toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     dueDate: data.dueDate,
     validUntil: data.validUntil,
     notes: data.notes,
