@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useProducts, useSuppliers, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useToast } from '@/hooks/use-toast';
@@ -349,7 +349,7 @@ export default function PurchaseInvoices() {
   const { products } = useProducts(currentBranch?.id);
   const { suppliers } = useSuppliers();
   const { toast } = useToast();
-  const isElectronDesktop = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+  const navigate = useNavigate();
 
   // State
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
@@ -619,9 +619,14 @@ export default function PurchaseInvoices() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Fatura de Compra</h1>
-            <p className="text-sm text-muted-foreground">Gestão de facturas de compra / COMPRA</p>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Fatura de Compra</h1>
+              <p className="text-sm text-muted-foreground">Gestão de facturas de compra / COMPRA</p>
+            </div>
           </div>
           <Button
             onClick={() => setSearchParams({ mode: "create" })}
