@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, Supplier, PurchaseOrder, PurchaseOrderItem, Category } from '@/types/erp';
 import * as storage from '@/lib/storage';
+import { processSalePayment } from '@/lib/accountingStorage';
 
 // ============================================
 // BRANCHES
@@ -174,6 +175,12 @@ export function useSales(branchId?: string) {
       invoiceNumber: storage.generateInvoiceNumber(branchCode),
       branchId,
       cashierId,
+      cashierName: (() => {
+        try {
+          const u = JSON.parse(sessionStorage.getItem('kwanzaerp_current_user') || localStorage.getItem('kwanzaerp_current_user') || '{}');
+          return u?.name || '';
+        } catch { return ''; }
+      })(),
       items: saleItems,
       subtotal,
       taxAmount,
@@ -189,6 +196,21 @@ export function useSales(branchId?: string) {
     };
 
     await storage.saveSale(sale);
+
+    // Update Caixa balance for cash payments
+    const caixaResult = processSalePayment(
+      branchId,
+      sale.id,
+      sale.invoiceNumber,
+      sale.total,
+      sale.paymentMethod === 'mixed' ? 'cash' : sale.paymentMethod,
+      cashierId,
+      customerName
+    );
+    if (caixaResult.caixaName) {
+      console.log(`[POS] Sale ${sale.invoiceNumber} → Caixa "${caixaResult.caixaName}" balance: ${caixaResult.newBalance?.toLocaleString('pt-AO')} Kz`);
+    }
+
     await refreshSales();
     return sale;
   }, [refreshSales]);

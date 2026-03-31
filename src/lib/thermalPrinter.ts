@@ -313,14 +313,6 @@ export async function printViaBrowser(
   // Get company settings for NIF
   const company = getCompanySettings();
 
-  // Create a new window for printing
-  const printWindow = window.open('', '_blank', 'width=400,height=600');
-  
-  if (!printWindow) {
-    console.error('Could not open print window');
-    return;
-  }
-  
   const width = paperWidth === 80 ? '80mm' : '58mm';
   
   const html = `
@@ -388,7 +380,8 @@ export async function printViaBrowser(
   </style>
 </head>
 <body>
-  <div class="center bold large">${branch.name.toUpperCase()}</div>
+  ${company.logo ? `<div class="center" style="margin-bottom: 5px;"><img src="${company.logo}" alt="Logo" style="max-height: 40px; max-width: ${paperWidth === 80 ? '60' : '40'}mm; object-fit: contain;"></div>` : ''}
+  <div class="center bold large">${company.tradeName || company.name || branch.name.toUpperCase()}</div>
   <div class="center small">${branch.address || ''}</div>
   <div class="center small">Tel: ${branch.phone || ''}</div>
   <div class="center small">NIF: ${company.nif}</div>
@@ -474,12 +467,31 @@ export async function printViaBrowser(
 </html>
   `;
   
-  printWindow.document.write(html);
-  printWindow.document.close();
+  // Use hidden iframe to avoid popup blockers
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
   
-  // Print immediately - no external resources to wait for
-  printWindow.focus();
-  printWindow.print();
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!iframeDoc) {
+    console.error('Could not access iframe document');
+    document.body.removeChild(iframe);
+    return;
+  }
+  
+  iframeDoc.open();
+  iframeDoc.write(html);
+  iframeDoc.close();
+  
+  setTimeout(() => {
+    iframe.contentWindow?.print();
+    setTimeout(() => document.body.removeChild(iframe), 2000);
+  }, 300);
 }
 
 // Main print function - tries thermal first, falls back to browser

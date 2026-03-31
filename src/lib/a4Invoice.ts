@@ -589,19 +589,31 @@ export async function printA4Invoice(
   const qrCodeDataURL = await generateAGTQRCodeDataURL(sale, branch, { size: 100, margin: 1 });
   
   const html = await generateA4InvoiceHTML(sale, branch, { ...options, qrCodeDataURL });
-  const printWindow = window.open('', '_blank', 'width=800,height=1000');
   
-  if (!printWindow) {
-    console.error('Could not open print window');
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
+  
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) {
+    console.error('Could not access iframe document');
+    document.body.removeChild(iframe);
     return;
   }
   
-  printWindow.document.write(html);
-  printWindow.document.close();
+  doc.open();
+  doc.write(html);
+  doc.close();
   
-  // Print immediately - no external resources to wait for
-  printWindow.focus();
-  printWindow.print();
+  setTimeout(() => {
+    iframe.contentWindow?.print();
+    setTimeout(() => document.body.removeChild(iframe), 2000);
+  }, 500);
 }
 
 export async function downloadA4InvoicePDF(
