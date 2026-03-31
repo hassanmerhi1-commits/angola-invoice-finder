@@ -55,6 +55,7 @@ const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
   '/caixa': 'caixa_open',
   '/expenses': 'expense_create',
   '/bank-accounts': 'bank_manage',
+  '/bank-reconciliation': 'bank_manage',
   '/payments': 'accounting_payment',
   '/chart-of-accounts': 'accounting_view',
   '/accounting-periods': 'accounting_view',
