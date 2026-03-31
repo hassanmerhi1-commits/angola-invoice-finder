@@ -11,6 +11,7 @@ const MIGRATIONS = [
   '004_purchase_order_freight.sql',
   '005_transaction_engine.sql',
   '006_tax_engine.sql',
+  '007_enterprise_controls.sql',
 ];
 
 async function runMigrations() {

@@ -140,6 +140,9 @@ const purchaseOrderRoutes = require('./routes/purchaseOrders');
 const chartOfAccountsRoutes = require('./routes/chartOfAccounts');
 const journalEntryRoutes = require('./routes/journalEntries');
 const paymentRoutes = require('./routes/payments');
+const auditRoutes = require('./routes/audit');
+const budgetRoutes = require('./routes/budgets');
+const approvalRoutes = require('./routes/approvals');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -157,6 +160,9 @@ app.use('/api/chart-of-accounts', chartOfAccountsRoutes(broadcastTable));
 app.use('/api/journal-entries', journalEntryRoutes(broadcastTable));
 app.use('/api/payments', paymentRoutes(broadcastTable));
 app.use('/api/tax', taxRoutes(broadcastTable));
+app.use('/api/audit', auditRoutes(broadcastTable));
+app.use('/api/budgets', budgetRoutes(broadcastTable));
+app.use('/api/approvals', approvalRoutes(broadcastTable));
 
 // Health check with extended info
 app.get('/api/health', (req, res) => {
