@@ -260,6 +260,7 @@ export async function saveSale(sale: Sale): Promise<void> {
     for (const item of sale.items) {
       await updateProductStock(item.productId, -item.quantity);
     }
+    auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
     return;
   }
 
