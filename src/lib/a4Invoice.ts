@@ -384,8 +384,9 @@ export async function generateA4InvoiceHTML(
         <div class="document-number">${sale.invoiceNumber}</div>
         <div class="document-date">
           Data: ${formatDate(sale.createdAt)}<br>
-          Hora: ${formatTime(sale.createdAt)}
+          Hora: ${new Date(sale.createdAt).toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </div>
+        <div style="font-size:10px;color:#666;margin-top:5px;">Original</div>
       </div>
     </div>
 
