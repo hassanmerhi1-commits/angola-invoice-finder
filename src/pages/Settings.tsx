@@ -424,6 +424,9 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Backup & Restore */}
+        <BackupRestoreCard />
+
         {/* Network Settings Card */}
         <NetworkSettingsCard />
 
@@ -431,5 +434,87 @@ export default function Settings() {
         <HotUpdateSettingsCard />
       </div>
     </div>
+  );
+}
+
+function BackupRestoreCard() {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [stats, setStats] = useState(() => getStorageStats());
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const handleBackup = () => {
+    downloadBackup();
+    toast.success('Backup criado', { description: `${stats.keys} itens exportados (${stats.sizeKB} KB)` });
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsRestoring(true);
+    try {
+      const backup = await parseBackupFile(file);
+      const confirmed = window.confirm(
+        `Restaurar backup de ${new Date(backup.metadata.createdAt).toLocaleDateString('pt-AO')}?\n` +
+        `${backup.metadata.itemCount} itens (${Math.round(backup.metadata.sizeBytes / 1024)} KB)\n\n` +
+        `⚠️ Isto substituirá TODOS os dados actuais!`
+      );
+      if (!confirmed) { setIsRestoring(false); return; }
+      const count = restoreBackup(backup);
+      setStats(getStorageStats());
+      toast.success('Backup restaurado', { description: `${count} itens restaurados. A página vai recarregar.` });
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err: any) {
+      toast.error('Erro ao restaurar', { description: err.message });
+    } finally {
+      setIsRestoring(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <HardDrive className="w-5 h-5" />
+          Backup & Restauração
+        </CardTitle>
+        <CardDescription>
+          Exporte todos os dados para um ficheiro JSON ou restaure de um backup anterior
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
+          <div>
+            <p className="text-sm font-medium">Dados armazenados</p>
+            <p className="text-xs text-muted-foreground">{stats.keys} itens • {stats.sizeKB} KB</p>
+          </div>
+          <Shield className="w-5 h-5 text-muted-foreground" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Button onClick={handleBackup} variant="outline" className="gap-2 h-12">
+            <Download className="w-4 h-4" />
+            Criar Backup
+          </Button>
+          <div>
+            <input ref={fileRef} type="file" accept=".json" onChange={handleRestore} className="hidden" />
+            <Button
+              onClick={() => fileRef.current?.click()}
+              variant="outline"
+              className="gap-2 h-12 w-full"
+              disabled={isRestoring}
+            >
+              {isRestoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Restaurar Backup
+            </Button>
+          </div>
+        </div>
+
+        <p className="text-[10px] text-muted-foreground text-center">
+          O backup inclui todos os produtos, vendas, clientes, fornecedores, configurações e mais.
+          Recomendamos criar backups diariamente.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
