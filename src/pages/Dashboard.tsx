@@ -278,6 +278,9 @@ export default function Dashboard() {
             <TabsContent value="aging">
               <ARAgingChart />
             </TabsContent>
+            <TabsContent value="payments">
+              <PaymentMethodChart />
+            </TabsContent>
           </Tabs>
         </div>
 
