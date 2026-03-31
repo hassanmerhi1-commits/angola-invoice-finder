@@ -25,6 +25,55 @@ import { printDocument, downloadDocumentHTML } from '@/lib/documentPDF';
 import { DocumentType, ERPDocument, DOCUMENT_TYPE_CONFIG, DocumentStatus } from '@/types/documents';
 import { getDocuments, convertDocument } from '@/lib/documentStorage';
 import { DocumentFormDialog } from '@/components/documents/DocumentFormDialog';
+import { DocumentFlowViewer } from '@/components/documents/DocumentFlowViewer';
+
+// Build flow nodes from a document and its linked chain
+function buildFlowNodes(doc: ERPDocument): { type: string; number: string; date: string; status: 'completed' | 'active' | 'pending'; amount?: number }[] {
+  const nodes: { type: string; number: string; date: string; status: 'completed' | 'active' | 'pending'; amount?: number }[] = [];
+
+  // Parent document (origin)
+  if (doc.parentDocumentNumber && doc.parentDocumentType) {
+    const typeMap: Record<string, string> = {
+      proforma: 'proforma', fatura_venda: 'invoice', fatura_compra: 'invoice',
+      recibo: 'payment', pagamento: 'payment', nota_credito: 'credit_note',
+      nota_debito: 'invoice', guia_remessa: 'delivery',
+    };
+    nodes.push({
+      type: typeMap[doc.parentDocumentType] || doc.parentDocumentType,
+      number: doc.parentDocumentNumber,
+      date: doc.issueDate,
+      status: 'completed',
+    });
+  }
+
+  // Current document
+  const currentTypeMap: Record<string, string> = {
+    proforma: 'proforma', fatura_venda: 'invoice', fatura_compra: 'invoice',
+    recibo: 'payment', pagamento: 'payment', nota_credito: 'credit_note',
+    nota_debito: 'invoice', guia_remessa: 'delivery',
+  };
+  nodes.push({
+    type: currentTypeMap[doc.documentType] || doc.documentType,
+    number: doc.documentNumber,
+    date: doc.issueDate,
+    status: 'active',
+    amount: doc.total,
+  });
+
+  // Child documents
+  if (doc.childDocuments) {
+    for (const child of doc.childDocuments) {
+      nodes.push({
+        type: currentTypeMap[child.type] || child.type,
+        number: child.number,
+        date: child.date || doc.issueDate,
+        status: 'completed',
+      });
+    }
+  }
+
+  return nodes;
+}
 
 const DOC_TABS: { key: DocumentType | 'all'; label: string; icon: any }[] = [
   { key: 'all', label: 'Todos', icon: FileText },

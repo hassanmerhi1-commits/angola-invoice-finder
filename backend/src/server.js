@@ -130,6 +130,7 @@ const agtRoutes = require('./routes/agt');
 const branchRoutes = require('./routes/branches');
 const productRoutes = require('./routes/products');
 const salesRoutes = require('./routes/sales');
+const taxRoutes = require('./routes/tax');
 const clientRoutes = require('./routes/clients');
 const categoryRoutes = require('./routes/categories');
 const supplierRoutes = require('./routes/suppliers');
