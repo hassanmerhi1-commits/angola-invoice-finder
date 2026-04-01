@@ -264,41 +264,57 @@ export async function saveSale(sale: Sale): Promise<void> {
     return;
   }
 
+  // localStorage mode — use transaction engine for atomic processing
   const sales = lsGet<Sale[]>(STORAGE_KEYS.sales, []);
   sales.push(sale);
   lsSet(STORAGE_KEYS.sales, sales);
-  // Update stock in localStorage
-  for (const item of sale.items) {
-    await updateProductStock(item.productId, -item.quantity);
-    // Record stock movement
-    await saveStockMovement({
-      id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+
+  // Import and use transaction engine
+  const { processTransaction } = await import('@/lib/transactionEngine');
+  await processTransaction({
+    transactionType: 'sale',
+    documentId: sale.id,
+    documentNumber: sale.invoiceNumber,
+    branchId: sale.branchId,
+    branchName: '',
+    userId: sale.cashierId,
+    userName: sale.cashierName || '',
+    date: sale.createdAt,
+    currency: 'AOA',
+    description: `Venda ${sale.invoiceNumber}`,
+    amount: sale.total,
+
+    // Stock OUT — scoped to sale's branch
+    stockEntries: sale.items.map(item => ({
       productId: item.productId,
       productName: item.productName,
-      sku: item.sku,
-      branchId: sale.branchId,
-      type: 'OUT',
+      productSku: item.sku,
       quantity: item.quantity,
-      reason: 'sale',
-      referenceId: sale.id,
-      referenceNumber: sale.invoiceNumber,
-      costAtTime: 0,
-      createdBy: sale.cashierId,
-      createdAt: sale.createdAt,
-    });
-  }
-  // Auto-create journal entry for the sale
-  await createLocalJournalEntry({
-    description: `Venda ${sale.invoiceNumber}`,
-    referenceType: 'sale',
-    referenceId: sale.id,
-    branchId: sale.branchId,
-    lines: [
+      unitCost: item.unitPrice,
+      direction: 'OUT' as const,
+      warehouseId: sale.branchId, // BRANCH-SCOPED
+    })),
+
+    // Double-entry journal
+    journalLines: [
       { accountCode: sale.paymentMethod === 'cash' ? '4.1.1' : '4.2.1', debit: sale.total, credit: 0 },
       { accountCode: '7.1.1', debit: 0, credit: sale.subtotal },
       ...(sale.taxAmount > 0 ? [{ accountCode: '3.3.1', debit: 0, credit: sale.taxAmount }] : []),
     ],
+
+    // Open item for credit sales
+    ...(sale.paymentMethod !== 'cash' && sale.customerName ? {
+      openItem: {
+        entityType: 'customer' as const,
+        entityId: sale.customerNif || sale.customerName,
+        entityName: sale.customerName,
+        documentType: 'invoice' as const,
+        originalAmount: sale.total,
+        isDebit: true,
+      },
+    } : {}),
   });
+
   auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
 }
 
