@@ -15,10 +15,8 @@ import {
   getPurchaseInvoices,
   savePurchaseInvoice,
   generatePurchaseInvoiceNumber,
-  applyStockUpdate,
-  applyPriceUpdate,
-  applySupplierBalanceUpdate,
 } from '@/lib/purchaseInvoiceStorage';
+import { processTransaction } from '@/lib/transactionEngine';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -737,10 +735,111 @@ export default function PurchaseInvoices() {
     invoice.journalLines = [...autoJournal, ...finalJournalLines];
 
     try {
+      // Save the invoice document
       savePurchaseInvoice(invoice);
-      await applyStockUpdate(invoice);
-      await applyPriceUpdate(invoice);
-      await applySupplierBalanceUpdate(invoice);
+
+      // Use central transaction engine for atomic processing
+      const txResult = await processTransaction({
+        transactionType: 'purchase_invoice',
+        documentId: invoice.id,
+        documentNumber: invoice.invoiceNumber,
+        branchId: invoice.branchId,
+        branchName: invoice.branchName,
+        userId: user?.id || '',
+        userName: user?.name || '',
+        date: invoice.date,
+        currency: invoice.currency,
+        description: `Fatura de Compra ${invoice.invoiceNumber} — ${invoice.supplierName}`,
+        amount: invoice.total,
+
+        // Phase 1: Stock entries — scoped to the selected warehouse
+        stockEntries: invoice.lines
+          .filter(l => l.productId && l.totalQty > 0)
+          .map(l => ({
+            productId: l.productId,
+            productName: l.description,
+            productSku: l.productCode,
+            quantity: l.totalQty,
+            unitCost: l.unitPrice,
+            direction: 'IN' as const,
+            warehouseId: l.warehouseId || invoice.warehouseId, // BRANCH-SCOPED
+          })),
+
+        // Phase 2: Price updates (WAC)
+        priceUpdates: invoice.changePrice
+          ? invoice.lines
+              .filter(l => l.productId && l.totalQty > 0)
+              .map(l => ({
+                productId: l.productId,
+                newUnitCost: l.unitPrice,
+                quantityReceived: l.totalQty,
+                updateAvgCost: true,
+              }))
+          : undefined,
+
+        // Phase 3: Journal entries
+        journalLines: [
+          // Debit: Purchase account
+          ...(invoice.subtotal > 0 ? [{
+            accountCode: invoice.purchaseAccountCode || '2121001',
+            accountName: 'Compra de Mercadorias',
+            debit: invoice.subtotal,
+            credit: 0,
+            note: `FC ${invoice.invoiceNumber}`,
+          }] : []),
+          // Debit: IVA
+          ...(invoice.ivaTotal > 0 ? [{
+            accountCode: invoice.ivaAccountCode || '3456001',
+            accountName: 'IVA Dedutível',
+            debit: invoice.ivaTotal,
+            credit: 0,
+            note: `IVA - FC ${invoice.invoiceNumber}`,
+          }] : []),
+          // Credit: Supplier
+          {
+            accountCode: invoice.supplierAccountCode,
+            accountName: invoice.supplierName,
+            debit: 0,
+            credit: invoice.total,
+            note: `FC ${invoice.invoiceNumber}`,
+          },
+          // Add manual journal lines
+          ...finalJournalLines.map(jl => ({
+            accountCode: jl.accountCode,
+            accountName: jl.accountName,
+            debit: jl.debit,
+            credit: jl.credit,
+            note: jl.note,
+          })),
+        ],
+
+        // Phase 4: Open item (payable to supplier)
+        openItem: {
+          entityType: 'supplier',
+          entityId: invoice.supplierAccountCode || invoice.supplierName,
+          entityName: invoice.supplierName,
+          documentType: 'invoice',
+          originalAmount: invoice.total,
+          isDebit: true,
+          dueDate: invoice.paymentDate,
+          currency: invoice.currency === 'KZ' ? 'AOA' : invoice.currency,
+        },
+
+        // Phase 6: Update supplier balance
+        entityBalanceUpdate: {
+          entityType: 'supplier',
+          entityId: invoice.supplierAccountCode || invoice.supplierName,
+          entityName: invoice.supplierName,
+          entityNif: invoice.supplierNif,
+          amount: invoice.total,
+        },
+      });
+
+      if (!txResult.success) {
+        console.error('[PurchaseInvoices] Transaction engine errors:', txResult.errors);
+      }
+
+      // Sync to document storage for unified views
       syncPurchaseInvoiceDocument(invoice);
       await Promise.all([refreshProducts(), refreshSuppliers()]);
 
