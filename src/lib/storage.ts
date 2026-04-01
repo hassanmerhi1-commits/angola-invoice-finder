@@ -265,9 +265,9 @@ export async function saveSale(sale: Sale): Promise<void> {
         total: item.subtotal,
       });
     }
-    // Update stock
+    // Update stock (branch-scoped)
     for (const item of sale.items) {
-      await updateProductStock(item.productId, -item.quantity);
+      await updateProductStock(item.productId, -item.quantity, sale.branchId);
     }
     auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
     return;

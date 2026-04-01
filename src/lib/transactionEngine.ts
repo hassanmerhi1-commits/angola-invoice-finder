@@ -188,7 +188,7 @@ export async function processTransaction(request: TransactionRequest): Promise<T
         // For localStorage mode, we update the product's global stock
         // In Electron/DB mode, stock is calculated from movements
         const qtyChange = entry.direction === 'IN' ? entry.quantity : -entry.quantity;
-        await updateProductStock(entry.productId, qtyChange);
+        await updateProductStock(entry.productId, qtyChange, entry.warehouseId);
         
         result.stockMovementIds.push(movementId);
       }
