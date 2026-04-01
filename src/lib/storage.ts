@@ -556,14 +556,13 @@ export async function processPurchaseOrderReceive(
 
   await savePurchaseOrder(order);
 
-  // Update product stock and costs using weighted average
-  const products = await getAllProducts();
+  // Calculate effective costs with freight
+  const stockEntries: Array<{ productId: string; productName: string; productSku: string; quantity: number; unitCost: number; direction: 'IN'; warehouseId: string }> = [];
+  const priceUpdates: Array<{ productId: string; newUnitCost: number; quantityReceived: number; updateAvgCost: boolean }> = [];
+
   for (const item of order.items) {
     const received = receivedQuantities[item.productId] || 0;
     if (received <= 0) continue;
-
-    const product = products.find(p => p.id === item.productId);
-    if (!product) continue;
 
     let freightPerUnit = 0;
     if (orderItemsTotal > 0 && totalLandingCosts > 0) {
@@ -571,56 +570,62 @@ export async function processPurchaseOrderReceive(
       const proportion = itemValue / orderItemsTotal;
       freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
     }
-
     const effectiveCost = item.unitCost + freightPerUnit;
-    const previousTotalValue = product.stock * (product.cost || 0);
-    const newItemsTotalValue = received * effectiveCost;
-    const newTotalStock = product.stock + received;
-    const newAverageCost = newTotalStock > 0
-      ? (previousTotalValue + newItemsTotalValue) / newTotalStock
-      : effectiveCost;
 
-    const updatedProduct: Product = {
-      ...product,
-      stock: newTotalStock,
-      cost: newAverageCost,
-      avgCost: newAverageCost,
-      lastCost: effectiveCost,
-      firstCost: product.firstCost || effectiveCost,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveProduct(updatedProduct);
-
-    // Record stock movement for this purchase receipt
-    await saveStockMovement({
-      id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    stockEntries.push({
       productId: item.productId,
       productName: item.productName,
-      sku: item.sku,
-      branchId: order.branchId,
-      type: 'IN',
+      productSku: item.sku,
       quantity: received,
-      reason: 'purchase',
-      referenceId: order.id,
-      referenceNumber: order.orderNumber,
-      costAtTime: effectiveCost,
-      createdBy: userId,
-      createdAt: new Date().toISOString(),
+      unitCost: effectiveCost,
+      direction: 'IN',
+      warehouseId: order.branchId, // BRANCH-SCOPED
+    });
+
+    priceUpdates.push({
+      productId: item.productId,
+      newUnitCost: effectiveCost,
+      quantityReceived: received,
+      updateAvgCost: true,
     });
   }
 
-  // Auto-create journal entry for the purchase
+  // Use transaction engine for atomic processing
+  const { processTransaction } = await import('@/lib/transactionEngine');
   const totalWithTax = order.subtotal + order.taxAmount + (order.freightCost || 0);
-  await createLocalJournalEntry({
-    description: `Compra ${order.orderNumber} - ${order.supplierName}`,
-    referenceType: 'purchase',
-    referenceId: order.id,
+
+  await processTransaction({
+    transactionType: 'purchase_invoice',
+    documentId: order.id,
+    documentNumber: order.orderNumber,
     branchId: order.branchId,
-    lines: [
+    branchName: order.branchName || '',
+    userId,
+    userName: '',
+    date: new Date().toISOString(),
+    description: `Compra ${order.orderNumber} — ${order.supplierName}`,
+    amount: order.total,
+    stockEntries,
+    priceUpdates,
+    journalLines: [
       { accountCode: '2.1.1', debit: order.subtotal + (order.freightCost || 0), credit: 0 },
       ...(order.taxAmount > 0 ? [{ accountCode: '3.3.1', debit: order.taxAmount, credit: 0 }] : []),
       { accountCode: '3.2.1', debit: 0, credit: totalWithTax },
     ],
+    entityBalanceUpdate: {
+      entityType: 'supplier',
+      entityId: order.supplierId,
+      entityName: order.supplierName,
+      amount: order.total,
+    },
+    openItem: {
+      entityType: 'supplier',
+      entityId: order.supplierId,
+      entityName: order.supplierName,
+      documentType: 'invoice',
+      originalAmount: order.total,
+      isDebit: true,
+    },
   });
 }
 
