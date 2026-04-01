@@ -196,7 +196,7 @@ export function calculateInvoiceTotals(lines: PurchaseInvoiceLine[]) {
 export async function applyStockUpdate(invoice: PurchaseInvoice): Promise<void> {
   for (const line of invoice.lines) {
     if (!line.productId || line.totalQty <= 0) continue;
-    await updateProductStock(line.productId, line.totalQty);
+    await updateProductStock(line.productId, line.totalQty, invoice.branchId);
     await saveStockMovement({
       id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       productId: line.productId,

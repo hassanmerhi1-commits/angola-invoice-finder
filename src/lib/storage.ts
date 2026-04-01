@@ -177,17 +177,26 @@ export async function deleteProduct(productId: string): Promise<void> {
   auditLog('delete', 'products', `Produto ${productId} eliminado`, 'Sistema');
 }
 
-export async function updateProductStock(productId: string, quantityChange: number): Promise<void> {
+export async function updateProductStock(productId: string, quantityChange: number, branchId?: string): Promise<void> {
   if (isElectronMode()) {
     const result = await window.electronAPI!.db.getById('products', productId);
     if (result.data) {
+      // If branchId provided, only update if product belongs to that branch
+      if (branchId && result.data.branch_id && result.data.branch_id !== branchId && result.data.branch_id !== 'all') {
+        return;
+      }
       const newStock = (result.data.stock || 0) + quantityChange;
       await dbUpdate('products', productId, { stock: newStock });
     }
     return;
   }
   const products = lsGet<Product[]>(STORAGE_KEYS.products, []);
-  const index = products.findIndex(p => p.id === productId);
+  // Find product matching both id AND branch
+  let index = products.findIndex(p => p.id === productId && (!branchId || !p.branchId || p.branchId === branchId || p.branchId === 'all'));
+  if (index < 0 && branchId) {
+    // Try exact id match as fallback (product may not have branchId set)
+    index = products.findIndex(p => p.id === productId);
+  }
   if (index >= 0) {
     products[index].stock += quantityChange;
     lsSet(STORAGE_KEYS.products, products);
@@ -256,9 +265,9 @@ export async function saveSale(sale: Sale): Promise<void> {
         total: item.subtotal,
       });
     }
-    // Update stock
+    // Update stock (branch-scoped)
     for (const item of sale.items) {
-      await updateProductStock(item.productId, -item.quantity);
+      await updateProductStock(item.productId, -item.quantity, sale.branchId);
     }
     auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
     return;
