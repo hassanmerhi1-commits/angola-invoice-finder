@@ -845,6 +845,14 @@ export async function createLocalJournalEntry(params: {
     createdAt: new Date().toISOString(),
   });
   lsSet(STORAGE_KEYS.journalEntries, entries);
+  
+  // Update Chart of Accounts balances for each account in the journal
+  try {
+    const { updateCoABalancesFromJournal } = await import('@/lib/chartOfAccountsEngine');
+    updateCoABalancesFromJournal(params.lines);
+  } catch (e) {
+    console.error('[Storage] Failed to update CoA balances:', e);
+  }
 }
 
 export async function getLocalJournalEntries(branchId?: string): Promise<LocalJournalEntry[]> {

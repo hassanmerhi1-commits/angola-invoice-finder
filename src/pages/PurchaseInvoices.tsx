@@ -17,6 +17,7 @@ import {
   generatePurchaseInvoiceNumber,
 } from '@/lib/purchaseInvoiceStorage';
 import { processTransaction } from '@/lib/transactionEngine';
+import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -568,11 +569,12 @@ export default function PurchaseInvoices() {
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams, mode, startCreate]);
 
-  // Select supplier
+   // Select supplier — auto-create CoA sub-account under 3.2 Fornecedores
   const handleSelectSupplier = useCallback((s: Supplier) => {
+    const accountCode = ensureSupplierAccount(s.id, s.name, s.nif);
     setForm(prev => ({
       ...prev,
-      supplierAccountCode: s.nif || s.id,
+      supplierAccountCode: accountCode,
       supplierName: s.name,
       supplierNif: s.nif,
       supplierPhone: s.phone,
@@ -706,8 +708,8 @@ export default function PurchaseInvoices() {
       warehouseName: form.warehouseName || currentBranch?.name || '',
       priceType: form.priceType || 'last_price',
       address: form.address,
-      purchaseAccountCode: form.purchaseAccountCode || '2121001',
-      ivaAccountCode: form.ivaAccountCode || '3456001',
+      purchaseAccountCode: form.purchaseAccountCode || '2.1',
+      ivaAccountCode: form.ivaAccountCode || '3.3.1',
       transactionType: form.transactionType || 'ALL',
       currencyRate: form.currencyRate || 1,
       taxRate2: form.taxRate2 || 1000,
@@ -781,7 +783,7 @@ export default function PurchaseInvoices() {
         journalLines: [
           // Debit: Purchase account
           ...(invoice.subtotal > 0 ? [{
-            accountCode: invoice.purchaseAccountCode || '2121001',
+            accountCode: invoice.purchaseAccountCode || '2.1',
             accountName: 'Compra de Mercadorias',
             debit: invoice.subtotal,
             credit: 0,
@@ -789,7 +791,7 @@ export default function PurchaseInvoices() {
           }] : []),
           // Debit: IVA
           ...(invoice.ivaTotal > 0 ? [{
-            accountCode: invoice.ivaAccountCode || '3456001',
+            accountCode: invoice.ivaAccountCode || '3.3.1',
             accountName: 'IVA Dedutível',
             debit: invoice.ivaTotal,
             credit: 0,

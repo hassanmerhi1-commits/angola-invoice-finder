@@ -259,7 +259,7 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
   if (invoice.subtotal > 0) {
     lines.push({
       id: `jl_${Date.now()}_1`,
-      accountCode: invoice.purchaseAccountCode || '2121001',
+      accountCode: invoice.purchaseAccountCode || '2.1',
       accountName: 'Compra de Mercadorias',
       currency: invoice.currency,
       note: `FC ${invoice.invoiceNumber} - ${invoice.supplierName}`,
@@ -272,7 +272,7 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
   if (invoice.ivaTotal > 0) {
     lines.push({
       id: `jl_${Date.now()}_2`,
-      accountCode: invoice.ivaAccountCode || '3456001',
+      accountCode: invoice.ivaAccountCode || '3.3.1',
       accountName: 'IVA Dedutível',
       currency: invoice.currency,
       note: `IVA - FC ${invoice.invoiceNumber}`,
