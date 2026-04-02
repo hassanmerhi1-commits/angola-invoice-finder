@@ -17,6 +17,7 @@ import {
   generatePurchaseInvoiceNumber,
 } from '@/lib/purchaseInvoiceStorage';
 import { processTransaction } from '@/lib/transactionEngine';
+import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
