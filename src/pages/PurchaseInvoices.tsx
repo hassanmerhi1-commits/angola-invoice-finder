@@ -791,7 +791,7 @@ export default function PurchaseInvoices() {
           }] : []),
           // Debit: IVA
           ...(invoice.ivaTotal > 0 ? [{
-            accountCode: invoice.ivaAccountCode || '3456001',
+            accountCode: invoice.ivaAccountCode || '3.3.1',
             accountName: 'IVA Dedutível',
             debit: invoice.ivaTotal,
             credit: 0,
