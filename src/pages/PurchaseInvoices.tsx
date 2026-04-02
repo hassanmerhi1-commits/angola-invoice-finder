@@ -783,7 +783,7 @@ export default function PurchaseInvoices() {
         journalLines: [
           // Debit: Purchase account
           ...(invoice.subtotal > 0 ? [{
-            accountCode: invoice.purchaseAccountCode || '2121001',
+            accountCode: invoice.purchaseAccountCode || '2.1',
             accountName: 'Compra de Mercadorias',
             debit: invoice.subtotal,
             credit: 0,
