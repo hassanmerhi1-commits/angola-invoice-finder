@@ -272,7 +272,7 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
   if (invoice.ivaTotal > 0) {
     lines.push({
       id: `jl_${Date.now()}_2`,
-      accountCode: invoice.ivaAccountCode || '3456001',
+      accountCode: invoice.ivaAccountCode || '3.3.1',
       accountName: 'IVA Dedutível',
       currency: invoice.currency,
       note: `IVA - FC ${invoice.invoiceNumber}`,
