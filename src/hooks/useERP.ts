@@ -579,9 +579,9 @@ export function useStockTransfers(branchId?: string) {
       transfer.status = 'in_transit';
       transfer.approvedBy = userId;
       transfer.approvedAt = new Date().toISOString();
-      // Deduct from source
+      // Deduct from SOURCE branch only
       for (const item of transfer.items) {
-        await storage.updateProductStock(item.productId, -item.quantity);
+        await storage.updateProductStock(item.productId, -item.quantity, transfer.fromBranchId);
       }
       await storage.saveStockTransfer(transfer);
       await refreshTransfers();
@@ -600,9 +600,9 @@ export function useStockTransfers(branchId?: string) {
       transfer.status = 'received';
       transfer.receivedBy = userId;
       transfer.receivedAt = new Date().toISOString();
-      // Add to destination
+      // Add to DESTINATION branch only
       for (const item of transfer.items) {
-        await storage.updateProductStock(item.productId, item.receivedQuantity || item.quantity);
+        await storage.updateProductStock(item.productId, item.receivedQuantity || item.quantity, transfer.toBranchId);
       }
       await storage.saveStockTransfer(transfer);
       await refreshTransfers();
