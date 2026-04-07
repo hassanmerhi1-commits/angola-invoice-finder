@@ -951,7 +951,7 @@ export async function createLocalJournalEntry(params: {
   // Update Chart of Accounts balances for each account in the journal
   try {
     const { updateCoABalancesFromJournal } = await import('@/lib/chartOfAccountsEngine');
-    updateCoABalancesFromJournal(params.lines);
+    await updateCoABalancesFromJournal(params.lines);
   } catch (e) {
     console.error('[Storage] Failed to update CoA balances:', e);
   }
