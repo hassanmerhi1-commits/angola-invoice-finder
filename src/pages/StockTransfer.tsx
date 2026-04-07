@@ -424,7 +424,7 @@ export default function StockTransfer() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCreateTransfer} disabled={transferItems.length === 0 || !toBranchId}>
+            <Button onClick={handleCreateTransfer} disabled={transferItems.length === 0 || !toBranchId || !fromBranchId}>
               <ArrowRightLeft className="w-4 h-4 mr-2" />
               Criar Transferência
             </Button>
