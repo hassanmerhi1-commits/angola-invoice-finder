@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api/client';
 import { Account, AccountFormData, TrialBalanceRow, AccountType } from '@/types/accounting';
+import { ensureBranchCaixaAccounts } from '@/lib/chartOfAccountsEngine';
+import * as storage from '@/lib/storage';
 
 const LOCAL_COA_STORAGE_KEY = 'kwanzaerp_chart_of_accounts';
 
