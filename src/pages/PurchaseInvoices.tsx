@@ -570,8 +570,8 @@ export default function PurchaseInvoices() {
   }, [searchParams, setSearchParams, mode, startCreate]);
 
    // Select supplier — auto-create CoA sub-account under 3.2 Fornecedores
-  const handleSelectSupplier = useCallback((s: Supplier) => {
-    const accountCode = ensureSupplierAccount(s.id, s.name, s.nif);
+  const handleSelectSupplier = useCallback(async (s: Supplier) => {
+    const accountCode = await ensureSupplierAccount(s.id, s.name, s.nif);
     setForm(prev => ({
       ...prev,
       supplierAccountCode: accountCode,
