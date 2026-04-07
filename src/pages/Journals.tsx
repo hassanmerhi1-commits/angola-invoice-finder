@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTranslation } from '@/i18n';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useAuth } from '@/hooks/useERP';
@@ -19,29 +19,44 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Account, JournalEntry, JournalEntryLine } from '@/types/accounting';
+import { updateCoABalancesFromJournal } from '@/lib/chartOfAccountsEngine';
 
-// Mock journal entries for now - will come from DB
-interface JournalLine {
-  id: string;
-  accountCode: string;
-  accountName: string;
-  description: string;
-  debit: number;
-  credit: number;
+// Storage key
+const JOURNAL_STORAGE_KEY = 'kwanzaerp_journal_entries';
+const COA_STORAGE_KEY = 'kwanzaerp_chart_of_accounts';
+
+function loadJournalEntries(): JournalEntry[] {
+  try {
+    const raw = localStorage.getItem(JOURNAL_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }
 
-interface JournalEntry {
+function saveJournalEntries(entries: JournalEntry[]) {
+  localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify(entries));
+}
+
+function loadAccounts(): Account[] {
+  try {
+    const raw = localStorage.getItem(COA_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+// Mock journal entries for display types
+interface DisplayEntry {
   id: string;
   entryNumber: string;
   date: string;
-  type: 'venda' | 'compra' | 'recibo' | 'pagamento' | 'ajuste' | 'abertura' | 'fecho';
+  type: string;
   currency: string;
   description: string;
   totalDebit: number;
   totalCredit: number;
   isPosted: boolean;
   createdBy: string;
-  lines: JournalLine[];
+  lines: { id: string; accountCode: string; accountName: string; description: string; debit: number; credit: number }[];
 }
 
 const ENTRY_TYPES = [
@@ -52,37 +67,102 @@ const ENTRY_TYPES = [
   { value: 'ajuste', label: 'Ajuste', color: 'text-purple-600' },
   { value: 'abertura', label: 'Abertura', color: 'text-muted-foreground' },
   { value: 'fecho', label: 'Fecho', color: 'text-muted-foreground' },
+  { value: 'manual', label: 'Manual', color: 'text-amber-600' },
 ];
 
-// Generate sample journal entries from localStorage sales data
 function useJournalEntries() {
-  const [entries, setEntries] = useState<JournalEntry[]>(() => {
+  const [entries, setEntries] = useState<DisplayEntry[]>([]);
+
+  const loadAll = useCallback(() => {
+    const allEntries: DisplayEntry[] = [];
+
+    // Load from saved journal entries (manual + auto)
+    try {
+      const journalEntries = loadJournalEntries();
+      for (const je of journalEntries) {
+        allEntries.push({
+          id: je.id,
+          entryNumber: je.entry_number,
+          date: je.entry_date || je.created_at,
+          type: je.reference_type || 'manual',
+          currency: 'AOA',
+          description: je.description,
+          totalDebit: je.total_debit,
+          totalCredit: je.total_credit,
+          isPosted: je.is_posted,
+          createdBy: je.created_by || 'Sistema',
+          lines: (je.lines || []).map(l => ({
+            id: l.id,
+            accountCode: l.account_code || '',
+            accountName: l.account_name || '',
+            description: l.description || '',
+            debit: l.debit_amount,
+            credit: l.credit_amount,
+          })),
+        });
+      }
+    } catch { /* ignore */ }
+
+    // Also load from sales data for backwards compatibility
     try {
       const salesData = localStorage.getItem('kwanzaerp_sales');
       const sales = salesData ? JSON.parse(salesData) : [];
-      return sales.slice(0, 50).map((sale: any, idx: number) => ({
-        id: sale.id || `je_${idx}`,
-        entryNumber: `DI-${String(idx + 1).padStart(4, '0')}`,
-        date: sale.createdAt || new Date().toISOString(),
-        type: 'venda' as const,
-        currency: 'AOA',
-        description: `Venda ${sale.invoiceNumber || ''}`.trim(),
-        totalDebit: sale.total || 0,
-        totalCredit: sale.total || 0,
-        isPosted: true,
-        createdBy: sale.cashierName || 'Sistema',
-        lines: [
-          { id: `${sale.id}_1`, accountCode: '1.1.1', accountName: 'Caixa', description: 'Recebimento', debit: sale.total || 0, credit: 0 },
-          { id: `${sale.id}_2`, accountCode: '7.1.1', accountName: 'Vendas de Mercadorias', description: sale.invoiceNumber || '', debit: 0, credit: (sale.subtotal || sale.total || 0) },
-          ...(sale.taxAmount ? [{ id: `${sale.id}_3`, accountCode: '2.4.3', accountName: 'IVA a Pagar', description: 'IVA', debit: 0, credit: sale.taxAmount }] : []),
-        ],
-      }));
-    } catch {
-      return [];
-    }
-  });
+      const existingIds = new Set(allEntries.map(e => e.id));
+      
+      for (let idx = 0; idx < Math.min(sales.length, 50); idx++) {
+        const sale = sales[idx];
+        const id = `sale_je_${sale.id || idx}`;
+        if (existingIds.has(id)) continue;
+        
+        allEntries.push({
+          id,
+          entryNumber: `VD-${String(idx + 1).padStart(4, '0')}`,
+          date: sale.createdAt || new Date().toISOString(),
+          type: 'venda',
+          currency: 'AOA',
+          description: `Venda ${sale.invoiceNumber || ''}`.trim(),
+          totalDebit: sale.total || 0,
+          totalCredit: sale.total || 0,
+          isPosted: true,
+          createdBy: sale.cashierName || 'Sistema',
+          lines: [
+            { id: `${id}_1`, accountCode: '4.1.1', accountName: 'Caixa', description: 'Recebimento', debit: sale.total || 0, credit: 0 },
+            { id: `${id}_2`, accountCode: '7.1.1', accountName: 'Vendas de Mercadorias', description: sale.invoiceNumber || '', debit: 0, credit: (sale.subtotal || sale.total || 0) },
+            ...(sale.taxAmount ? [{ id: `${id}_3`, accountCode: '2.4.3', accountName: 'IVA a Pagar', description: 'IVA', debit: 0, credit: sale.taxAmount }] : []),
+          ],
+        });
+      }
+    } catch { /* ignore */ }
 
-  return { entries, refetch: () => {} };
+    // Sort by date descending
+    allEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setEntries(allEntries);
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  return { entries, refetch: loadAll };
+}
+
+// ============= NEW ENTRY LINE INTERFACE =============
+interface NewEntryLine {
+  id: string;
+  accountCode: string;
+  accountName: string;
+  description: string;
+  debit: string;
+  credit: string;
+}
+
+function createEmptyLine(): NewEntryLine {
+  return {
+    id: `line_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    accountCode: '',
+    accountName: '',
+    description: '',
+    debit: '',
+    credit: '',
+  };
 }
 
 export default function Journals() {
@@ -98,6 +178,24 @@ export default function Journals() {
   const [filterType, setFilterType] = useState('all');
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [viewEntryOpen, setViewEntryOpen] = useState(false);
+
+  // New entry dialog state
+  const [newEntryOpen, setNewEntryOpen] = useState(false);
+  const [newEntryDate, setNewEntryDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newEntryType, setNewEntryType] = useState('ajuste');
+  const [newEntryDescription, setNewEntryDescription] = useState('');
+  const [newEntryLines, setNewEntryLines] = useState<NewEntryLine[]>([createEmptyLine(), createEmptyLine()]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountSearch, setAccountSearch] = useState('');
+  const [activeLineId, setActiveLineId] = useState<string | null>(null);
+
+  // Load accounts for the picker
+  useEffect(() => {
+    if (newEntryOpen) {
+      const accts = loadAccounts().filter(a => a.is_active && !a.is_header);
+      setAccounts(accts);
+    }
+  }, [newEntryOpen]);
 
   // Filter entries
   const filteredEntries = useMemo(() => {
@@ -122,11 +220,181 @@ export default function Journals() {
 
   const selectedEntry = entries.find(e => e.id === selectedEntryId);
 
+  // New entry line calculations
+  const newEntryTotalDebit = newEntryLines.reduce((sum, l) => sum + (parseFloat(l.debit) || 0), 0);
+  const newEntryTotalCredit = newEntryLines.reduce((sum, l) => sum + (parseFloat(l.credit) || 0), 0);
+  const isBalanced = Math.abs(newEntryTotalDebit - newEntryTotalCredit) < 0.01;
+  const difference = newEntryTotalDebit - newEntryTotalCredit;
+
+  // Filtered accounts for picker
+  const filteredAccounts = useMemo(() => {
+    if (!accountSearch) return accounts.slice(0, 30);
+    const term = accountSearch.toLowerCase();
+    return accounts.filter(a => 
+      a.code.toLowerCase().includes(term) || a.name.toLowerCase().includes(term)
+    ).slice(0, 30);
+  }, [accounts, accountSearch]);
+
+  // Reset new entry form
+  function resetNewEntry() {
+    setNewEntryDate(new Date().toISOString().split('T')[0]);
+    setNewEntryType('ajuste');
+    setNewEntryDescription('');
+    setNewEntryLines([createEmptyLine(), createEmptyLine()]);
+    setAccountSearch('');
+    setActiveLineId(null);
+  }
+
+  function openNewEntry() {
+    resetNewEntry();
+    setNewEntryOpen(true);
+  }
+
+  function updateLine(lineId: string, field: keyof NewEntryLine, value: string) {
+    setNewEntryLines(prev => prev.map(l => {
+      if (l.id !== lineId) return l;
+      const updated = { ...l, [field]: value };
+      // When entering debit, clear credit and vice versa
+      if (field === 'debit' && parseFloat(value) > 0) {
+        updated.credit = '';
+      } else if (field === 'credit' && parseFloat(value) > 0) {
+        updated.debit = '';
+      }
+      return updated;
+    }));
+  }
+
+  function selectAccount(lineId: string, account: Account) {
+    setNewEntryLines(prev => prev.map(l => {
+      if (l.id !== lineId) return l;
+      return { ...l, accountCode: account.code, accountName: account.name };
+    }));
+    setActiveLineId(null);
+    setAccountSearch('');
+  }
+
+  function removeLine(lineId: string) {
+    if (newEntryLines.length <= 2) {
+      toast.error('O lançamento precisa de pelo menos 2 linhas');
+      return;
+    }
+    setNewEntryLines(prev => prev.filter(l => l.id !== lineId));
+  }
+
+  function addLine() {
+    setNewEntryLines(prev => [...prev, createEmptyLine()]);
+  }
+
+  // Auto-fill last line to balance
+  function autoBalance() {
+    if (newEntryLines.length < 2) return;
+    const lastLine = newEntryLines[newEntryLines.length - 1];
+    const otherLines = newEntryLines.slice(0, -1);
+    const otherDebit = otherLines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
+    const otherCredit = otherLines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
+    const diff = otherDebit - otherCredit;
+
+    setNewEntryLines(prev => prev.map((l, i) => {
+      if (i !== prev.length - 1) return l;
+      if (diff > 0) {
+        return { ...l, credit: diff.toFixed(2), debit: '' };
+      } else if (diff < 0) {
+        return { ...l, debit: Math.abs(diff).toFixed(2), credit: '' };
+      }
+      return l;
+    }));
+  }
+
+  // Save journal entry
+  async function saveNewEntry() {
+    // Validate
+    if (!newEntryDescription.trim()) {
+      toast.error('Preencha a descrição do lançamento');
+      return;
+    }
+
+    const validLines = newEntryLines.filter(l => l.accountCode && (parseFloat(l.debit) || parseFloat(l.credit)));
+    if (validLines.length < 2) {
+      toast.error('O lançamento precisa de pelo menos 2 linhas com conta e valor');
+      return;
+    }
+
+    if (!isBalanced) {
+      toast.error(`Lançamento não está balanceado. Diferença: ${Math.abs(difference).toLocaleString('pt-AO')} Kz`);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const existing = loadJournalEntries();
+    const entryCount = existing.length + 1;
+
+    const prefixMap: Record<string, string> = {
+      venda: 'VD', compra: 'CP', recibo: 'RB', pagamento: 'PG',
+      ajuste: 'AJ', abertura: 'AB', fecho: 'FC', manual: 'MN'
+    };
+    const prefix = prefixMap[newEntryType] || 'JE';
+    const entryNumber = `${prefix}-${newEntryDate.replace(/-/g, '')}${entryCount.toString().padStart(4, '0')}`;
+
+    const entryId = `je_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const lines: JournalEntryLine[] = validLines.map((l, idx) => ({
+      id: `${entryId}_line_${idx}`,
+      journal_entry_id: entryId,
+      account_id: accounts.find(a => a.code === l.accountCode)?.id || '',
+      account_code: l.accountCode,
+      account_name: l.accountName,
+      description: l.description || newEntryDescription,
+      debit_amount: parseFloat(l.debit) || 0,
+      credit_amount: parseFloat(l.credit) || 0,
+      created_at: now,
+    }));
+
+    const journalEntry: JournalEntry = {
+      id: entryId,
+      entry_number: entryNumber,
+      entry_date: newEntryDate,
+      description: newEntryDescription,
+      reference_type: newEntryType,
+      total_debit: newEntryTotalDebit,
+      total_credit: newEntryTotalCredit,
+      is_posted: true,
+      posted_at: now,
+      branch_id: currentBranch?.id,
+      created_by: user?.name || 'Sistema',
+      created_at: now,
+      updated_at: now,
+      lines,
+    };
+
+    // Save to storage
+    existing.push(journalEntry);
+    saveJournalEntries(existing);
+
+    // Update account balances in Chart of Accounts
+    try {
+      await updateCoABalancesFromJournal(
+        lines.map(l => ({
+          accountCode: l.account_code || '',
+          debit: l.debit_amount,
+          credit: l.credit_amount,
+        }))
+      );
+    } catch (e) {
+      console.warn('[Journals] Failed to update CoA balances:', e);
+    }
+
+    toast.success(`Lançamento ${entryNumber} criado com sucesso`, {
+      description: `Débito: ${newEntryTotalDebit.toLocaleString('pt-AO')} Kz | Crédito: ${newEntryTotalCredit.toLocaleString('pt-AO')} Kz`,
+    });
+
+    setNewEntryOpen(false);
+    refetch();
+  }
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 border-b flex-wrap">
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={openNewEntry}>
           <Plus className="w-3 h-3" /> Novo Lançamento
         </Button>
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={!selectedEntry}
@@ -302,6 +570,213 @@ export default function Journals() {
               </table>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ============= NEW ENTRY DIALOG ============= */}
+      <Dialog open={newEntryOpen} onOpenChange={setNewEntryOpen}>
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Novo Lançamento Manual
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Header fields */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs">Data</Label>
+                <Input type="date" value={newEntryDate} onChange={e => setNewEntryDate(e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">Tipo</Label>
+                <Select value={newEntryType} onValueChange={setNewEntryType}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ENTRY_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Filial</Label>
+                <Input value={currentBranch?.name || 'Sede'} disabled className="h-8 text-sm bg-muted" />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Descrição</Label>
+              <Textarea
+                value={newEntryDescription}
+                onChange={e => setNewEntryDescription(e.target.value)}
+                placeholder="Descrição do lançamento..."
+                className="min-h-[40px] text-sm resize-none"
+              />
+            </div>
+
+            {/* Lines table */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs font-semibold">Linhas do Lançamento</Label>
+                <div className="flex gap-1">
+                  <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={autoBalance}>
+                    Balancear Auto
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={addLine}>
+                    <Plus className="w-3 h-3" /> Linha
+                  </Button>
+                </div>
+              </div>
+
+              <div className="border rounded-md overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/60">
+                    <tr>
+                      <th className="px-2 py-1.5 text-left w-28">Conta</th>
+                      <th className="px-2 py-1.5 text-left">Nome da Conta</th>
+                      <th className="px-2 py-1.5 text-left w-40">Descrição</th>
+                      <th className="px-2 py-1.5 text-right w-28">Débito</th>
+                      <th className="px-2 py-1.5 text-right w-28">Crédito</th>
+                      <th className="px-2 py-1.5 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {newEntryLines.map((line) => (
+                      <tr key={line.id} className="group">
+                        <td className="px-1 py-1 relative">
+                          <Input
+                            value={line.accountCode}
+                            placeholder="Ex: 4.1.1"
+                            className="h-7 text-xs font-mono"
+                            onFocus={() => { setActiveLineId(line.id); setAccountSearch(''); }}
+                            onChange={e => {
+                              updateLine(line.id, 'accountCode', e.target.value);
+                              setAccountSearch(e.target.value);
+                              setActiveLineId(line.id);
+                            }}
+                          />
+                          {/* Account picker dropdown */}
+                          {activeLineId === line.id && (
+                            <div className="absolute top-full left-0 z-50 w-72 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                              <div className="p-1">
+                                <Input
+                                  placeholder="Pesquisar conta..."
+                                  value={accountSearch}
+                                  onChange={e => setAccountSearch(e.target.value)}
+                                  className="h-6 text-xs mb-1"
+                                  autoFocus
+                                />
+                              </div>
+                              {filteredAccounts.length === 0 ? (
+                                <div className="px-2 py-3 text-center text-muted-foreground text-xs">
+                                  Nenhuma conta encontrada
+                                </div>
+                              ) : (
+                                filteredAccounts.map(acct => (
+                                  <button
+                                    key={acct.id}
+                                    className="w-full text-left px-2 py-1 text-xs hover:bg-accent/50 flex items-center gap-2 rounded-sm"
+                                    onMouseDown={e => {
+                                      e.preventDefault();
+                                      selectAccount(line.id, acct);
+                                    }}
+                                  >
+                                    <span className="font-mono text-primary w-14 shrink-0">{acct.code}</span>
+                                    <span className="truncate">{acct.name}</span>
+                                    <span className="ml-auto text-muted-foreground">
+                                      {(acct.current_balance || 0).toLocaleString('pt-AO')}
+                                    </span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-1 py-1">
+                          <Input
+                            value={line.accountName}
+                            disabled
+                            className="h-7 text-xs bg-muted/30"
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <Input
+                            value={line.description}
+                            placeholder="Descrição..."
+                            onChange={e => updateLine(line.id, 'description', e.target.value)}
+                            className="h-7 text-xs"
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={line.debit}
+                            placeholder="0.00"
+                            onChange={e => updateLine(line.id, 'debit', e.target.value)}
+                            className="h-7 text-xs text-right font-mono"
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={line.credit}
+                            placeholder="0.00"
+                            onChange={e => updateLine(line.id, 'credit', e.target.value)}
+                            className="h-7 text-xs text-right font-mono"
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                            onClick={() => removeLine(line.id)}
+                          >
+                            <Trash2 className="w-3 h-3 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-muted/60">
+                    <tr className="font-bold text-xs">
+                      <td className="px-2 py-2" colSpan={3}>
+                        TOTAL
+                        {!isBalanced && newEntryTotalDebit + newEntryTotalCredit > 0 && (
+                          <span className="ml-2 text-destructive font-normal">
+                            (Diferença: {Math.abs(difference).toLocaleString('pt-AO')} Kz {difference > 0 ? 'a débito' : 'a crédito'})
+                          </span>
+                        )}
+                        {isBalanced && newEntryTotalDebit > 0 && (
+                          <span className="ml-2 text-green-600 font-normal">✓ Balanceado</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-right font-mono">{newEntryTotalDebit.toLocaleString('pt-AO')}</td>
+                      <td className="px-2 py-2 text-right font-mono">{newEntryTotalCredit.toLocaleString('pt-AO')}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 gap-2">
+            <Button variant="outline" onClick={() => setNewEntryOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={saveNewEntry}
+              disabled={!isBalanced || newEntryTotalDebit === 0 || !newEntryDescription.trim()}
+              className="gap-1"
+            >
+              <CheckCircle className="w-4 h-4" /> Lançar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
