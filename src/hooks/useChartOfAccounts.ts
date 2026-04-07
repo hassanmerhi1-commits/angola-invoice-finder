@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api/client';
 import { Account, AccountFormData, TrialBalanceRow, AccountType } from '@/types/accounting';
+import { ensureBranchCaixaAccounts } from '@/lib/chartOfAccountsEngine';
+import * as storage from '@/lib/storage';
 
 const LOCAL_COA_STORAGE_KEY = 'kwanzaerp_chart_of_accounts';
 
@@ -118,6 +120,7 @@ export function useChartOfAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const branchCaixaSeeded = useRef(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -143,6 +146,24 @@ export function useChartOfAccounts() {
       setIsLoading(false);
     }
   }, []);
+
+  // Auto-seed branch caixa accounts once after first load
+  useEffect(() => {
+    if (isLoading || branchCaixaSeeded.current || accounts.length === 0) return;
+    branchCaixaSeeded.current = true;
+
+    storage.getBranches().then(branches => {
+      if (branches.length > 0) {
+        ensureBranchCaixaAccounts(branches.map(b => ({ id: b.id, name: b.name }))).then(() => {
+          // Re-read local accounts to pick up any newly created caixa accounts
+          const updated = loadLocalAccounts();
+          if (updated.length > accounts.length) {
+            setAccounts(sortAccountsByCode(updated));
+          }
+        });
+      }
+    });
+  }, [isLoading, accounts.length]);
 
   useEffect(() => {
     fetchAccounts();

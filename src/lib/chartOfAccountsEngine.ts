@@ -136,6 +136,88 @@ function ensureEssentialAccounts(accounts: Account[]): Account[] {
   return accounts;
 }
 
+// ============= BRANCH CAIXA ACCOUNT =============
+
+/**
+ * Ensure each branch has a sub-account under 4.1 (Caixa).
+ * Creates accounts like 4.1.1 Caixa - Sede, 4.1.2 Caixa - Luanda, etc.
+ * Call this on app init / when branches are loaded.
+ */
+export async function ensureBranchCaixaAccounts(branches: { id: string; name: string }[]): Promise<void> {
+  if (!branches || branches.length === 0) return;
+
+  let accounts = await tryLoadAccountsFromApi();
+  const usingApi = accounts !== null;
+
+  if (!accounts) {
+    accounts = loadAccountsLocal();
+  }
+
+  const parent = accounts.find(a => a.code === '4.1');
+  if (!parent) {
+    console.warn('[CoA Engine] Parent account 4.1 (Caixa) not found');
+    return;
+  }
+
+  let changed = false;
+  const now = new Date().toISOString();
+
+  for (const branch of branches) {
+    // Check if this branch already has a caixa account
+    const existing = accounts.find(a =>
+      a.code.startsWith('4.1.') &&
+      a.level >= 3 &&
+      !a.is_header &&
+      (a.branch_id === branch.id || a.name.includes(branch.name))
+    );
+
+    if (existing) continue;
+
+    // Find next sequence
+    const children = accounts.filter(a => a.code.startsWith('4.1.') && a.level === 3 && !a.is_header);
+    const nextSeq = children.length + 1;
+    const code = `4.1.${nextSeq.toString().padStart(1, '0')}`;
+
+    const newAccount: Account = {
+      id: `local-coa-caixa-${branch.id}`,
+      code,
+      name: `Caixa - ${branch.name}`,
+      description: `Conta caixa da filial ${branch.name}`,
+      account_type: 'asset',
+      account_nature: 'debit',
+      parent_id: parent.id,
+      parent_name: parent.name,
+      parent_code: '4.1',
+      level: 3,
+      is_header: false,
+      is_active: true,
+      opening_balance: 0,
+      current_balance: 0,
+      branch_id: branch.id,
+      children_count: 0,
+      created_at: now,
+      updated_at: now,
+    } as Account;
+
+    if (usingApi) {
+      await tryApiCreateAccount(newAccount);
+    }
+
+    // Update parent children count
+    const parentIdx = accounts.findIndex(a => a.id === parent.id);
+    if (parentIdx >= 0) {
+      accounts[parentIdx] = { ...accounts[parentIdx], children_count: (accounts[parentIdx].children_count || 0) + 1 };
+    }
+    accounts.push(newAccount);
+    changed = true;
+    console.log(`[CoA Engine] Created branch caixa account ${code} — Caixa - ${branch.name}`);
+  }
+
+  if (changed) {
+    saveAccountsLocal(accounts);
+  }
+}
+
 // ============= SUPPLIER ACCOUNT =============
 
 /**
