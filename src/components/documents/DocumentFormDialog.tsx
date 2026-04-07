@@ -189,8 +189,9 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
             status,
           }
         );
-        onSaved?.(doc);
-        toast.success(`${config.shortLabel} ${doc.documentNumber} criado`);
+        const savedDoc = await doc;
+        onSaved?.(savedDoc);
+        toast.success(`${config.shortLabel} ${savedDoc.documentNumber} criado`);
       }
       onOpenChange(false);
     } catch (error: any) {

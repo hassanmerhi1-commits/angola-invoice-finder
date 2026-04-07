@@ -118,14 +118,14 @@ export default function Expenses() {
   const [statusFilter, setStatusFilter] = useState<string>('__all__');
   const [categoryFilter, setCategoryFilter] = useState<string>('__all__');
 
-  const loadData = () => {
+  const loadData = async () => {
     // Auto-seed a default Caixa for the current branch if none exists
     if (currentBranch?.id) {
-      ensureBranchCaixa(currentBranch.id, currentBranch.name || 'Sede');
+      await ensureBranchCaixa(currentBranch.id, currentBranch.name || 'Sede');
     }
-    setExpenses(getExpenses(currentBranch?.id));
-    setCaixas(getCaixas(currentBranch?.id));
-    setBankAccounts(getBankAccounts(currentBranch?.id));
+    setExpenses(await getExpenses(currentBranch?.id));
+    setCaixas(await getCaixas(currentBranch?.id));
+    setBankAccounts(await getBankAccounts(currentBranch?.id));
   };
 
   useEffect(() => {

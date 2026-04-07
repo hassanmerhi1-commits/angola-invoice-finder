@@ -513,7 +513,7 @@ export default function PurchaseInvoices() {
 
   // Load invoices
   useEffect(() => {
-    setInvoices(getPurchaseInvoices(currentBranch?.id));
+    getPurchaseInvoices(currentBranch?.id).then(setInvoices);
   }, [currentBranch?.id]);
 
   // Filtered list
@@ -850,7 +850,7 @@ export default function PurchaseInvoices() {
         description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
       });
 
-      setInvoices(getPurchaseInvoices(currentBranch?.id));
+      getPurchaseInvoices(currentBranch?.id).then(setInvoices);
       setMode('list');
     } catch (error) {
       console.error('[PurchaseInvoices] Failed to save purchase invoice:', error);

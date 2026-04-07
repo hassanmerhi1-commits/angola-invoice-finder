@@ -146,14 +146,14 @@ export default function CaixaManagement() {
   const [closingBalance, setClosingBalance] = useState<number>(0);
   const [closingNotes, setClosingNotes] = useState<string>('');
 
-  const loadData = () => {
+  const loadData = async () => {
     // Auto-seed a default Caixa for the current branch if none exists
     if (currentBranch?.id) {
-      ensureBranchCaixa(currentBranch.id, currentBranch.name || 'Sede');
+      await ensureBranchCaixa(currentBranch.id, currentBranch.name || 'Sede');
     }
-    setCaixas(getCaixas(currentBranch?.id));
-    setSessions(getCaixaSessions());
-    setTransactions(getCashTransactions());
+    setCaixas(await getCaixas(currentBranch?.id));
+    setSessions(await getCaixaSessions());
+    setTransactions(await getCashTransactions());
   };
 
   useEffect(() => {
@@ -353,8 +353,8 @@ export default function CaixaManagement() {
   };
 
   // Close session dialog
-  const handleCloseSessionDialog = (caixa: Caixa) => {
-    const session = getOpenCaixaSession(caixa.id);
+  const handleCloseSessionDialog = async (caixa: Caixa) => {
+    const session = await getOpenCaixaSession(caixa.id);
     if (session) {
       setSelectedCaixa(caixa);
       setSelectedSession(session);

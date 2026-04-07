@@ -122,9 +122,9 @@ export default function BankAccounts() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [customBankName, setCustomBankName] = useState('');
 
-  const loadData = () => {
-    setAccounts(getBankAccounts(currentBranch?.id));
-    setTransactions(getBankTransactions());
+  const loadData = async () => {
+    setAccounts(await getBankAccounts(currentBranch?.id));
+    setTransactions(await getBankTransactions());
   };
 
   useEffect(() => {
