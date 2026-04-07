@@ -36,7 +36,11 @@ export default function Extracto() {
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const allDocs = useMemo(() => getDocuments(undefined, currentBranch?.id), [currentBranch?.id, refreshKey]);
+  const [allDocs, setAllDocs] = useState<ERPDocument[]>([]);
+
+  useEffect(() => {
+    getDocuments(undefined, currentBranch?.id).then(setAllDocs);
+  }, [currentBranch?.id, refreshKey]);
 
   // Group documents by entity
   const entitySummaries = useMemo(() => {

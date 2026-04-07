@@ -117,10 +117,11 @@ export default function Invoices() {
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
   // Load documents
-  const documents = useMemo(() => {
+  const [documents, setDocuments] = useState<ERPDocument[]>([]);
+
+  useEffect(() => {
     const type = activeTab === 'all' ? undefined : activeTab;
-    return getDocuments(type, currentBranch?.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    getDocuments(type, currentBranch?.id).then(setDocuments);
   }, [activeTab, currentBranch?.id, refreshKey]);
 
   const filteredDocs = useMemo(() => {
@@ -157,8 +158,8 @@ export default function Invoices() {
     setFormOpen(true);
   };
 
-  const handleConvert = (doc: ERPDocument, targetType: DocumentType) => {
-    const result = convertDocument(
+  const handleConvert = async (doc: ERPDocument, targetType: DocumentType) => {
+    const result = await convertDocument(
       doc.id,
       targetType,
       currentBranch?.code || 'SEDE',
