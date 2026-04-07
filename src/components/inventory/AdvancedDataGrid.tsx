@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Product } from '@/types/erp';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,11 +11,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ChevronDown, ChevronUp, Filter, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface ColumnFilter {
-  value: string;
-  type: 'all' | 'custom' | 'blanks' | 'nonblanks';
-}
+import {
+  CustomFilterDialog,
+  CustomFilterState,
+  FilterCondition,
+  FilterOperator,
+} from './CustomFilterDialog';
 
 interface ColumnDef {
   key: string;
@@ -34,107 +35,73 @@ interface AdvancedDataGridProps {
   isHeadOffice?: boolean;
   branches?: any[];
   allBranchProducts?: Record<string, Product[]>;
+  reservedQty?: Record<string, number>;
 }
 
 const COLUMNS: ColumnDef[] = [
-  { key: 'sku', label: 'Produto', minWidth: 100 },
+  { key: 'sku', label: 'Código', minWidth: 100 },
   { key: 'name', label: 'Descrição', minWidth: 180 },
-  { key: 'category', label: 'Categoria', minWidth: 120 },
-  { key: 'supplierName', label: 'Fornecedor', minWidth: 120 },
   { key: 'price', label: 'Preço s/IVA', minWidth: 100, type: 'number' },
   { key: 'priceWithIVA', label: 'Preço c/IVA', minWidth: 100, type: 'number', computed: true },
+  { key: 'reservedQty', label: 'Qty Reservada', minWidth: 100, type: 'number', computed: true },
+  { key: 'stock', label: 'Qty Total', minWidth: 80, type: 'number' },
   { key: 'firstCost', label: 'Custo Inicial', minWidth: 100, type: 'number' },
   { key: 'lastCost', label: 'Últ. Custo', minWidth: 100, type: 'number' },
   { key: 'avgCost', label: 'Custo Médio', minWidth: 100, type: 'number' },
   { key: 'profitMargin', label: 'Lucro %', minWidth: 80, type: 'number', computed: true },
-  { key: 'stock', label: 'Qty Total', minWidth: 80, type: 'number' },
   { key: 'taxRate', label: 'IVA %', minWidth: 70, type: 'number' },
   { key: 'unit', label: 'Unidade', minWidth: 80 },
+  { key: 'category', label: 'Categoria', minWidth: 120 },
+  { key: 'supplierName', label: 'Fornecedor', minWidth: 120 },
 ];
 
-export function AdvancedDataGrid({ 
+function matchesCondition(val: string, numVal: number, cond: FilterCondition, isNumber: boolean): boolean {
+  const op = cond.operator;
+  if (op === 'is_blank') return !val || val.trim() === '';
+  if (op === 'is_not_blank') return !!val && val.trim() !== '';
+
+  if (isNumber) {
+    const target = parseFloat(cond.value);
+    if (isNaN(target)) return true;
+    switch (op) {
+      case 'equals': return numVal === target;
+      case 'not_equals': return numVal !== target;
+      case 'less_than': return numVal < target;
+      case 'less_equal': return numVal <= target;
+      case 'greater_than': return numVal > target;
+      case 'greater_equal': return numVal >= target;
+      default: return true;
+    }
+  }
+
+  const lower = val.toLowerCase();
+  const target = cond.value.toLowerCase();
+  switch (op) {
+    case 'equals': return lower === target;
+    case 'not_equals': return lower !== target;
+    case 'contains': return lower.includes(target);
+    case 'not_contains': return !lower.includes(target);
+    case 'begins_with': return lower.startsWith(target);
+    case 'ends_with': return lower.endsWith(target);
+    default: return true;
+  }
+}
+
+export function AdvancedDataGrid({
   products, onSelectProduct, onDoubleClickProduct, selectedProductId, hideStock = false,
-  isHeadOffice = false, allBranchProducts = {}
+  isHeadOffice = false, allBranchProducts = {}, reservedQty = {}
 }: AdvancedDataGridProps) {
-  const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilter>>({});
   const [columnSearches, setColumnSearches] = useState<Record<string, string>>({});
   const [sortColumn, setSortColumn] = useState<string>('sku');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [customFilterCol, setCustomFilterCol] = useState<string | null>(null);
-  const [customFilterValue, setCustomFilterValue] = useState('');
-  const customInputRef = useRef<HTMLInputElement>(null);
+  const [simpleFilters, setSimpleFilters] = useState<Record<string, { type: 'all' | 'blanks' | 'nonblanks' | 'value'; value?: string }>>({});
+  const [customFilters, setCustomFilters] = useState<Record<string, CustomFilterState>>({});
+  const [customDialogCol, setCustomDialogCol] = useState<string | null>(null);
 
   const visibleColumns = useMemo(() => {
     if (hideStock) return COLUMNS.filter(c => c.key !== 'stock');
     return COLUMNS;
   }, [hideStock]);
-
-  useEffect(() => {
-    if (customFilterCol && customInputRef.current) {
-      customInputRef.current.focus();
-    }
-  }, [customFilterCol]);
-
-  // Filter and sort
-  const filteredProducts = useMemo(() => {
-    let result = [...products];
-
-    Object.entries(columnFilters).forEach(([key, filter]) => {
-      if (!filter || filter.type === 'all') return;
-      result = result.filter(p => {
-        const val = String(p[key as keyof Product] ?? '');
-        switch (filter.type) {
-          case 'blanks': return !val || val.trim() === '';
-          case 'nonblanks': return val && val.trim() !== '';
-          case 'custom': return val.toLowerCase().includes(filter.value.toLowerCase());
-          default: return true;
-        }
-      });
-    });
-
-    Object.entries(columnSearches).forEach(([key, search]) => {
-      if (!search) return;
-      result = result.filter(p => {
-        const val = String(p[key as keyof Product] ?? '').toLowerCase();
-        return val.includes(search.toLowerCase());
-      });
-    });
-
-    result.sort((a, b) => {
-      const aVal = a[sortColumn as keyof Product];
-      const bVal = b[sortColumn as keyof Product];
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
-      }
-      const aStr = String(aVal ?? '');
-      const bStr = String(bVal ?? '');
-      return sortDirection === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
-    });
-
-    return result;
-  }, [products, columnFilters, columnSearches, sortColumn, sortDirection]);
-
-  const handleSort = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(column);
-      setSortDirection('asc');
-    }
-  };
-
-  const setFilter = (column: string, filter: ColumnFilter) => {
-    setColumnFilters(prev => ({ ...prev, [column]: filter }));
-  };
-
-  const hasActiveFilters = Object.keys(columnFilters).length > 0 || 
-    Object.values(columnSearches).some(v => v);
-
-  const calculateProfitMargin = (product: Product): number => {
-    const cost = product.avgCost || product.lastCost || product.firstCost || product.cost || 0;
-    if (cost <= 0 || product.price <= 0) return 0;
-    return ((product.price - cost) / cost) * 100;
-  };
 
   const getStockTotal = (product: Product): number => {
     if (isHeadOffice && Object.keys(allBranchProducts).length > 0) {
@@ -148,10 +115,110 @@ export function AdvancedDataGrid({
     return product.stock || 0;
   };
 
+  const calculateProfitMargin = (product: Product): number => {
+    const cost = product.avgCost || product.lastCost || product.firstCost || product.cost || 0;
+    if (cost <= 0 || product.price <= 0) return 0;
+    return ((product.price - cost) / cost) * 100;
+  };
+
+  const getCellRawValue = (product: Product, key: string): { str: string; num: number } => {
+    if (key === 'priceWithIVA') {
+      const v = product.price * (1 + (product.taxRate || 0) / 100);
+      return { str: String(v), num: v };
+    }
+    if (key === 'profitMargin') {
+      const m = calculateProfitMargin(product);
+      return { str: String(m), num: m };
+    }
+    if (key === 'stock') {
+      const q = getStockTotal(product);
+      return { str: String(q), num: q };
+    }
+    if (key === 'reservedQty') {
+      const r = reservedQty[product.id] || 0;
+      return { str: String(r), num: r };
+    }
+    const val = product[key as keyof Product];
+    return { str: String(val ?? ''), num: typeof val === 'number' ? val : parseFloat(String(val)) || 0 };
+  };
+
+  const filteredProducts = useMemo(() => {
+    let result = [...products];
+
+    // Simple filters (blanks, nonblanks, exact value)
+    Object.entries(simpleFilters).forEach(([key, filter]) => {
+      if (!filter || filter.type === 'all') return;
+      result = result.filter(p => {
+        const { str } = getCellRawValue(p, key);
+        if (filter.type === 'blanks') return !str || str.trim() === '';
+        if (filter.type === 'nonblanks') return !!str && str.trim() !== '';
+        if (filter.type === 'value') return str === filter.value;
+        return true;
+      });
+    });
+
+    // Custom filters (two conditions + AND/OR)
+    Object.entries(customFilters).forEach(([key, cf]) => {
+      const col = COLUMNS.find(c => c.key === key);
+      const isNum = col?.type === 'number';
+      const has1 = cf.condition1.value || ['is_blank', 'is_not_blank'].includes(cf.condition1.operator);
+      const has2 = cf.condition2.value || ['is_blank', 'is_not_blank'].includes(cf.condition2.operator);
+
+      if (!has1 && !has2) return;
+
+      result = result.filter(p => {
+        const { str, num } = getCellRawValue(p, key);
+        const m1 = has1 ? matchesCondition(str, num, cf.condition1, isNum) : true;
+        const m2 = has2 ? matchesCondition(str, num, cf.condition2, isNum) : true;
+        if (has1 && has2) return cf.logic === 'and' ? m1 && m2 : m1 || m2;
+        return has1 ? m1 : m2;
+      });
+    });
+
+    // Column searches
+    Object.entries(columnSearches).forEach(([key, search]) => {
+      if (!search) return;
+      result = result.filter(p => {
+        const { str } = getCellRawValue(p, key);
+        return str.toLowerCase().includes(search.toLowerCase());
+      });
+    });
+
+    result.sort((a, b) => {
+      const aVal = getCellRawValue(a, sortColumn);
+      const bVal = getCellRawValue(b, sortColumn);
+      const col = COLUMNS.find(c => c.key === sortColumn);
+      if (col?.type === 'number') {
+        return sortDirection === 'asc' ? aVal.num - bVal.num : bVal.num - aVal.num;
+      }
+      return sortDirection === 'asc' ? aVal.str.localeCompare(bVal.str) : bVal.str.localeCompare(aVal.str);
+    });
+
+    return result;
+  }, [products, simpleFilters, customFilters, columnSearches, sortColumn, sortDirection, reservedQty, isHeadOffice, allBranchProducts]);
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const hasActiveFilters = Object.keys(simpleFilters).some(k => simpleFilters[k]?.type !== 'all') ||
+    Object.keys(customFilters).length > 0 ||
+    Object.values(columnSearches).some(v => v);
+
+  const clearAllFilters = () => {
+    setSimpleFilters({});
+    setCustomFilters({});
+    setColumnSearches({});
+  };
+
   const formatValue = (product: Product, key: string) => {
     if (key === 'priceWithIVA') {
-      const taxRate = product.taxRate || 0;
-      const val = product.price * (1 + taxRate / 100);
+      const val = product.price * (1 + (product.taxRate || 0) / 100);
       return (val || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 });
     }
     if (key === 'profitMargin') {
@@ -162,6 +229,10 @@ export function AdvancedDataGrid({
     if (key === 'stock') {
       const qty = getStockTotal(product);
       return <span className={cn("font-semibold", qty <= 0 ? 'text-destructive' : qty <= 10 ? 'text-amber-600' : '')}>{qty}</span>;
+    }
+    if (key === 'reservedQty') {
+      const r = reservedQty[product.id] || 0;
+      return <span className={r > 0 ? 'text-amber-600 font-medium' : 'text-muted-foreground'}>{r}</span>;
     }
     const val = product[key as keyof Product];
     if (key === 'price' || key === 'firstCost' || key === 'lastCost' || key === 'avgCost') {
@@ -185,13 +256,7 @@ export function AdvancedDataGrid({
     return values;
   }, [products, visibleColumns]);
 
-  const applyCustomFilter = () => {
-    if (customFilterCol && customFilterValue) {
-      setFilter(customFilterCol, { value: customFilterValue, type: 'custom' });
-    }
-    setCustomFilterCol(null);
-    setCustomFilterValue('');
-  };
+  const currentDialogCol = customDialogCol ? COLUMNS.find(c => c.key === customDialogCol) : null;
 
   return (
     <div className="flex flex-col h-full border border-border rounded-lg bg-card overflow-hidden">
@@ -201,50 +266,23 @@ export function AdvancedDataGrid({
           {filteredProducts.length} de {products.length} produtos
         </span>
         {hasActiveFilters && (
-          <Button 
-            variant="ghost" size="sm" className="h-6 text-xs"
-            onClick={() => { setColumnFilters({}); setColumnSearches({}); }}
-          >
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearAllFilters}>
             <X className="w-3 h-3 mr-1" />
             Limpar Filtros
           </Button>
         )}
       </div>
 
-      {/* Custom filter inline dialog */}
-      {customFilterCol && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border-b text-xs">
-          <span className="text-muted-foreground">Filtro personalizado para <strong>{visibleColumns.find(c => c.key === customFilterCol)?.label}</strong>:</span>
-          <Input
-            ref={customInputRef}
-            value={customFilterValue}
-            onChange={e => setCustomFilterValue(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') applyCustomFilter(); if (e.key === 'Escape') { setCustomFilterCol(null); setCustomFilterValue(''); } }}
-            className="h-6 w-48 text-xs"
-            placeholder="Contém..."
-          />
-          <Button size="sm" className="h-6 text-xs" onClick={applyCustomFilter}>Aplicar</Button>
-          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setCustomFilterCol(null); setCustomFilterValue(''); }}>
-            <X className="w-3 h-3" />
-          </Button>
-        </div>
-      )}
-
       {/* Scrollable grid */}
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse" style={{ minWidth: visibleColumns.reduce((s, c) => s + c.minWidth, 0) }}>
           <thead className="sticky top-0 z-10 bg-muted">
-            {/* Column headers */}
             <tr>
               {visibleColumns.map(col => {
-                const hasFilter = columnFilters[col.key] && columnFilters[col.key].type !== 'all';
+                const hasFilter = (simpleFilters[col.key] && simpleFilters[col.key].type !== 'all') || customFilters[col.key];
                 const isSorted = sortColumn === col.key;
                 return (
-                  <th
-                    key={col.key}
-                    style={{ minWidth: col.minWidth }}
-                    className="border-r border-b border-border p-0"
-                  >
+                  <th key={col.key} style={{ minWidth: col.minWidth }} className="border-r border-b border-border p-0">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
@@ -265,16 +303,19 @@ export function AdvancedDataGrid({
                           {isSorted && sortDirection === 'asc' ? '↓ Ordenar Desc' : '↑ Ordenar Asc'}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setFilter(col.key, { value: '', type: 'all' })}>
+                        <DropdownMenuItem onClick={() => {
+                          setSimpleFilters(prev => ({ ...prev, [col.key]: { type: 'all' } }));
+                          setCustomFilters(prev => { const n = { ...prev }; delete n[col.key]; return n; });
+                        }}>
                           (Todos)
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => { setCustomFilterCol(col.key); setCustomFilterValue(''); }}>
+                        <DropdownMenuItem onClick={() => setCustomDialogCol(col.key)}>
                           (Personalizado...)
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setFilter(col.key, { value: '', type: 'blanks' })}>
+                        <DropdownMenuItem onClick={() => setSimpleFilters(prev => ({ ...prev, [col.key]: { type: 'blanks' } }))}>
                           (Em branco)
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setFilter(col.key, { value: '', type: 'nonblanks' })}>
+                        <DropdownMenuItem onClick={() => setSimpleFilters(prev => ({ ...prev, [col.key]: { type: 'nonblanks' } }))}>
                           (Não em branco)
                         </DropdownMenuItem>
                         {uniqueValues[col.key]?.length > 0 && (
@@ -282,7 +323,7 @@ export function AdvancedDataGrid({
                             <DropdownMenuSeparator />
                             <div className="max-h-48 overflow-y-auto">
                               {uniqueValues[col.key].map(val => (
-                                <DropdownMenuItem key={val} onClick={() => setFilter(col.key, { value: val, type: 'custom' })}>
+                                <DropdownMenuItem key={val} onClick={() => setSimpleFilters(prev => ({ ...prev, [col.key]: { type: 'value', value: val } }))}>
                                   {val}
                                 </DropdownMenuItem>
                               ))}
@@ -345,6 +386,21 @@ export function AdvancedDataGrid({
           </tbody>
         </table>
       </div>
+
+      {/* Custom Filter Dialog */}
+      {currentDialogCol && customDialogCol && (
+        <CustomFilterDialog
+          open={!!customDialogCol}
+          onOpenChange={(open) => { if (!open) setCustomDialogCol(null); }}
+          columnLabel={currentDialogCol.label}
+          columnType={currentDialogCol.type}
+          onApply={(filter) => {
+            setCustomFilters(prev => ({ ...prev, [customDialogCol]: filter }));
+            setSimpleFilters(prev => { const n = { ...prev }; delete n[customDialogCol]; return n; });
+          }}
+          initialFilter={customFilters[customDialogCol]}
+        />
+      )}
     </div>
   );
 }
