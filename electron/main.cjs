@@ -275,11 +275,13 @@ const ERP_TABLES = [
   'chart_of_accounts', 'journal_entries', 'journal_entry_lines',
   'sales', 'sale_items', 'proformas', 'proforma_items',
   'purchase_orders', 'purchase_order_items',
+  'purchase_invoices', 'erp_documents',
   'credit_notes', 'credit_note_items', 'debit_notes', 'debit_note_items',
   'receipts', 'payments',
   'stock_movements', 'stock_transfers', 'stock_transfer_items',
-  'invoices', 'daily_reports', 'caixas', 'caixa_transactions',
+  'invoices', 'daily_reports', 'caixas', 'caixa_sessions', 'caixa_transactions',
   'bank_accounts', 'bank_transactions', 'expenses',
+  'money_transfers',
   'settings', 'audit_logs'
 ];
 
@@ -1568,6 +1570,8 @@ function runMigrations() {
   migrate(`ALTER TABLE expenses ADD COLUMN invoice_number TEXT`);
   migrate(`ALTER TABLE expenses ADD COLUMN paid_by TEXT`);
   migrate(`ALTER TABLE expenses ADD COLUMN transaction_id TEXT`);
+  migrate(`ALTER TABLE stock_transfers ADD COLUMN from_branch_name TEXT`);
+  migrate(`ALTER TABLE stock_transfers ADD COLUMN to_branch_name TEXT`);
   migrate(`ALTER TABLE caixa_transactions ADD COLUMN reference_type TEXT`);
   migrate(`ALTER TABLE caixa_transactions ADD COLUMN reference_number TEXT`);
   migrate(`ALTER TABLE caixa_transactions ADD COLUMN balance_after REAL DEFAULT 0`);

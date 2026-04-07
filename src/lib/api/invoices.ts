@@ -169,7 +169,7 @@ export async function createInvoice(
   };
   
   // Save to storage
-  saveSale(sale);
+  await saveSale(sale);
   
   return {
     status: 'pending_agt',

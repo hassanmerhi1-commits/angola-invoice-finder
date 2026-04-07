@@ -19,23 +19,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Account, JournalEntry, JournalEntryLine } from '@/types/accounting';
-import { updateCoABalancesFromJournal } from '@/lib/chartOfAccountsEngine';
+import { Account } from '@/types/accounting';
+import { createLocalJournalEntry, getLocalJournalEntries } from '@/lib/storage';
 
-// Storage key
-const JOURNAL_STORAGE_KEY = 'kwanzaerp_journal_entries';
 const COA_STORAGE_KEY = 'kwanzaerp_chart_of_accounts';
-
-function loadJournalEntries(): JournalEntry[] {
-  try {
-    const raw = localStorage.getItem(JOURNAL_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function saveJournalEntries(entries: JournalEntry[]) {
-  localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify(entries));
-}
 
 function loadAccounts(): Account[] {
   try {
@@ -70,76 +57,75 @@ const ENTRY_TYPES = [
   { value: 'manual', label: 'Manual', color: 'text-amber-600' },
 ];
 
-function useJournalEntries() {
+function useJournalEntries(branchId?: string) {
   const [entries, setEntries] = useState<DisplayEntry[]>([]);
 
-  const loadAll = useCallback(() => {
+  const loadAll = useCallback(async () => {
     const allEntries: DisplayEntry[] = [];
 
-    // Load from saved journal entries (manual + auto)
     try {
-      const journalEntries = loadJournalEntries();
+      const journalEntries = await getLocalJournalEntries(branchId);
       for (const je of journalEntries) {
         allEntries.push({
           id: je.id,
-          entryNumber: je.entry_number,
-          date: je.entry_date || je.created_at,
-          type: je.reference_type || 'manual',
+          entryNumber: je.entryNumber,
+          date: je.entryDate || je.createdAt,
+          type: je.referenceType || 'manual',
           currency: 'AOA',
           description: je.description,
-          totalDebit: je.total_debit,
-          totalCredit: je.total_credit,
-          isPosted: je.is_posted,
-          createdBy: je.created_by || 'Sistema',
+          totalDebit: je.totalDebit,
+          totalCredit: je.totalCredit,
+          isPosted: true,
+          createdBy: je.createdBy || 'Sistema',
           lines: (je.lines || []).map(l => ({
-            id: l.id,
-            accountCode: l.account_code || '',
-            accountName: l.account_name || '',
+            id: `${je.id}_${l.accountCode}_${l.debit}_${l.credit}`,
+            accountCode: l.accountCode || '',
+            accountName: l.accountName || '',
             description: l.description || '',
-            debit: l.debit_amount,
-            credit: l.credit_amount,
+            debit: l.debit,
+            credit: l.credit,
           })),
         });
       }
     } catch { /* ignore */ }
 
-    // Also load from sales data for backwards compatibility
-    try {
-      const salesData = localStorage.getItem('kwanzaerp_sales');
-      const sales = salesData ? JSON.parse(salesData) : [];
-      const existingIds = new Set(allEntries.map(e => e.id));
-      
-      for (let idx = 0; idx < Math.min(sales.length, 50); idx++) {
-        const sale = sales[idx];
-        const id = `sale_je_${sale.id || idx}`;
-        if (existingIds.has(id)) continue;
+    if (!window.electronAPI?.isElectron) {
+      try {
+        const salesData = localStorage.getItem('kwanzaerp_sales');
+        const sales = salesData ? JSON.parse(salesData) : [];
+        const existingIds = new Set(allEntries.map(e => e.id));
         
-        allEntries.push({
-          id,
-          entryNumber: `VD-${String(idx + 1).padStart(4, '0')}`,
-          date: sale.createdAt || new Date().toISOString(),
-          type: 'venda',
-          currency: 'AOA',
-          description: `Venda ${sale.invoiceNumber || ''}`.trim(),
-          totalDebit: sale.total || 0,
-          totalCredit: sale.total || 0,
-          isPosted: true,
-          createdBy: sale.cashierName || 'Sistema',
-          lines: [
-            { id: `${id}_1`, accountCode: '4.1.1', accountName: 'Caixa', description: 'Recebimento', debit: sale.total || 0, credit: 0 },
-            { id: `${id}_2`, accountCode: '7.1.1', accountName: 'Vendas de Mercadorias', description: sale.invoiceNumber || '', debit: 0, credit: (sale.subtotal || sale.total || 0) },
-            ...(sale.taxAmount ? [{ id: `${id}_3`, accountCode: '2.4.3', accountName: 'IVA a Pagar', description: 'IVA', debit: 0, credit: sale.taxAmount }] : []),
-          ],
-        });
-      }
-    } catch { /* ignore */ }
+        for (let idx = 0; idx < Math.min(sales.length, 50); idx++) {
+          const sale = sales[idx];
+          const id = `sale_je_${sale.id || idx}`;
+          if (existingIds.has(id)) continue;
+          
+          allEntries.push({
+            id,
+            entryNumber: `VD-${String(idx + 1).padStart(4, '0')}`,
+            date: sale.createdAt || new Date().toISOString(),
+            type: 'venda',
+            currency: 'AOA',
+            description: `Venda ${sale.invoiceNumber || ''}`.trim(),
+            totalDebit: sale.total || 0,
+            totalCredit: sale.total || 0,
+            isPosted: true,
+            createdBy: sale.cashierName || 'Sistema',
+            lines: [
+              { id: `${id}_1`, accountCode: '4.1.1', accountName: 'Caixa', description: 'Recebimento', debit: sale.total || 0, credit: 0 },
+              { id: `${id}_2`, accountCode: '7.1.1', accountName: 'Vendas de Mercadorias', description: sale.invoiceNumber || '', debit: 0, credit: (sale.subtotal || sale.total || 0) },
+              ...(sale.taxAmount ? [{ id: `${id}_3`, accountCode: '2.4.3', accountName: 'IVA a Pagar', description: 'IVA', debit: 0, credit: sale.taxAmount }] : []),
+            ],
+          });
+        }
+      } catch { /* ignore */ }
+    }
 
-    // Sort by date descending
     allEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setEntries(allEntries);
-  }, []);
+  }, [branchId]);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { void loadAll(); }, [loadAll]);
 
   return { entries, refetch: loadAll };
 }
@@ -169,7 +155,7 @@ export default function Journals() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { currentBranch } = useBranchContext();
-  const { entries, refetch } = useJournalEntries();
+  const { entries, refetch } = useJournalEntries(currentBranch?.id);
 
   const [activeTab, setActiveTab] = useState('diarios');
   const [searchTerm, setSearchTerm] = useState('');
@@ -324,70 +310,28 @@ export default function Journals() {
       return;
     }
 
-    const now = new Date().toISOString();
-    const existing = loadJournalEntries();
-    const entryCount = existing.length + 1;
-
-    const prefixMap: Record<string, string> = {
-      venda: 'VD', compra: 'CP', recibo: 'RB', pagamento: 'PG',
-      ajuste: 'AJ', abertura: 'AB', fecho: 'FC', manual: 'MN'
-    };
-    const prefix = prefixMap[newEntryType] || 'JE';
-    const entryNumber = `${prefix}-${newEntryDate.replace(/-/g, '')}${entryCount.toString().padStart(4, '0')}`;
-
-    const entryId = `je_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const lines: JournalEntryLine[] = validLines.map((l, idx) => ({
-      id: `${entryId}_line_${idx}`,
-      journal_entry_id: entryId,
-      account_id: accounts.find(a => a.code === l.accountCode)?.id || '',
-      account_code: l.accountCode,
-      account_name: l.accountName,
-      description: l.description || newEntryDescription,
-      debit_amount: parseFloat(l.debit) || 0,
-      credit_amount: parseFloat(l.credit) || 0,
-      created_at: now,
-    }));
-
-    const journalEntry: JournalEntry = {
-      id: entryId,
-      entry_number: entryNumber,
-      entry_date: newEntryDate,
+    const createdEntry = await createLocalJournalEntry({
       description: newEntryDescription,
-      reference_type: newEntryType,
-      total_debit: newEntryTotalDebit,
-      total_credit: newEntryTotalCredit,
-      is_posted: true,
-      posted_at: now,
-      branch_id: currentBranch?.id,
-      created_by: user?.name || 'Sistema',
-      created_at: now,
-      updated_at: now,
-      lines,
-    };
+      referenceType: newEntryType,
+      referenceId: `manual_${Date.now()}`,
+      branchId: currentBranch?.id || '',
+      entryDate: newEntryDate,
+      createdBy: user?.name || 'Sistema',
+      lines: validLines.map((line) => ({
+        accountCode: line.accountCode,
+        accountName: line.accountName,
+        description: line.description || newEntryDescription,
+        debit: parseFloat(line.debit) || 0,
+        credit: parseFloat(line.credit) || 0,
+      })),
+    });
 
-    // Save to storage
-    existing.push(journalEntry);
-    saveJournalEntries(existing);
-
-    // Update account balances in Chart of Accounts
-    try {
-      await updateCoABalancesFromJournal(
-        lines.map(l => ({
-          accountCode: l.account_code || '',
-          debit: l.debit_amount,
-          credit: l.credit_amount,
-        }))
-      );
-    } catch (e) {
-      console.warn('[Journals] Failed to update CoA balances:', e);
-    }
-
-    toast.success(`Lançamento ${entryNumber} criado com sucesso`, {
+    toast.success(`Lançamento ${createdEntry.entryNumber} criado com sucesso`, {
       description: `Débito: ${newEntryTotalDebit.toLocaleString('pt-AO')} Kz | Crédito: ${newEntryTotalCredit.toLocaleString('pt-AO')} Kz`,
     });
 
     setNewEntryOpen(false);
-    refetch();
+    await refetch();
   }
 
   return (

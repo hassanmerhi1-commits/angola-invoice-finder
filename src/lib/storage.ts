@@ -348,6 +348,8 @@ export async function getAllSales(): Promise<Sale[]> {
 
 export async function saveSale(sale: Sale): Promise<void> {
   if (isElectronMode()) {
+    await dbExec('DELETE FROM sale_items WHERE sale_id = ?', [sale.id]);
+
     // Save sale header
     await dbInsert('sales', {
       id: sale.id,
@@ -386,10 +388,52 @@ export async function saveSale(sale: Sale): Promise<void> {
         total: item.subtotal,
       });
     }
-    // Update stock (branch-scoped)
-    for (const item of sale.items) {
-      await updateProductStock(item.productId, -item.quantity, sale.branchId);
-    }
+
+    const { processTransaction } = await import('@/lib/transactionEngine');
+    await processTransaction({
+      transactionType: 'sale',
+      documentId: sale.id,
+      documentNumber: sale.invoiceNumber,
+      branchId: sale.branchId,
+      branchName: '',
+      userId: sale.cashierId,
+      userName: sale.cashierName || '',
+      date: sale.createdAt,
+      currency: 'AOA',
+      description: `Venda ${sale.invoiceNumber}`,
+      amount: sale.total,
+      stockEntries: sale.items.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        productSku: item.sku,
+        quantity: item.quantity,
+        unitCost: item.unitPrice,
+        direction: 'OUT' as const,
+        warehouseId: sale.branchId,
+      })),
+      journalLines: [
+        { accountCode: sale.paymentMethod === 'cash' ? '4.1.1' : '4.2.1', debit: sale.total, credit: 0 },
+        { accountCode: '7.1.1', debit: 0, credit: sale.subtotal },
+        ...(sale.taxAmount > 0 ? [{ accountCode: '3.3.1', debit: 0, credit: sale.taxAmount }] : []),
+      ],
+      ...(sale.paymentMethod !== 'cash' && sale.customerName ? {
+        openItem: {
+          entityType: 'customer' as const,
+          entityId: sale.customerNif || sale.customerName,
+          entityName: sale.customerName,
+          documentType: 'invoice' as const,
+          originalAmount: sale.total,
+          isDebit: true,
+        },
+        entityBalanceUpdate: {
+          entityType: 'customer' as const,
+          entityId: sale.customerNif || sale.customerName,
+          entityName: sale.customerName,
+          amount: sale.total,
+        },
+      } : {}),
+    });
+
     auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
     return;
   }
@@ -941,7 +985,8 @@ interface LocalJournalEntry {
   branchId: string;
   totalDebit: number;
   totalCredit: number;
-  lines: { accountCode: string; debit: number; credit: number }[];
+  createdBy?: string;
+  lines: { accountCode: string; accountName?: string; description?: string; debit: number; credit: number }[];
   createdAt: string;
 }
 
@@ -950,29 +995,122 @@ export async function createLocalJournalEntry(params: {
   referenceType: string;
   referenceId: string;
   branchId: string;
-  lines: { accountCode: string; debit: number; credit: number }[];
-}): Promise<void> {
-  if (isElectronMode()) return; // Electron uses backend accounting engine
-  
+  entryDate?: string;
+  createdBy?: string;
+  entryNumber?: string;
+  lines: { accountCode: string; accountName?: string; description?: string; debit: number; credit: number }[];
+}): Promise<LocalJournalEntry> {
   const entries = lsGet<LocalJournalEntry[]>(STORAGE_KEYS.journalEntries, []);
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const entryDate = params.entryDate || new Date().toISOString().split('T')[0];
+  const today = entryDate.replace(/-/g, '');
+  const prefixMap: Record<string, string> = {
+    sale: 'VD',
+    venda: 'VD',
+    purchase_invoice: 'CP',
+    compra: 'CP',
+    payment_receipt: 'RB',
+    recibo: 'RB',
+    payment_out: 'PG',
+    pagamento: 'PG',
+    adjustment: 'AJ',
+    ajuste: 'AJ',
+    abertura: 'AB',
+    fecho: 'FC',
+    manual: 'MN',
+  };
+  const prefix = prefixMap[params.referenceType] || 'JE';
   const seq = (entries.length + 1).toString().padStart(4, '0');
+  const entryId = `je_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const entryNumber = params.entryNumber || `${prefix}-${today}${seq}`;
   
   const totalDebit = params.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
   const totalCredit = params.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
 
-  entries.push({
-    id: `je_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    entryNumber: `JE${today}${seq}`,
-    entryDate: new Date().toISOString().split('T')[0],
+  const createdEntry: LocalJournalEntry = {
+    id: entryId,
+    entryNumber,
+    entryDate,
     description: params.description,
     referenceType: params.referenceType,
     referenceId: params.referenceId,
     branchId: params.branchId,
     totalDebit,
     totalCredit,
+    createdBy: params.createdBy || 'Sistema',
     lines: params.lines,
     createdAt: new Date().toISOString(),
+  };
+
+  if (isElectronMode()) {
+    const accountsResult = await window.electronAPI!.db.query(
+      'SELECT id, account_number, name, type, balance, debit_total, credit_total FROM chart_of_accounts',
+      [],
+    );
+    const accountRows = Array.isArray(accountsResult?.data) ? accountsResult.data : [];
+    const accountsByCode = new Map(accountRows.map((row: any) => [String(row.account_number || ''), { ...row }]));
+
+    await dbInsert('journal_entries', {
+      id: createdEntry.id,
+      entry_number: createdEntry.entryNumber,
+      date: createdEntry.entryDate,
+      type: String(params.referenceType || 'manual').toUpperCase(),
+      reference: params.referenceType || '',
+      reference_id: params.referenceId,
+      description: params.description,
+      currency: 'AOA',
+      exchange_rate: 1,
+      total_debit: totalDebit,
+      total_credit: totalCredit,
+      is_balanced: Math.abs(totalDebit - totalCredit) < 0.01 ? 1 : 0,
+      status: 'posted',
+      branch_id: params.branchId,
+      created_by: params.createdBy || 'Sistema',
+      user_name: params.createdBy || 'Sistema',
+      created_at: createdEntry.createdAt,
+    });
+
+    for (const [index, line] of params.lines.entries()) {
+      const account = accountsByCode.get(line.accountCode);
+
+      await dbInsert('journal_entry_lines', {
+        id: `${createdEntry.id}_line_${index + 1}`,
+        journal_entry_id: createdEntry.id,
+        account_id: account?.id || line.accountCode,
+        account_number: line.accountCode,
+        account_name: line.accountName || account?.name || '',
+        debit: line.debit || 0,
+        credit: line.credit || 0,
+        description: line.description || params.description,
+        created_at: createdEntry.createdAt,
+      });
+
+      if (account?.id) {
+        const debit = Number(line.debit || 0);
+        const credit = Number(line.credit || 0);
+        const currentBalance = Number(account.balance || 0);
+        const currentDebit = Number(account.debit_total || 0);
+        const currentCredit = Number(account.credit_total || 0);
+        const balanceChange = ['asset', 'expense'].includes(String(account.type || '').toLowerCase())
+          ? debit - credit
+          : credit - debit;
+
+        account.balance = currentBalance + balanceChange;
+        account.debit_total = currentDebit + debit;
+        account.credit_total = currentCredit + credit;
+
+        await dbUpdate('chart_of_accounts', account.id, {
+          balance: account.balance,
+          debit_total: account.debit_total,
+          credit_total: account.credit_total,
+        });
+      }
+    }
+
+    return createdEntry;
+  }
+
+  entries.push({
+    ...createdEntry,
   });
   lsSet(STORAGE_KEYS.journalEntries, entries);
   
@@ -983,9 +1121,44 @@ export async function createLocalJournalEntry(params: {
   } catch (e) {
     console.error('[Storage] Failed to update CoA balances:', e);
   }
+
+  return createdEntry;
 }
 
 export async function getLocalJournalEntries(branchId?: string): Promise<LocalJournalEntry[]> {
+  if (isElectronMode()) {
+    const [entryRows, lineRows] = await Promise.all([
+      dbGetAll<any>('journal_entries'),
+      dbGetAll<any>('journal_entry_lines'),
+    ]);
+
+    let entries = entryRows.map(row => ({
+      id: row.id,
+      entryNumber: row.entry_number || row.id,
+      entryDate: row.entry_date || row.date || row.created_at || '',
+      description: row.description || '',
+      referenceType: row.reference_type || row.type || 'manual',
+      referenceId: row.reference_id || '',
+      branchId: row.branch_id || '',
+      totalDebit: Number(row.total_debit || 0),
+      totalCredit: Number(row.total_credit || 0),
+      createdBy: row.created_by || row.user_name || 'Sistema',
+      lines: lineRows
+        .filter(line => line.journal_entry_id === row.id)
+        .map(line => ({
+          accountCode: line.account_number || line.account_code || '',
+          accountName: line.account_name || '',
+          description: line.description || '',
+          debit: Number(line.debit || line.debit_amount || 0),
+          credit: Number(line.credit || line.credit_amount || 0),
+        })),
+      createdAt: row.created_at || '',
+    }));
+
+    entries = entries.sort((a, b) => new Date(b.createdAt || b.entryDate).getTime() - new Date(a.createdAt || a.entryDate).getTime());
+    return branchId ? entries.filter(entry => entry.branchId === branchId) : entries;
+  }
+
   const entries = lsGet<LocalJournalEntry[]>(STORAGE_KEYS.journalEntries, []);
   return branchId ? entries.filter(e => e.branchId === branchId) : entries;
 }

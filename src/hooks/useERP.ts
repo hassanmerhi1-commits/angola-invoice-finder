@@ -193,9 +193,8 @@ export function useSales(branchId?: string) {
       } catch { return ''; }
     })();
 
-    // Try API first (Transaction Engine — atomic stock + journal + open items)
-    const { api } = await import('@/lib/api/client');
-    const apiResult = await api.sales.create({
+    const buildDirectSale = (): Sale => ({
+      id: crypto.randomUUID(),
       invoiceNumber: storage.generateInvoiceNumber(branchCode),
       branchId,
       cashierId,
@@ -210,37 +209,20 @@ export function useSales(branchId?: string) {
       change: amountPaid - total,
       customerNif,
       customerName,
+      status: 'completed',
+      createdAt: new Date().toISOString(),
     });
 
     let sale: Sale;
 
-    if (apiResult.data) {
-      // API succeeded — transaction engine handled stock, journals, open items
-      sale = {
-        id: apiResult.data.id,
-        invoiceNumber: apiResult.data.invoice_number || apiResult.data.invoiceNumber,
-        branchId,
-        cashierId,
-        cashierName,
-        items: saleItems,
-        subtotal,
-        taxAmount,
-        discount: 0,
-        total,
-        paymentMethod,
-        amountPaid,
-        change: amountPaid - total,
-        customerNif,
-        customerName,
-        status: 'completed',
-        createdAt: apiResult.data.created_at || new Date().toISOString(),
-      };
-      console.log(`[POS] Sale ${sale.invoiceNumber} processed via Transaction Engine ✓`);
+    if (storage.isElectronMode()) {
+      sale = buildDirectSale();
+      await storage.saveSale(sale);
+      console.log(`[POS] Sale ${sale.invoiceNumber} processed directly in erp.db ✓`);
     } else {
-      // Fallback to localStorage mode (demo/offline)
-      console.warn('[POS] API unavailable, falling back to localStorage:', apiResult.error);
-      sale = {
-        id: crypto.randomUUID(),
+      // Try API first (Transaction Engine — atomic stock + journal + open items)
+      const { api } = await import('@/lib/api/client');
+      const apiResult = await api.sales.create({
         invoiceNumber: storage.generateInvoiceNumber(branchCode),
         branchId,
         cashierId,
@@ -255,10 +237,35 @@ export function useSales(branchId?: string) {
         change: amountPaid - total,
         customerNif,
         customerName,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-      };
-      await storage.saveSale(sale);
+      });
+
+      if (apiResult.data) {
+        // API succeeded — transaction engine handled stock, journals, open items
+        sale = {
+          id: apiResult.data.id,
+          invoiceNumber: apiResult.data.invoice_number || apiResult.data.invoiceNumber,
+          branchId,
+          cashierId,
+          cashierName,
+          items: saleItems,
+          subtotal,
+          taxAmount,
+          discount: 0,
+          total,
+          paymentMethod,
+          amountPaid,
+          change: amountPaid - total,
+          customerNif,
+          customerName,
+          status: 'completed',
+          createdAt: apiResult.data.created_at || new Date().toISOString(),
+        };
+        console.log(`[POS] Sale ${sale.invoiceNumber} processed via Transaction Engine ✓`);
+      } else {
+        console.warn('[POS] API unavailable, falling back to local storage mode:', apiResult.error);
+        sale = buildDirectSale();
+        await storage.saveSale(sale);
+      }
     }
 
     // Update Caixa balance for cash payments (always local for real-time feedback)
