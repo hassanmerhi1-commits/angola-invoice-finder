@@ -1,48 +1,54 @@
-// Document storage using localStorage (will route to SQLite in Electron)
+// Document storage — DUAL-MODE: Electron → SQLite | Web → localStorage
 import { ERPDocument, DocumentType, DocumentStatus, DocumentLine, generateDocumentNumber, DOCUMENT_TYPE_CONFIG } from '@/types/documents';
+import { isElectronMode, dbGetAll, dbInsert, lsGet, lsSet } from '@/lib/dbHelper';
 
 const STORAGE_KEY = 'kwanzaerp_documents';
 
-function getAll(): ERPDocument[] {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch { return []; }
-}
-
-function saveAll(docs: ERPDocument[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
-}
-
-export function getDocuments(type?: DocumentType, branchId?: string): ERPDocument[] {
-  let docs = getAll();
+export async function getDocuments(type?: DocumentType, branchId?: string): Promise<ERPDocument[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('erp_documents');
+    let docs = rows.map(mapDocFromDb);
+    if (type) docs = docs.filter(d => d.documentType === type);
+    if (branchId) docs = docs.filter(d => d.branchId === branchId);
+    return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  let docs = lsGet<ERPDocument[]>(STORAGE_KEY, []);
   if (type) docs = docs.filter(d => d.documentType === type);
   if (branchId) docs = docs.filter(d => d.branchId === branchId);
   return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export function getDocumentById(id: string): ERPDocument | undefined {
-  return getAll().find(d => d.id === id);
+export async function getDocumentById(id: string): Promise<ERPDocument | undefined> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('erp_documents');
+    const row = rows.find((r: any) => r.id === id);
+    return row ? mapDocFromDb(row) : undefined;
+  }
+  return lsGet<ERPDocument[]>(STORAGE_KEY, []).find(d => d.id === id);
 }
 
-export function getNextSequence(type: DocumentType, branchId: string): number {
-  const docs = getAll().filter(d => d.documentType === type && d.branchId === branchId);
+export async function getNextSequence(type: DocumentType, branchId: string): Promise<number> {
+  const docs = await getDocuments(type, branchId);
   return docs.length + 1;
 }
 
-export function saveDocument(doc: ERPDocument): ERPDocument {
-  const docs = getAll();
+export async function saveDocument(doc: ERPDocument): Promise<ERPDocument> {
+  if (isElectronMode()) {
+    await dbInsert('erp_documents', mapDocToDb(doc));
+    return doc;
+  }
+  const docs = lsGet<ERPDocument[]>(STORAGE_KEY, []);
   const idx = docs.findIndex(d => d.id === doc.id);
   if (idx >= 0) {
     docs[idx] = { ...doc, updatedAt: new Date().toISOString() };
   } else {
     docs.push(doc);
   }
-  saveAll(docs);
+  lsSet(STORAGE_KEY, docs);
   return doc;
 }
 
-export function createDocument(
+export async function createDocument(
   type: DocumentType,
   branchId: string,
   branchCode: string,
@@ -50,8 +56,8 @@ export function createDocument(
   createdBy: string,
   createdByName: string,
   data: Partial<ERPDocument>
-): ERPDocument {
-  const seq = getNextSequence(type, branchId);
+): Promise<ERPDocument> {
+  const seq = await getNextSequence(type, branchId);
   const now = new Date().toISOString();
   
   const doc: ERPDocument = {
@@ -96,21 +102,20 @@ export function createDocument(
   return saveDocument(doc);
 }
 
-export function convertDocument(
+export async function convertDocument(
   sourceId: string,
   targetType: DocumentType,
   branchCode: string,
   createdBy: string,
   createdByName: string
-): ERPDocument | null {
-  const source = getDocumentById(sourceId);
+): Promise<ERPDocument | null> {
+  const source = await getDocumentById(sourceId);
   if (!source) return null;
 
   const config = DOCUMENT_TYPE_CONFIG[source.documentType];
   if (!config.canConvertTo.includes(targetType)) return null;
 
-  // Create new document from source
-  const newDoc = createDocument(
+  const newDoc = await createDocument(
     targetType,
     source.branchId,
     branchCode,
@@ -136,13 +141,12 @@ export function convertDocument(
     }
   );
 
-  // Update source status
   source.status = 'converted';
   source.childDocuments = [
     ...(source.childDocuments || []),
     { id: newDoc.id, number: newDoc.documentNumber, type: targetType }
   ];
-  saveDocument(source);
+  await saveDocument(source);
 
   return newDoc;
 }
@@ -185,5 +189,88 @@ export function calculateDocumentTotals(lines: DocumentLine[]) {
     totalDiscount: Math.round(totalDiscount * 100) / 100,
     totalTax: Math.round(totalTax * 100) / 100,
     total: Math.round(total * 100) / 100,
+  };
+}
+
+// DB mappers
+function mapDocFromDb(row: any): ERPDocument {
+  return {
+    id: row.id,
+    documentType: row.document_type || 'FT',
+    documentNumber: row.document_number || '',
+    branchId: row.branch_id || '',
+    branchName: row.branch_name || '',
+    entityType: row.entity_type || 'customer',
+    entityName: row.entity_name || '',
+    entityNif: row.entity_nif,
+    entityAddress: row.entity_address,
+    entityPhone: row.entity_phone,
+    entityEmail: row.entity_email,
+    entityId: row.entity_id,
+    lines: row.lines_json ? JSON.parse(row.lines_json) : [],
+    subtotal: Number(row.subtotal || 0),
+    totalDiscount: Number(row.total_discount || 0),
+    totalTax: Number(row.total_tax || 0),
+    total: Number(row.total || 0),
+    currency: row.currency || 'AOA',
+    paymentMethod: row.payment_method,
+    amountPaid: Number(row.amount_paid || 0),
+    amountDue: Number(row.amount_due || 0),
+    parentDocumentId: row.parent_document_id,
+    parentDocumentNumber: row.parent_document_number,
+    parentDocumentType: row.parent_document_type,
+    status: row.status || 'draft',
+    issueDate: row.issue_date || '',
+    issueTime: row.issue_time || '',
+    dueDate: row.due_date,
+    validUntil: row.valid_until,
+    notes: row.notes,
+    internalNotes: row.internal_notes,
+    termsAndConditions: row.terms_and_conditions,
+    createdBy: row.created_by || '',
+    createdByName: row.created_by_name || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+    childDocuments: row.child_documents_json ? JSON.parse(row.child_documents_json) : undefined,
+  };
+}
+
+function mapDocToDb(doc: ERPDocument): any {
+  return {
+    id: doc.id,
+    document_type: doc.documentType,
+    document_number: doc.documentNumber,
+    branch_id: doc.branchId,
+    branch_name: doc.branchName || '',
+    entity_type: doc.entityType || '',
+    entity_name: doc.entityName || '',
+    entity_nif: doc.entityNif || '',
+    entity_address: doc.entityAddress || '',
+    entity_phone: doc.entityPhone || '',
+    entity_email: doc.entityEmail || '',
+    entity_id: doc.entityId || '',
+    lines_json: JSON.stringify(doc.lines || []),
+    subtotal: doc.subtotal,
+    total_discount: doc.totalDiscount,
+    total_tax: doc.totalTax,
+    total: doc.total,
+    currency: doc.currency || 'AOA',
+    payment_method: doc.paymentMethod || '',
+    amount_paid: doc.amountPaid || 0,
+    amount_due: doc.amountDue || 0,
+    parent_document_id: doc.parentDocumentId || '',
+    parent_document_number: doc.parentDocumentNumber || '',
+    parent_document_type: doc.parentDocumentType || '',
+    status: doc.status,
+    issue_date: doc.issueDate || '',
+    issue_time: doc.issueTime || '',
+    due_date: doc.dueDate || '',
+    valid_until: doc.validUntil || '',
+    notes: doc.notes || '',
+    internal_notes: doc.internalNotes || '',
+    terms_and_conditions: doc.termsAndConditions || '',
+    created_by: doc.createdBy || '',
+    created_by_name: doc.createdByName || '',
+    child_documents_json: doc.childDocuments ? JSON.stringify(doc.childDocuments) : '',
   };
 }
