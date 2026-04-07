@@ -1,4 +1,4 @@
-// Pro Forma hook for Kwanza ERP
+// Pro Forma hook for Kwanza ERP — all calls now async
 import { useState, useCallback, useEffect } from 'react';
 import { ProForma, ProFormaItem } from '@/types/proforma';
 import { Product, Sale, SaleItem } from '@/types/erp';
@@ -19,16 +19,17 @@ export function useProForma(branchId?: string) {
   const [proformas, setProformas] = useState<ProForma[]>([]);
   const { log: logTransaction } = useTransactionHistory();
 
-  const refresh = useCallback(() => {
-    updateExpiredProFormas();
-    setProformas(getProFormas(branchId));
+  const refresh = useCallback(async () => {
+    await updateExpiredProFormas();
+    const data = await getProFormas(branchId);
+    setProformas(data);
   }, [branchId]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const createProForma = useCallback((
+  const createProForma = useCallback(async (
     branchId: string,
     branchCode: string,
     branchName: string,
@@ -44,7 +45,7 @@ export function useProForma(branchId?: string) {
     createdBy: string,
     notes?: string,
     termsAndConditions?: string
-  ): ProForma => {
+  ): Promise<ProForma> => {
     const totals = calculateProFormaTotals(items);
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + validDays);
@@ -73,8 +74,8 @@ export function useProForma(branchId?: string) {
       updatedAt: new Date().toISOString(),
     };
 
-    saveProForma(proforma);
-    refresh();
+    await saveProForma(proforma);
+    await refresh();
 
     logTransaction({
       category: 'fiscal',
@@ -88,17 +89,17 @@ export function useProForma(branchId?: string) {
     return proforma;
   }, [refresh, logTransaction]);
 
-  const updateProFormaStatus = useCallback((
+  const updateProFormaStatus = useCallback(async (
     proformaId: string,
     status: ProForma['status']
-  ): void => {
-    const proforma = getProFormaById(proformaId);
+  ): Promise<void> => {
+    const proforma = await getProFormaById(proformaId);
     if (!proforma) return;
 
     proforma.status = status;
     proforma.updatedAt = new Date().toISOString();
-    saveProForma(proforma);
-    refresh();
+    await saveProForma(proforma);
+    await refresh();
 
     logTransaction({
       category: 'fiscal',
@@ -110,18 +111,17 @@ export function useProForma(branchId?: string) {
     });
   }, [refresh, logTransaction]);
 
-  const convertToInvoice = useCallback((
+  const convertToInvoice = useCallback(async (
     proformaId: string,
     branchCode: string,
     cashierId: string,
     cashierName: string,
     paymentMethod: Sale['paymentMethod'],
     amountPaid: number
-  ): Sale | null => {
-    const proforma = getProFormaById(proformaId);
+  ): Promise<Sale | null> => {
+    const proforma = await getProFormaById(proformaId);
     if (!proforma || proforma.status === 'converted') return null;
 
-    // Create sale items from proforma items
     const saleItems: SaleItem[] = proforma.items.map(item => ({
       productId: item.productId,
       productName: item.productName,
@@ -156,17 +156,16 @@ export function useProForma(branchId?: string) {
       createdAt: new Date().toISOString(),
     };
 
-    saveSale(sale);
+    await saveSale(sale);
 
-    // Update proforma status
     proforma.status = 'converted';
     proforma.convertedToInvoiceId = sale.id;
     proforma.convertedToInvoiceNumber = invoiceNumber;
     proforma.convertedAt = new Date().toISOString();
     proforma.updatedAt = new Date().toISOString();
-    saveProForma(proforma);
+    await saveProForma(proforma);
     
-    refresh();
+    await refresh();
 
     logTransaction({
       category: 'sales',
@@ -174,23 +173,18 @@ export function useProForma(branchId?: string) {
       entityId: sale.id,
       entityType: 'sale',
       description: `Pro Forma ${proforma.documentNumber} convertida em Factura ${invoiceNumber}`,
-      details: { 
-        proformaId, 
-        invoiceId: sale.id,
-        invoiceNumber,
-        total: sale.total 
-      },
+      details: { proformaId, invoiceId: sale.id, invoiceNumber, total: sale.total },
     });
 
     return sale;
   }, [refresh, logTransaction]);
 
-  const duplicateProForma = useCallback((
+  const duplicateProForma = useCallback(async (
     proformaId: string,
     branchCode: string,
     createdBy: string
-  ): ProForma | null => {
-    const original = getProFormaById(proformaId);
+  ): Promise<ProForma | null> => {
+    const original = await getProFormaById(proformaId);
     if (!original) return null;
 
     const validUntil = new Date();
@@ -210,17 +204,17 @@ export function useProForma(branchId?: string) {
       updatedAt: new Date().toISOString(),
     };
 
-    saveProForma(newProforma);
-    refresh();
+    await saveProForma(newProforma);
+    await refresh();
 
     return newProforma;
   }, [refresh]);
 
-  const deleteProForma = useCallback((proformaId: string): void => {
-    const proforma = getProFormaById(proformaId);
+  const deleteProForma = useCallback(async (proformaId: string): Promise<void> => {
+    const proforma = await getProFormaById(proformaId);
     if (proforma && proforma.status !== 'converted') {
-      removeProForma(proformaId);
-      refresh();
+      await removeProForma(proformaId);
+      await refresh();
 
       logTransaction({
         category: 'fiscal',
@@ -250,7 +244,6 @@ export function useProForma(branchId?: string) {
   };
 }
 
-// Helper to convert product to proforma item
 export function productToProFormaItem(product: Product, quantity: number = 1): ProFormaItem {
   const subtotal = product.price * quantity;
   const taxAmount = subtotal * (product.taxRate / 100);

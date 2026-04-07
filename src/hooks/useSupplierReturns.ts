@@ -1,4 +1,4 @@
-// Supplier Returns Hook
+// Supplier Returns Hook — async
 import { useState, useEffect, useCallback } from 'react';
 import { PurchaseOrder, StockMovement } from '@/types/erp';
 import { 
@@ -13,8 +13,9 @@ import { getBranches, updateProductStock, saveStockMovement } from '@/lib/storag
 export function useSupplierReturns(branchId?: string) {
   const [supplierReturns, setSupplierReturns] = useState<SupplierReturn[]>([]);
 
-  const refreshReturns = useCallback(() => {
-    setSupplierReturns(getSupplierReturns(branchId));
+  const refreshReturns = useCallback(async () => {
+    const data = await getSupplierReturns(branchId);
+    setSupplierReturns(data);
   }, [branchId]);
 
   useEffect(() => {
@@ -61,9 +62,8 @@ export function useSupplierReturns(branchId?: string) {
       notes,
     };
 
-    saveSupplierReturn(supplierReturn);
+    await saveSupplierReturn(supplierReturn);
 
-    // Deduct stock when creating the return (items leaving our inventory)
     if (deductStock) {
       for (const item of items) {
         await updateProductStock(item.productId, -item.quantity);
@@ -87,49 +87,48 @@ export function useSupplierReturns(branchId?: string) {
       }
     }
 
-    refreshReturns();
+    await refreshReturns();
     return supplierReturn;
   }, [refreshReturns]);
 
-  const approveReturn = useCallback((returnId: string, approvedBy: string) => {
-    const returns = getSupplierReturns();
+  const approveReturn = useCallback(async (returnId: string, approvedBy: string) => {
+    const returns = await getSupplierReturns();
     const returnDoc = returns.find(r => r.id === returnId);
     if (returnDoc && returnDoc.status === 'pending') {
       returnDoc.status = 'approved';
       returnDoc.approvedBy = approvedBy;
       returnDoc.approvedAt = new Date().toISOString();
-      saveSupplierReturn(returnDoc);
-      refreshReturns();
+      await saveSupplierReturn(returnDoc);
+      await refreshReturns();
     }
   }, [refreshReturns]);
 
-  const markAsShipped = useCallback((returnId: string) => {
-    const returns = getSupplierReturns();
+  const markAsShipped = useCallback(async (returnId: string) => {
+    const returns = await getSupplierReturns();
     const returnDoc = returns.find(r => r.id === returnId);
     if (returnDoc && returnDoc.status === 'approved') {
       returnDoc.status = 'shipped';
       returnDoc.shippedAt = new Date().toISOString();
-      saveSupplierReturn(returnDoc);
-      refreshReturns();
+      await saveSupplierReturn(returnDoc);
+      await refreshReturns();
     }
   }, [refreshReturns]);
 
-  const completeReturn = useCallback((returnId: string) => {
-    const returns = getSupplierReturns();
+  const completeReturn = useCallback(async (returnId: string) => {
+    const returns = await getSupplierReturns();
     const returnDoc = returns.find(r => r.id === returnId);
     if (returnDoc && returnDoc.status === 'shipped') {
       returnDoc.status = 'completed';
       returnDoc.completedAt = new Date().toISOString();
-      saveSupplierReturn(returnDoc);
-      refreshReturns();
+      await saveSupplierReturn(returnDoc);
+      await refreshReturns();
     }
   }, [refreshReturns]);
 
   const cancelReturn = useCallback(async (returnId: string, userId: string) => {
-    const returns = getSupplierReturns();
+    const returns = await getSupplierReturns();
     const returnDoc = returns.find(r => r.id === returnId);
     if (returnDoc && returnDoc.status === 'pending') {
-      // Restore stock if it was deducted
       for (const item of returnDoc.items) {
         await updateProductStock(item.productId, item.quantity);
         const movement: StockMovement = {
@@ -151,8 +150,8 @@ export function useSupplierReturns(branchId?: string) {
       }
       
       returnDoc.status = 'cancelled';
-      saveSupplierReturn(returnDoc);
-      refreshReturns();
+      await saveSupplierReturn(returnDoc);
+      await refreshReturns();
     }
   }, [refreshReturns]);
 
