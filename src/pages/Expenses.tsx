@@ -8,7 +8,8 @@ import {
   saveExpense,
   payExpense, 
   getCaixas, 
-  getBankAccounts 
+  getBankAccounts,
+  ensureBranchCaixa
 } from '@/lib/accountingStorage';
 import { Expense, ExpenseCategory, EXPENSE_CATEGORIES, Caixa, BankAccount } from '@/types/accounting';
 import { format } from 'date-fns';
