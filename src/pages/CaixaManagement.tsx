@@ -12,7 +12,8 @@ import {
   closeCaixaSession,
   getCashTransactions,
   createCashTransaction,
-  updateCaixaBalance
+  updateCaixaBalance,
+  ensureBranchCaixa
 } from '@/lib/accountingStorage';
 import { Caixa, CaixaSession, CashTransaction } from '@/types/accounting';
 import { MoneyTransferDialog } from '@/components/accounting/MoneyTransferDialog';
@@ -146,6 +147,10 @@ export default function CaixaManagement() {
   const [closingNotes, setClosingNotes] = useState<string>('');
 
   const loadData = () => {
+    // Auto-seed a default Caixa for the current branch if none exists
+    if (currentBranch?.id) {
+      ensureBranchCaixa(currentBranch.id, currentBranch.name || 'Sede');
+    }
     setCaixas(getCaixas(currentBranch?.id));
     setSessions(getCaixaSessions());
     setTransactions(getCashTransactions());

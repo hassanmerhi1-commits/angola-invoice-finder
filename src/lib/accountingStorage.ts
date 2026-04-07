@@ -100,6 +100,16 @@ export function updateCaixaBalance(caixaId: string, amount: number, direction: '
   }
 }
 
+// Ensure a default Caixa exists for a branch - auto-seeds if none found
+export function ensureBranchCaixa(branchId: string, branchName: string): Caixa {
+  const existing = getCaixas(branchId);
+  if (existing.length > 0) {
+    return existing[0];
+  }
+  // Auto-create a default Caixa for this branch
+  return createCaixa(branchId, branchName, `Caixa Principal - ${branchName}`, 0);
+}
+
 // Get the first open Caixa for a branch (for POS integration)
 export function getOpenCaixaForBranch(branchId: string): Caixa | undefined {
   const caixas = getCaixas(branchId);
