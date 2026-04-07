@@ -214,15 +214,23 @@ export async function updateProductStock(productId: string, quantityChange: numb
   const products = lsGet<Product[]>(STORAGE_KEYS.products, []);
   const { targetProduct, createdProduct } = resolveStockProduct(products, productId, quantityChange, branchId);
   if (createdProduct) {
+    // New branch clone — set stock directly and push
+    createdProduct.stock = quantityChange;
+    createdProduct.updatedAt = new Date().toISOString();
     products.push(createdProduct);
+    lsSet(STORAGE_KEYS.products, products);
+    emitProductsChanged(branchId || createdProduct.branchId);
+    return;
   }
 
-  const index = targetProduct ? products.findIndex(p => p.id === targetProduct.id) : -1;
-  if (index >= 0) {
-    products[index].stock += quantityChange;
-    products[index].updatedAt = new Date().toISOString();
-    lsSet(STORAGE_KEYS.products, products);
-    emitProductsChanged(branchId || products[index].branchId);
+  if (targetProduct) {
+    const index = products.findIndex(p => p.id === targetProduct.id);
+    if (index >= 0) {
+      products[index].stock = (products[index].stock || 0) + quantityChange;
+      products[index].updatedAt = new Date().toISOString();
+      lsSet(STORAGE_KEYS.products, products);
+      emitProductsChanged(branchId || products[index].branchId);
+    }
   }
 }
 
