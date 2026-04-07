@@ -28,23 +28,28 @@ interface TransferItem {
 export default function StockTransfer() {
   const { user } = useAuth();
   const { branches, currentBranch } = useBranchContext();
-  const { products } = useProducts(currentBranch?.id);
-  const { transfers, createTransfer, approveTransfer, receiveTransfer, cancelTransfer } = useStockTransfers(currentBranch?.id);
+  // Load ALL transfers (not branch-filtered) so we can see transfers between any branches
+  const { transfers, createTransfer, approveTransfer, receiveTransfer, cancelTransfer } = useStockTransfers();
   const { toast } = useToast();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<StockTransferType | null>(null);
+  const [fromBranchId, setFromBranchId] = useState(currentBranch?.id || '');
   const [toBranchId, setToBranchId] = useState('');
   const [notes, setNotes] = useState('');
   const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
   const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({});
+
+  // Load products from the selected SOURCE branch
+  const { products: sourceProducts } = useProducts(fromBranchId || undefined);
 
   const pendingTransfers = transfers.filter(t => t.status === 'pending');
   const inTransitTransfers = transfers.filter(t => t.status === 'in_transit');
   const completedTransfers = transfers.filter(t => t.status === 'received' || t.status === 'cancelled');
 
   const resetForm = () => {
+    setFromBranchId(currentBranch?.id || '');
     setToBranchId('');
     setNotes('');
     setTransferItems([]);
@@ -70,6 +75,14 @@ export default function StockTransfer() {
         availableStock: product.stock,
       },
     ]);
+  };
+
+  // Clear items when source branch changes
+  const handleFromBranchChange = (branchId: string) => {
+    setFromBranchId(branchId);
+    setTransferItems([]);
+    // Reset destination if same as new source
+    if (toBranchId === branchId) setToBranchId('');
   };
 
   const updateItemQuantity = (productId: string, quantity: number) => {
