@@ -281,7 +281,7 @@ const ERP_TABLES = [
   'stock_movements', 'stock_transfers', 'stock_transfer_items',
   'invoices', 'daily_reports', 'caixas', 'caixa_sessions', 'caixa_transactions',
   'bank_accounts', 'bank_transactions', 'expenses',
-  'money_transfers',
+  'money_transfers', 'open_items', 'document_links',
   'settings', 'audit_logs'
 ];
 
@@ -1588,7 +1588,37 @@ function runMigrations() {
   migrate(`ALTER TABLE bank_transactions ADD COLUMN payee TEXT`);
   migrate(`ALTER TABLE bank_transactions ADD COLUMN notes TEXT`);
 
-  // Migration 6: Add caixa1 default user
+  // Migration 6: Open items and document links tables
+  migrate(`CREATE TABLE IF NOT EXISTS open_items (
+    id TEXT PRIMARY KEY,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    document_type TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    document_number TEXT,
+    document_date TEXT,
+    due_date TEXT,
+    currency TEXT DEFAULT 'AOA',
+    original_amount REAL DEFAULT 0,
+    remaining_amount REAL DEFAULT 0,
+    is_debit INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'open',
+    branch_id TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS document_links (
+    id TEXT PRIMARY KEY,
+    source_type TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    source_number TEXT,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    target_number TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Migration 7: Add caixa1 default user
   migrate(`INSERT OR IGNORE INTO users (id, username, password, name, role) VALUES ('user-caixa1', 'caixa1', 'caixa123', 'Caixa 1', 'cashier')`);
 
   // Migration 7: Default chart of accounts
