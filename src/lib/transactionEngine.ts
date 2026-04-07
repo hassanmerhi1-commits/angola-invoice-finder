@@ -23,6 +23,7 @@ import {
   saveSupplier,
   getClients,
   saveClient,
+  isElectronMode,
 } from '@/lib/storage';
 import { Product, StockMovement, OpenItem, DocumentLink } from '@/types/erp';
 import { logTransaction, TransactionCategory, TransactionAction } from '@/lib/transactionHistory';
@@ -36,7 +37,7 @@ export interface StockEntry {
   quantity: number;
   unitCost: number;
   direction: 'IN' | 'OUT';
-  warehouseId: string; // MUST be the specific branch/warehouse
+  warehouseId: string;
 }
 
 export interface JournalLine {
@@ -68,7 +69,6 @@ export interface DocumentLinkEntry {
 }
 
 export interface TransactionRequest {
-  // Identity
   transactionType: 'purchase_invoice' | 'sale' | 'payment_receipt' | 'payment_out' | 'stock_transfer' | 'adjustment' | 'expense' | 'credit_note';
   documentId: string;
   documentNumber: string;
@@ -78,31 +78,23 @@ export interface TransactionRequest {
   userName: string;
   date: string;
   currency?: string;
-  
-  // What to process (all optional — engine processes what's provided)
   stockEntries?: StockEntry[];
   journalLines?: JournalLine[];
   openItem?: OpenItemEntry;
   documentLinks?: DocumentLinkEntry[];
-  
-  // Price updates (for purchases)
   priceUpdates?: {
     productId: string;
     newUnitCost: number;
     quantityReceived: number;
     updateAvgCost: boolean;
   }[];
-  
-  // Entity balance update
   entityBalanceUpdate?: {
     entityType: 'customer' | 'supplier';
     entityId: string;
     entityName: string;
     entityNif?: string;
-    amount: number; // positive = increase balance (owes more), negative = decrease
+    amount: number;
   };
-  
-  // Audit
   description: string;
   amount?: number;
 }
@@ -116,27 +108,113 @@ export interface TransactionResult {
   documentLinkIds: string[];
 }
 
-// ==================== STORAGE KEYS ====================
+// ==================== STORAGE (dual-mode: SQLite / localStorage) ====================
 const OPEN_ITEMS_KEY = 'kwanzaerp_open_items';
 const DOCUMENT_LINKS_KEY = 'kwanzaerp_document_links';
 
-function getOpenItems(): OpenItem[] {
+async function getOpenItems(): Promise<OpenItem[]> {
+  if (isElectronMode()) {
+    try {
+      const result = await window.electronAPI!.db.getAll('open_items');
+      return (result.data || []).map((row: any) => ({
+        id: row.id,
+        entityType: row.entity_type,
+        entityId: row.entity_id,
+        documentType: row.document_type,
+        documentId: row.document_id,
+        documentNumber: row.document_number,
+        documentDate: row.document_date,
+        dueDate: row.due_date,
+        currency: row.currency || 'AOA',
+        originalAmount: Number(row.original_amount || 0),
+        remainingAmount: Number(row.remaining_amount || 0),
+        isDebit: !!row.is_debit,
+        status: row.status || 'open',
+        branchId: row.branch_id,
+        createdAt: row.created_at,
+      }));
+    } catch (e) {
+      console.error('[TransactionEngine] getOpenItems error:', e);
+      return [];
+    }
+  }
   try {
     return JSON.parse(localStorage.getItem(OPEN_ITEMS_KEY) || '[]');
   } catch { return []; }
 }
 
-function saveOpenItems(items: OpenItem[]) {
+async function saveOpenItem(item: OpenItem): Promise<void> {
+  if (isElectronMode()) {
+    try {
+      await window.electronAPI!.db.insert('open_items', {
+        id: item.id,
+        entity_type: item.entityType,
+        entity_id: item.entityId,
+        document_type: item.documentType,
+        document_id: item.documentId,
+        document_number: item.documentNumber,
+        document_date: item.documentDate,
+        due_date: item.dueDate || '',
+        currency: item.currency || 'AOA',
+        original_amount: item.originalAmount,
+        remaining_amount: item.remainingAmount,
+        is_debit: item.isDebit ? 1 : 0,
+        status: item.status,
+        branch_id: item.branchId,
+      });
+    } catch (e) {
+      console.error('[TransactionEngine] saveOpenItem error:', e);
+    }
+    return;
+  }
+  const items = await getOpenItems();
+  items.push(item);
   localStorage.setItem(OPEN_ITEMS_KEY, JSON.stringify(items));
 }
 
-function getDocumentLinks(): DocumentLink[] {
+async function getDocumentLinks(): Promise<DocumentLink[]> {
+  if (isElectronMode()) {
+    try {
+      const result = await window.electronAPI!.db.getAll('document_links');
+      return (result.data || []).map((row: any) => ({
+        id: row.id,
+        sourceType: row.source_type,
+        sourceId: row.source_id,
+        sourceNumber: row.source_number,
+        targetType: row.target_type,
+        targetId: row.target_id,
+        targetNumber: row.target_number,
+        createdAt: row.created_at,
+      }));
+    } catch (e) {
+      console.error('[TransactionEngine] getDocumentLinks error:', e);
+      return [];
+    }
+  }
   try {
     return JSON.parse(localStorage.getItem(DOCUMENT_LINKS_KEY) || '[]');
   } catch { return []; }
 }
 
-function saveDocumentLinks(links: DocumentLink[]) {
+async function saveDocumentLink(link: DocumentLink): Promise<void> {
+  if (isElectronMode()) {
+    try {
+      await window.electronAPI!.db.insert('document_links', {
+        id: link.id,
+        source_type: link.sourceType,
+        source_id: link.sourceId,
+        source_number: link.sourceNumber,
+        target_type: link.targetType,
+        target_id: link.targetId,
+        target_number: link.targetNumber,
+      });
+    } catch (e) {
+      console.error('[TransactionEngine] saveDocumentLink error:', e);
+    }
+    return;
+  }
+  const links = await getDocumentLinks();
+  links.push(link);
   localStorage.setItem(DOCUMENT_LINKS_KEY, JSON.stringify(links));
 }
 
@@ -150,7 +228,6 @@ export async function processTransaction(request: TransactionRequest): Promise<T
     documentLinkIds: [],
   };
   
-  // Validate branch
   if (!request.branchId) {
     result.errors.push('branchId é obrigatório — todas as transações devem ser associadas a uma filial');
     return result;
@@ -171,7 +248,7 @@ export async function processTransaction(request: TransactionRequest): Promise<T
           productId: entry.productId,
           productName: entry.productName,
           sku: entry.productSku,
-          branchId: entry.warehouseId, // SCOPED to specific warehouse/branch
+          branchId: entry.warehouseId,
           type: entry.direction,
           quantity: entry.quantity,
           reason: mapTransactionTypeToReason(request.transactionType),
@@ -184,9 +261,6 @@ export async function processTransaction(request: TransactionRequest): Promise<T
         
         await saveStockMovement(movement);
         
-        // Update product stock (scoped to the warehouse branch)
-        // For localStorage mode, we update the product's global stock
-        // In Electron/DB mode, stock is calculated from movements
         const qtyChange = entry.direction === 'IN' ? entry.quantity : -entry.quantity;
         await updateProductStock(entry.productId, qtyChange, entry.warehouseId);
         
@@ -201,7 +275,6 @@ export async function processTransaction(request: TransactionRequest): Promise<T
         const product = products.find(p => p.id === pu.productId);
         if (!product) continue;
         
-        // Reverse the stock increment to get previous stock
         const currentStock = product.stock || 0;
         const previousStock = Math.max(currentStock - pu.quantityReceived, 0);
         const previousAvgCost = product.avgCost || product.cost || 0;
@@ -229,7 +302,6 @@ export async function processTransaction(request: TransactionRequest): Promise<T
       const totalDebit = request.journalLines.reduce((s, l) => s + (l.debit || 0), 0);
       const totalCredit = request.journalLines.reduce((s, l) => s + (l.credit || 0), 0);
       
-      // Validate double-entry balance
       if (Math.abs(totalDebit - totalCredit) > 0.01) {
         console.warn(`[TransactionEngine] Journal unbalanced: Debit=${totalDebit}, Credit=${totalCredit} for ${request.documentNumber}`);
       }
@@ -249,7 +321,7 @@ export async function processTransaction(request: TransactionRequest): Promise<T
       result.journalEntryId = `je_${request.documentId}`;
     }
     
-    // ── Phase 4: Open Item (receivable/payable) ──
+    // ── Phase 4: Open Item (receivable/payable) → SQLite in Electron ──
     if (request.openItem) {
       const oi = request.openItem;
       const openItem: OpenItem = {
@@ -270,16 +342,12 @@ export async function processTransaction(request: TransactionRequest): Promise<T
         createdAt: new Date().toISOString(),
       };
       
-      const items = getOpenItems();
-      items.push(openItem);
-      saveOpenItems(items);
-      
+      await saveOpenItem(openItem);
       result.openItemId = openItem.id;
     }
     
-    // ── Phase 5: Document Links ──
+    // ── Phase 5: Document Links → SQLite in Electron ──
     if (request.documentLinks && request.documentLinks.length > 0) {
-      const links = getDocumentLinks();
       for (const dl of request.documentLinks) {
         const link: DocumentLink = {
           id: `dl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -291,10 +359,9 @@ export async function processTransaction(request: TransactionRequest): Promise<T
           targetNumber: dl.targetNumber,
           createdAt: new Date().toISOString(),
         };
-        links.push(link);
+        await saveDocumentLink(link);
         result.documentLinkIds.push(link.id);
       }
-      saveDocumentLinks(links);
     }
     
     // ── Phase 6: Entity Balance Update ──
@@ -379,28 +446,30 @@ export async function processTransaction(request: TransactionRequest): Promise<T
 
 // ==================== QUERY FUNCTIONS ====================
 
-export function getOpenItemsByEntity(entityType: 'customer' | 'supplier', entityId: string): OpenItem[] {
-  return getOpenItems().filter(oi => oi.entityType === entityType && oi.entityId === entityId && oi.status !== 'cleared');
+export async function getOpenItemsByEntity(entityType: 'customer' | 'supplier', entityId: string): Promise<OpenItem[]> {
+  const items = await getOpenItems();
+  return items.filter(oi => oi.entityType === entityType && oi.entityId === entityId && oi.status !== 'cleared');
 }
 
-export function getOpenItemsByBranch(branchId: string): OpenItem[] {
-  return getOpenItems().filter(oi => oi.branchId === branchId);
+export async function getOpenItemsByBranch(branchId: string): Promise<OpenItem[]> {
+  const items = await getOpenItems();
+  return items.filter(oi => oi.branchId === branchId);
 }
 
-export function getDocumentLinksBySource(sourceType: string, sourceId: string): DocumentLink[] {
-  return getDocumentLinks().filter(dl => dl.sourceType === sourceType && dl.sourceId === sourceId);
+export async function getDocumentLinksBySource(sourceType: string, sourceId: string): Promise<DocumentLink[]> {
+  const links = await getDocumentLinks();
+  return links.filter(dl => dl.sourceType === sourceType && dl.sourceId === sourceId);
 }
 
-export function getDocumentLinksByTarget(targetType: string, targetId: string): DocumentLink[] {
-  return getDocumentLinks().filter(dl => dl.targetType === targetType && dl.targetId === targetId);
+export async function getDocumentLinksByTarget(targetType: string, targetId: string): Promise<DocumentLink[]> {
+  const links = await getDocumentLinks();
+  return links.filter(dl => dl.targetType === targetType && dl.targetId === targetId);
 }
 
-export function getDocumentChain(documentType: string, documentId: string): DocumentLink[] {
-  const links = getDocumentLinks();
+export async function getDocumentChain(documentType: string, documentId: string): Promise<DocumentLink[]> {
+  const links = await getDocumentLinks();
   const chain: DocumentLink[] = [];
-  // Forward links (this doc as source)
   chain.push(...links.filter(dl => dl.sourceType === documentType && dl.sourceId === documentId));
-  // Backward links (this doc as target)
   chain.push(...links.filter(dl => dl.targetType === documentType && dl.targetId === documentId));
   return chain;
 }
