@@ -1,15 +1,18 @@
 // Pro Forma (Orçamento) Types for Kwanza ERP
 
 export interface ProFormaItem {
+  id?: string;
   productId: string;
   productName: string;
   sku: string;
+  description?: string;
   quantity: number;
   unitPrice: number;
   discount: number;
   taxRate: number;
   taxAmount: number;
   subtotal: number;
+  total?: number;
 }
 
 export interface ProForma {
@@ -24,6 +27,11 @@ export interface ProForma {
   customerEmail?: string;
   customerPhone?: string;
   customerAddress?: string;
+
+  // Legacy aliases used by DB mappers
+  clientId?: string;
+  clientName?: string;
+  clientNif?: string;
   
   // Items and totals
   items: ProFormaItem[];
@@ -31,6 +39,7 @@ export interface ProForma {
   taxAmount: number;
   discount: number;
   total: number;
+  currency?: string;
   
   // Validity
   validUntil: string;
@@ -49,6 +58,7 @@ export interface ProForma {
   
   // Audit
   createdBy: string;
+  createdByName?: string;
   createdAt: string;
   updatedAt: string;
 }

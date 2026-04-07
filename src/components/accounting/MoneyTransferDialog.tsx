@@ -68,8 +68,11 @@ export function MoneyTransferDialog({
 
   useEffect(() => {
     if (open && currentBranch) {
-      setCaixas(getCaixas(currentBranch.id));
-      setBankAccounts(getBankAccounts(currentBranch.id));
+      const load = async () => {
+        setCaixas(await getCaixas(currentBranch.id));
+        setBankAccounts(await getBankAccounts(currentBranch.id));
+      };
+      load();
     }
   }, [open, currentBranch]);
 
@@ -140,7 +143,7 @@ export function MoneyTransferDialog({
     setIsSubmitting(true);
     
     try {
-      const result = executeMoneyTransfer(
+      const result = await executeMoneyTransfer(
         currentBranch.id,
         currentBranch.code,
         sourceType,

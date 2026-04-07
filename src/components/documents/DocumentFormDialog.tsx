@@ -132,7 +132,7 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
     setLines(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSave = (status: 'draft' | 'confirmed') => {
+  const handleSave = async (status: 'draft' | 'confirmed') => {
     if (!entityName && config.entityType === 'customer') {
       setEntityName('Consumidor Final');
     }
@@ -159,7 +159,7 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
           notes,
           status,
         };
-        saveDocument(updated);
+        await saveDocument(updated);
         onSaved?.(updated);
         toast.success(`${config.shortLabel} actualizado`);
       } else {
@@ -189,8 +189,9 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
             status,
           }
         );
-        onSaved?.(doc);
-        toast.success(`${config.shortLabel} ${doc.documentNumber} criado`);
+        const savedDoc = await doc;
+        onSaved?.(savedDoc);
+        toast.success(`${config.shortLabel} ${savedDoc.documentNumber} criado`);
       }
       onOpenChange(false);
     } catch (error: any) {

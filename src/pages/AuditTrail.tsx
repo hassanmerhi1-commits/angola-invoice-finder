@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,8 +42,8 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 // Seed demo data if audit log is empty
-function ensureDemoData() {
-  const existing = getAuditLog();
+async function ensureDemoData() {
+  const existing = await getAuditLog();
   if (existing.length > 0) return;
 
   const demos: Omit<AuditEntry, 'id' | 'createdAt'>[] = [
@@ -64,15 +64,9 @@ function ensureDemoData() {
     { action: 'update', module: 'bank', description: 'Reconciliação bancária - BAI conta 0040 - 15 movimentos', userName: 'Director', userId: '2' },
   ];
 
-  demos.forEach((d, i) => {
-    recordAudit(d.action, d.module, d.description, d.userName, d.userId);
-    // Adjust timestamps to spread over 48h
-    const entries = getAuditLog();
-    if (entries[0]) {
-      entries[0].createdAt = new Date(Date.now() - i * 3600000 * 3).toISOString();
-      localStorage.setItem('kwanzaerp_audit_trail', JSON.stringify(entries));
-    }
-  });
+  for (const d of demos) {
+    await recordAudit(d.action, d.module, d.description, d.userName, d.userId);
+  }
 }
 
 export default function AuditTrail() {
@@ -82,11 +76,12 @@ export default function AuditTrail() {
   const [filterUser, setFilterUser] = useState('all');
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
 
-  // Seed demo data on first render
-  useMemo(() => ensureDemoData(), []);
-
-  const auditEntries = useMemo(() => getAuditLog(), [refreshKey]);
+  // Seed demo data and load on mount
+  useEffect(() => {
+    ensureDemoData().then(() => getAuditLog()).then(setAuditEntries);
+  }, [refreshKey]);
 
   const filtered = useMemo(() => {
     return auditEntries.filter(entry => {
@@ -208,7 +203,7 @@ export default function AuditTrail() {
           <SelectContent>
             <SelectItem value="all">Todos Módulos</SelectItem>
             {uniqueModules.map(m => (
-              <SelectItem key={m} value={m}>{MODULE_LABELS[m] || m}</SelectItem>
+              <SelectItem key={m as string} value={m as string}>{MODULE_LABELS[m as string] || m}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -217,7 +212,7 @@ export default function AuditTrail() {
           <SelectContent>
             <SelectItem value="all">Todos Utilizadores</SelectItem>
             {uniqueUsers.map(u => (
-              <SelectItem key={u} value={u}>{u}</SelectItem>
+              <SelectItem key={u as string} value={u as string}>{u as string}</SelectItem>
             ))}
           </SelectContent>
         </Select>

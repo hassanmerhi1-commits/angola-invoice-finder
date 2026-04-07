@@ -137,6 +137,8 @@ function mapProformaFromDb(row: any): ProForma {
     documentNumber: row.proforma_number || '',
     branchId: row.branch_id || '',
     branchName: '',
+    customerName: row.client_name || '',
+    customerNif: row.client_nif || '',
     clientId: row.client_id || '',
     clientName: row.client_name || '',
     clientNif: row.client_nif || '',
@@ -181,12 +183,14 @@ function mapProformaItemFromDb(row: any): ProFormaItem {
     id: row.id,
     productId: row.product_id || '',
     productName: row.product_name || '',
+    sku: row.sku || '',
     description: row.description || row.product_name || '',
     quantity: Number(row.quantity || 0),
     unitPrice: Number(row.unit_price || 0),
     discount: Number(row.discount || 0),
     taxRate: Number(row.tax_rate || 14),
     taxAmount: Number(row.tax_amount || 0),
+    subtotal: Number(row.subtotal || 0),
     total: Number(row.total || 0),
   };
 }

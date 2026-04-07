@@ -262,7 +262,7 @@ export function useSales(branchId?: string) {
     }
 
     // Update Caixa balance for cash payments (always local for real-time feedback)
-    const caixaResult = processSalePayment(
+    const caixaResult = await processSalePayment(
       branchId,
       sale.id,
       sale.invoiceNumber,

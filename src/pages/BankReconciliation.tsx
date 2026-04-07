@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useAuth } from '@/hooks/useERP';
 import { getBankAccounts, getBankTransactions } from '@/lib/accountingStorage';
@@ -73,8 +73,13 @@ export default function BankReconciliation() {
   const [dateTo, setDateTo] = useState('');
   const [activeTab, setActiveTab] = useState('unmatched');
 
-  const accounts = useMemo(() => getBankAccounts(currentBranch?.id), [currentBranch?.id]);
-  const allTransactions = useMemo(() => getBankTransactions(), []);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [allTransactions, setAllTransactions] = useState<BankTransaction[]>([]);
+
+  useEffect(() => {
+    getBankAccounts(currentBranch?.id).then(setAccounts);
+    getBankTransactions().then(setAllTransactions);
+  }, [currentBranch?.id]);
 
   const selectedAccount = useMemo(
     () => accounts.find(a => a.id === selectedAccountId),
