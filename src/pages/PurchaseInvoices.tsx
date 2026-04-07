@@ -115,7 +115,7 @@ function SupplierPickerDialog({
   );
 }
 
-function syncPurchaseInvoiceDocument(invoice: PurchaseInvoice) {
+async function syncPurchaseInvoiceDocument(invoice: PurchaseInvoice) {
   const lines = invoice.lines.map(line => {
     const gross = line.totalQty * line.unitPrice;
     const discountAmount = Math.max(gross - line.total, 0);
@@ -173,7 +173,7 @@ function syncPurchaseInvoiceDocument(invoice: PurchaseInvoice) {
     confirmedAt: invoice.updatedAt,
   };
 
-  saveDocument(document);
+  await saveDocument(document);
 }
 
 // ─────────── Product Picker Dialog ───────────
@@ -738,7 +738,7 @@ export default function PurchaseInvoices() {
 
     try {
       // Save the invoice document
-      savePurchaseInvoice(invoice);
+      await savePurchaseInvoice(invoice);
 
       // Use central transaction engine for atomic processing
       const txResult = await processTransaction({
@@ -842,7 +842,7 @@ export default function PurchaseInvoices() {
       }
 
       // Sync to document storage for unified views
-      syncPurchaseInvoiceDocument(invoice);
+      await syncPurchaseInvoiceDocument(invoice);
       await Promise.all([refreshProducts(), refreshSuppliers()]);
 
       toast({

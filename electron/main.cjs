@@ -1421,10 +1421,173 @@ function runMigrations() {
   migrate(`ALTER TABLE products ADD COLUMN first_cost REAL DEFAULT 0`);
   migrate(`ALTER TABLE products ADD COLUMN supplier_name TEXT`);
 
-  // Migration 4: Add caixa1 default user
+  // Migration 4: Missing desktop SQLite tables used by the React app
+  migrate(`CREATE TABLE IF NOT EXISTS caixa_sessions (
+    id TEXT PRIMARY KEY,
+    caixa_id TEXT NOT NULL,
+    branch_id TEXT,
+    date TEXT,
+    opening_balance REAL DEFAULT 0,
+    closing_balance REAL DEFAULT 0,
+    total_in REAL DEFAULT 0,
+    total_out REAL DEFAULT 0,
+    sales_total REAL DEFAULT 0,
+    expenses_total REAL DEFAULT 0,
+    adjustments REAL DEFAULT 0,
+    status TEXT DEFAULT 'open',
+    opened_by TEXT,
+    opened_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    closed_by TEXT,
+    closed_at TEXT,
+    notes TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS money_transfers (
+    id TEXT PRIMARY KEY,
+    transfer_number TEXT,
+    branch_id TEXT,
+    source_type TEXT,
+    source_caixa_id TEXT,
+    source_bank_account_id TEXT,
+    source_description TEXT,
+    destination_type TEXT,
+    destination_caixa_id TEXT,
+    destination_bank_account_id TEXT,
+    destination_description TEXT,
+    amount REAL DEFAULT 0,
+    status TEXT DEFAULT 'completed',
+    reason TEXT,
+    created_by TEXT,
+    completed_by TEXT,
+    completed_at TEXT,
+    notes TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS erp_documents (
+    id TEXT PRIMARY KEY,
+    document_type TEXT,
+    document_number TEXT,
+    branch_id TEXT,
+    branch_name TEXT,
+    entity_type TEXT,
+    entity_name TEXT,
+    entity_nif TEXT,
+    entity_address TEXT,
+    entity_phone TEXT,
+    entity_email TEXT,
+    entity_id TEXT,
+    lines_json TEXT,
+    subtotal REAL DEFAULT 0,
+    total_discount REAL DEFAULT 0,
+    total_tax REAL DEFAULT 0,
+    total REAL DEFAULT 0,
+    currency TEXT DEFAULT 'AOA',
+    payment_method TEXT,
+    amount_paid REAL DEFAULT 0,
+    amount_due REAL DEFAULT 0,
+    parent_document_id TEXT,
+    parent_document_number TEXT,
+    parent_document_type TEXT,
+    status TEXT DEFAULT 'draft',
+    issue_date TEXT,
+    issue_time TEXT,
+    due_date TEXT,
+    valid_until TEXT,
+    notes TEXT,
+    internal_notes TEXT,
+    terms_and_conditions TEXT,
+    child_documents_json TEXT,
+    created_by TEXT,
+    created_by_name TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  migrate(`CREATE TABLE IF NOT EXISTS purchase_invoices (
+    id TEXT PRIMARY KEY,
+    invoice_number TEXT,
+    supplier_account_code TEXT,
+    supplier_name TEXT,
+    supplier_nif TEXT,
+    supplier_phone TEXT,
+    supplier_balance REAL DEFAULT 0,
+    ref TEXT,
+    supplier_invoice_no TEXT,
+    contact TEXT,
+    department TEXT,
+    ref2 TEXT,
+    date TEXT,
+    payment_date TEXT,
+    project TEXT,
+    currency TEXT DEFAULT 'AOA',
+    warehouse_id TEXT,
+    warehouse_name TEXT,
+    price_type TEXT,
+    address TEXT,
+    purchase_account_code TEXT,
+    iva_account_code TEXT,
+    transaction_type TEXT,
+    currency_rate REAL DEFAULT 1,
+    tax_rate_2 REAL DEFAULT 0,
+    order_no TEXT,
+    surcharge_percent REAL DEFAULT 0,
+    change_price INTEGER DEFAULT 0,
+    is_pending INTEGER DEFAULT 0,
+    extra_note TEXT,
+    lines_json TEXT,
+    journal_lines_json TEXT,
+    subtotal REAL DEFAULT 0,
+    iva_total REAL DEFAULT 0,
+    total REAL DEFAULT 0,
+    status TEXT DEFAULT 'draft',
+    branch_id TEXT,
+    branch_name TEXT,
+    created_by TEXT,
+    created_by_name TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Migration 5: Missing columns for desktop accounting writes
+  migrate(`ALTER TABLE caixas ADD COLUMN branch_name TEXT`);
+  migrate(`ALTER TABLE caixas ADD COLUMN current_balance REAL DEFAULT 0`);
+  migrate(`ALTER TABLE caixas ADD COLUMN petty_limit REAL DEFAULT 0`);
+  migrate(`ALTER TABLE caixas ADD COLUMN daily_limit REAL DEFAULT 0`);
+  migrate(`ALTER TABLE caixas ADD COLUMN requires_approval INTEGER DEFAULT 0`);
+  migrate(`ALTER TABLE bank_accounts ADD COLUMN branch_name TEXT`);
+  migrate(`ALTER TABLE bank_accounts ADD COLUMN is_primary INTEGER DEFAULT 0`);
+  migrate(`ALTER TABLE expenses ADD COLUMN expense_number TEXT`);
+  migrate(`ALTER TABLE expenses ADD COLUMN tax_amount REAL DEFAULT 0`);
+  migrate(`ALTER TABLE expenses ADD COLUMN total_amount REAL DEFAULT 0`);
+  migrate(`ALTER TABLE expenses ADD COLUMN branch_name TEXT`);
+  migrate(`ALTER TABLE expenses ADD COLUMN payment_source TEXT`);
+  migrate(`ALTER TABLE expenses ADD COLUMN caixa_id TEXT`);
+  migrate(`ALTER TABLE expenses ADD COLUMN bank_account_id TEXT`);
+  migrate(`ALTER TABLE expenses ADD COLUMN payee_name TEXT`);
+  migrate(`ALTER TABLE expenses ADD COLUMN invoice_number TEXT`);
+  migrate(`ALTER TABLE expenses ADD COLUMN paid_by TEXT`);
+  migrate(`ALTER TABLE expenses ADD COLUMN transaction_id TEXT`);
+  migrate(`ALTER TABLE caixa_transactions ADD COLUMN reference_type TEXT`);
+  migrate(`ALTER TABLE caixa_transactions ADD COLUMN reference_number TEXT`);
+  migrate(`ALTER TABLE caixa_transactions ADD COLUMN balance_after REAL DEFAULT 0`);
+  migrate(`ALTER TABLE caixa_transactions ADD COLUMN branch_id TEXT`);
+  migrate(`ALTER TABLE caixa_transactions ADD COLUMN category TEXT`);
+  migrate(`ALTER TABLE caixa_transactions ADD COLUMN payee TEXT`);
+  migrate(`ALTER TABLE caixa_transactions ADD COLUMN notes TEXT`);
+  migrate(`ALTER TABLE bank_transactions ADD COLUMN reference_type TEXT`);
+  migrate(`ALTER TABLE bank_transactions ADD COLUMN reference_id TEXT`);
+  migrate(`ALTER TABLE bank_transactions ADD COLUMN reference_number TEXT`);
+  migrate(`ALTER TABLE bank_transactions ADD COLUMN transaction_date TEXT`);
+  migrate(`ALTER TABLE bank_transactions ADD COLUMN branch_id TEXT`);
+  migrate(`ALTER TABLE bank_transactions ADD COLUMN category TEXT`);
+  migrate(`ALTER TABLE bank_transactions ADD COLUMN payee TEXT`);
+  migrate(`ALTER TABLE bank_transactions ADD COLUMN notes TEXT`);
+
+  // Migration 6: Add caixa1 default user
   migrate(`INSERT OR IGNORE INTO users (id, username, password, name, role) VALUES ('user-caixa1', 'caixa1', 'caixa123', 'Caixa 1', 'cashier')`);
 
-  // Migration 4: Default chart of accounts
+  // Migration 7: Default chart of accounts
   const defaultAccounts = [
     ['coa-11', '11', 'Caixa', 'asset', 'Caixa'],
     ['coa-12', '12', 'Depósitos à Ordem', 'asset', 'Bancos'],

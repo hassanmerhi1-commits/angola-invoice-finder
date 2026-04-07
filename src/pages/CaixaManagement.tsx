@@ -227,16 +227,16 @@ export default function CaixaManagement() {
   };
 
   // Open session
-  const handleOpenSession = () => {
+  const handleOpenSession = async () => {
     if (!selectedCaixa) return;
     
-    const existingSession = getOpenCaixaSession(selectedCaixa.id);
+    const existingSession = await getOpenCaixaSession(selectedCaixa.id);
     if (existingSession) {
       toast({ title: 'Aviso', description: 'Já existe uma sessão aberta para esta caixa', variant: 'destructive' });
       return;
     }
 
-    openCaixaSession(
+    await openCaixaSession(
       selectedCaixa.id,
       currentBranch?.id || 'default',
       selectedCaixa.currentBalance,
