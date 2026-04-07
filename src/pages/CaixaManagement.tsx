@@ -12,7 +12,8 @@ import {
   closeCaixaSession,
   getCashTransactions,
   createCashTransaction,
-  updateCaixaBalance
+  updateCaixaBalance,
+  ensureBranchCaixa
 } from '@/lib/accountingStorage';
 import { Caixa, CaixaSession, CashTransaction } from '@/types/accounting';
 import { MoneyTransferDialog } from '@/components/accounting/MoneyTransferDialog';
