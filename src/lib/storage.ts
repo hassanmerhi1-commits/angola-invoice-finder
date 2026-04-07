@@ -79,6 +79,8 @@ const STORAGE_KEYS = {
   journalEntries: 'kwanzaerp_journal_entries',
 };
 
+export const PRODUCTS_CHANGED_EVENT = 'kwanzaerp:products-changed';
+
 function lsGet<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
@@ -90,6 +92,11 @@ function lsGet<T>(key: string, defaultValue: T): T {
 
 function lsSet<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function emitProductsChanged(branchId?: string): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(PRODUCTS_CHANGED_EVENT, { detail: { branchId } }));
 }
 
 // ============= BRANCH FUNCTIONS =============
@@ -135,12 +142,14 @@ export function setCurrentBranch(branch: Branch): void {
 
 // ============= PRODUCT FUNCTIONS =============
 export async function getProducts(branchId?: string): Promise<Product[]> {
+  const includeSharedProducts = await shouldIncludeSharedProducts(branchId);
+
   if (isElectronMode()) {
     const rows = await dbGetAll<any>('products');
-    return filterProductsForBranch(rows.map(mapProductFromDb), branchId);
+    return filterProductsForBranch(rows.map(mapProductFromDb), branchId, includeSharedProducts);
   }
   const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
-  return filterProductsForBranch(products, branchId);
+  return filterProductsForBranch(products, branchId, includeSharedProducts);
 }
 
 export async function getAllProducts(): Promise<Product[]> {
@@ -153,6 +162,7 @@ export async function saveProduct(product: Product): Promise<void> {
     const payload = mapProductToDb(product);
     if (existing?.data) await dbUpdate('products', product.id, payload);
     else await dbInsert('products', payload);
+    emitProductsChanged(product.branchId);
     auditLog(existing?.data ? 'update' : 'create', 'products', `Produto "${product.name}" (${product.sku}) ${existing?.data ? 'actualizado' : 'criado'}`, 'Sistema');
     return;
   }
@@ -162,6 +172,7 @@ export async function saveProduct(product: Product): Promise<void> {
   if (index >= 0) products[index] = product;
   else products.push(product);
   lsSet(STORAGE_KEYS.products, products);
+  emitProductsChanged(product.branchId);
   auditLog(isNew ? 'create' : 'update', 'products', `Produto "${product.name}" (${product.sku}) ${isNew ? 'criado' : 'actualizado'}`, 'Sistema');
 }
 
@@ -188,6 +199,7 @@ export async function updateProductStock(productId: string, quantityChange: numb
         stock: quantityChange,
         updatedAt,
       }));
+      emitProductsChanged(branchId || createdProduct.branchId);
       return;
     }
 
@@ -196,6 +208,7 @@ export async function updateProductStock(productId: string, quantityChange: numb
       stock: newStock,
       updated_at: updatedAt,
     });
+    emitProductsChanged(branchId || targetProduct.branchId);
     return;
   }
   const products = lsGet<Product[]>(STORAGE_KEYS.products, []);
@@ -209,13 +222,28 @@ export async function updateProductStock(productId: string, quantityChange: numb
     products[index].stock += quantityChange;
     products[index].updatedAt = new Date().toISOString();
     lsSet(STORAGE_KEYS.products, products);
+    emitProductsChanged(branchId || products[index].branchId);
   }
 }
 
-function filterProductsForBranch(products: Product[], branchId?: string): Product[] {
+async function shouldIncludeSharedProducts(branchId?: string): Promise<boolean> {
+  if (!branchId) return true;
+
+  const branches = isElectronMode()
+    ? (await dbGetAll<any>('branches')).map(mapBranchFromDb)
+    : lsGet<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
+
+  return branches.find(branch => branch.id === branchId)?.isMain ?? false;
+}
+
+function filterProductsForBranch(products: Product[], branchId?: string, includeSharedProducts: boolean = true): Product[] {
   if (!branchId) return products;
 
   const branchProducts = products.filter(p => p.branchId === branchId);
+  if (!includeSharedProducts) {
+    return branchProducts;
+  }
+
   const branchSkus = new Set(branchProducts.map(p => normalizeSku(p.sku)).filter(Boolean));
 
   const sharedProducts = products.filter(p => {
