@@ -595,9 +595,24 @@ export function useStockTransfers(branchId?: string) {
       transfer.status = 'in_transit';
       transfer.approvedBy = userId;
       transfer.approvedAt = new Date().toISOString();
-      // Deduct from SOURCE branch only
+      // Deduct from SOURCE branch and record stock movements
       for (const item of transfer.items) {
         await storage.updateProductStock(item.productId, -item.quantity, transfer.fromBranchId);
+        await storage.saveStockMovement({
+          id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          branchId: transfer.fromBranchId,
+          type: 'OUT',
+          quantity: item.quantity,
+          reason: 'transfer_out',
+          referenceId: transfer.id,
+          referenceNumber: transfer.transferNumber,
+          notes: `Transferência para ${transfer.toBranchName}`,
+          createdBy: userId,
+          createdAt: new Date().toISOString(),
+        });
       }
       await storage.saveStockTransfer(transfer);
       await refreshTransfers();
@@ -616,9 +631,25 @@ export function useStockTransfers(branchId?: string) {
       transfer.status = 'received';
       transfer.receivedBy = userId;
       transfer.receivedAt = new Date().toISOString();
-      // Add to DESTINATION branch only
+      // Add to DESTINATION branch and record stock movements
       for (const item of transfer.items) {
-        await storage.updateProductStock(item.productId, item.receivedQuantity || item.quantity, transfer.toBranchId);
+        const qty = item.receivedQuantity || item.quantity;
+        await storage.updateProductStock(item.productId, qty, transfer.toBranchId);
+        await storage.saveStockMovement({
+          id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          branchId: transfer.toBranchId,
+          type: 'IN',
+          quantity: qty,
+          reason: 'transfer_in',
+          referenceId: transfer.id,
+          referenceNumber: transfer.transferNumber,
+          notes: `Transferência de ${transfer.fromBranchName}`,
+          createdBy: userId,
+          createdAt: new Date().toISOString(),
+        });
       }
       await storage.saveStockTransfer(transfer);
       await refreshTransfers();
