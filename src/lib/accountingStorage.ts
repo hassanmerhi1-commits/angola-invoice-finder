@@ -816,7 +816,7 @@ function mapCaixaFromDb(row: any): Caixa {
   return {
     id: row.id, branchId: row.branch_id || '', branchName: row.branch_name || '',
     name: row.name || '', openingBalance: Number(row.opening_balance || 0),
-    currentBalance: Number(row.closing_balance || row.current_balance || 0),
+    currentBalance: Number(row.current_balance ?? row.closing_balance ?? 0),
     status: row.status || 'closed',
     pettyLimit: row.petty_limit ? Number(row.petty_limit) : undefined,
     dailyLimit: row.daily_limit ? Number(row.daily_limit) : undefined,
@@ -834,10 +834,15 @@ function mapCaixaToDb(caixa: Caixa): any {
     id: caixa.id, name: caixa.name, branch_id: caixa.branchId,
     branch_name: caixa.branchName,
     opened_by: caixa.openedBy || '', closed_by: caixa.closedBy || '',
-    opening_balance: caixa.openingBalance, closing_balance: caixa.currentBalance,
+    opening_balance: caixa.openingBalance,
+    current_balance: caixa.currentBalance,
+    closing_balance: caixa.closingBalance ?? 0,
     cash_sales: 0, card_sales: 0, transfer_sales: 0,
     withdrawals: 0, deposits: 0, status: caixa.status,
     opened_at: caixa.openedAt || '', closed_at: caixa.closedAt || '',
+    petty_limit: caixa.pettyLimit || 0,
+    daily_limit: caixa.dailyLimit || 0,
+    requires_approval: caixa.requiresApproval ? 1 : 0,
     notes: caixa.closingNotes || '',
   };
 }
