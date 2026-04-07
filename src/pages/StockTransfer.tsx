@@ -100,7 +100,7 @@ export default function StockTransfer() {
   };
 
   const handleCreateTransfer = () => {
-    if (!currentBranch || !toBranchId || transferItems.length === 0 || !user) {
+    if (!fromBranchId || !toBranchId || transferItems.length === 0 || !user) {
       toast({
         title: 'Erro',
         description: 'Preencha todos os campos obrigatórios',
@@ -110,7 +110,7 @@ export default function StockTransfer() {
     }
 
     createTransfer(
-      currentBranch.id,
+      fromBranchId,
       toBranchId,
       transferItems.map(item => ({
         productId: item.productId,
