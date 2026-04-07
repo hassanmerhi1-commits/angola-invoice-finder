@@ -80,7 +80,7 @@ export default function ProFormaPage() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer'>('cash');
   const [amountPaid, setAmountPaid] = useState(0);
 
-  const stats = useMemo(() => getStats(), [proformas]);
+  // stats loaded via useEffect above
 
   const filteredProformas = useMemo(() => {
     return proformas.filter(p => {
@@ -233,7 +233,7 @@ export default function ProFormaPage() {
     }
   };
 
-  const handleConvert = () => {
+  const handleConvert = async () => {
     if (!selectedProforma || !currentBranch || !user) return;
     
     const sale = await convertToInvoice(
