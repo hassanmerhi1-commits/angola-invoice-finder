@@ -521,10 +521,10 @@ function TransferTable({
                     Aprovar
                   </Button>
                 )}
-                {transfer.status === 'in_transit' && transfer.toBranchId === currentBranchId && onReceive && (
+                {transfer.status === 'in_transit' && onReceive && (
                   <Button size="sm" variant="outline" onClick={() => onReceive(transfer)}>
                     <Package className="w-4 h-4 mr-1" />
-                    Receber
+                    Confirmar Recepção
                   </Button>
                 )}
                 {transfer.status === 'pending' && onCancel && (
