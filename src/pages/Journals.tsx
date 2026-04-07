@@ -345,6 +345,7 @@ export default function Journals() {
       description: l.description || newEntryDescription,
       debit_amount: parseFloat(l.debit) || 0,
       credit_amount: parseFloat(l.credit) || 0,
+      created_at: now,
     }));
 
     const journalEntry: JournalEntry = {
