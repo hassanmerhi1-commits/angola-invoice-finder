@@ -1,7 +1,7 @@
 // Kwanza ERP - Extracto (Account Statement)
 // Shows all documents linked to a customer/supplier with running balance
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from '@/i18n';
 import { useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';

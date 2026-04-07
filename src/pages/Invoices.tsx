@@ -1,7 +1,7 @@
 // Kwanza ERP Faturas/Vouchers workspace
 // Multi-tab document browser with linked conversion flow
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '@/i18n';
 import { useAuth } from '@/hooks/useERP';

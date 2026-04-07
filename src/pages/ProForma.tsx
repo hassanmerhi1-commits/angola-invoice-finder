@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from '@/i18n';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useProducts, useClients, useAuth } from '@/hooks/useERP';
@@ -58,6 +58,11 @@ export default function ProFormaPage() {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [selectedProforma, setSelectedProforma] = useState<ProForma | null>(null);
+  const [stats, setStats] = useState({ total: 0, draft: 0, sent: 0, accepted: 0, converted: 0, expired: 0, totalValue: 0, pendingValue: 0 });
+
+  useEffect(() => {
+    getStats().then(setStats);
+  }, [proformas, getStats]);
 
   // Create form state
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -231,7 +236,7 @@ export default function ProFormaPage() {
   const handleConvert = () => {
     if (!selectedProforma || !currentBranch || !user) return;
     
-    const sale = convertToInvoice(
+    const sale = await convertToInvoice(
       selectedProforma.id,
       currentBranch.code,
       user.id,
@@ -249,9 +254,9 @@ export default function ProFormaPage() {
     }
   };
 
-  const handleDuplicate = (proforma: ProForma) => {
+  const handleDuplicate = async (proforma: ProForma) => {
     if (!currentBranch || !user) return;
-    const newProforma = duplicateProForma(proforma.id, currentBranch.code, user.name);
+    const newProforma = await duplicateProForma(proforma.id, currentBranch.code, user.name);
     if (newProforma) {
       toast.success(`Pro Forma duplicada: ${newProforma.documentNumber}`);
     }
