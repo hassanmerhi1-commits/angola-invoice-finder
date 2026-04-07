@@ -183,7 +183,7 @@ export default function StockTransfer() {
     }
   };
 
-  const otherBranches = branches.filter(b => b.id !== currentBranch?.id);
+  const destinationBranches = branches.filter(b => b.id !== fromBranchId);
 
   return (
     <div className="space-y-6">
@@ -236,7 +236,7 @@ export default function StockTransfer() {
             <Package className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{products.filter(p => p.stock <= 10).length}</div>
+            <div className="text-2xl font-bold">{sourceProducts.filter(p => p.stock <= 10).length}</div>
             <p className="text-xs text-muted-foreground">stock baixo</p>
           </CardContent>
         </Card>
@@ -318,36 +318,50 @@ export default function StockTransfer() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>De: {currentBranch?.name}</Label>
-            </div>
-            <div className="space-y-2">
-              <Label>Para:</Label>
-              <Select value={toBranchId} onValueChange={setToBranchId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a filial de destino" />
-                </SelectTrigger>
-                <SelectContent>
-                  {otherBranches.map(branch => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name} {branch.isMain && '(Sede)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>De (Origem):</Label>
+                <Select value={fromBranchId} onValueChange={handleFromBranchChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a filial de origem" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map(branch => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name} {branch.isMain && '(Sede)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Para (Destino):</Label>
+                <Select value={toBranchId} onValueChange={setToBranchId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a filial de destino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {destinationBranches.map(branch => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name} {branch.isMain && '(Sede)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Adicionar Produtos:</Label>
+              <Label>Adicionar Produtos (do stock de {branches.find(b => b.id === fromBranchId)?.name || '...'}):</Label>
               <Select onValueChange={(value) => {
-                const product = products.find(p => p.id === value);
+                const product = sourceProducts.find(p => p.id === value);
                 if (product) handleAddProduct(product);
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um produto" />
                 </SelectTrigger>
                 <SelectContent>
-                  {products.filter(p => p.stock > 0).map(product => (
+                  {sourceProducts.filter(p => p.stock > 0).map(product => (
                     <SelectItem key={product.id} value={product.id}>
                       {product.name} - Stock: {product.stock}
                     </SelectItem>
