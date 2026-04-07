@@ -60,6 +60,22 @@ export function useProducts(branchId?: string) {
 
   useEffect(() => { refreshProducts(); }, [refreshProducts]);
 
+  useEffect(() => {
+    const handleProductsChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ branchId?: string }>;
+      const changedBranchId = customEvent.detail?.branchId;
+
+      if (!branchId || !changedBranchId || changedBranchId === branchId) {
+        refreshProducts();
+      }
+    };
+
+    window.addEventListener(storage.PRODUCTS_CHANGED_EVENT, handleProductsChanged as EventListener);
+    return () => {
+      window.removeEventListener(storage.PRODUCTS_CHANGED_EVENT, handleProductsChanged as EventListener);
+    };
+  }, [branchId, refreshProducts]);
+
   const addProduct = useCallback(async (product: Product) => {
     await storage.saveProduct(product);
     await refreshProducts();
