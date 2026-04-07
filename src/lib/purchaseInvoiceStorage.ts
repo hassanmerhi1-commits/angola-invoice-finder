@@ -1,10 +1,11 @@
 /**
  * Purchase Invoice (Fatura de Compra) Storage
- * Handles CRUD, stock updates, journal entries, and price updates
+ * DUAL-MODE: Electron → SQLite | Web → localStorage
  */
 
 import { Product } from '@/types/erp';
 import { getAllProducts, saveProduct, updateProductStock, saveStockMovement, getSuppliers, saveSupplier } from '@/lib/storage';
+import { isElectronMode, dbGetAll, dbInsert, dbDelete as dbDeleteRow, lsGet, lsSet } from '@/lib/dbHelper';
 
 const STORAGE_KEY = 'kwanzaerp_purchase_invoices';
 
@@ -14,11 +15,11 @@ export interface PurchaseInvoiceLine {
   productCode: string;
   description: string;
   quantity: number;
-  packaging: number; // embalagem
+  packaging: number;
   unitPrice: number;
   discountPct: number;
   discountPct2: number;
-  totalQty: number; // quantity * packaging
+  totalQty: number;
   total: number;
   ivaRate: number;
   ivaAmount: number;
@@ -43,15 +44,13 @@ export interface PurchaseInvoiceJournalLine {
 export interface PurchaseInvoice {
   id: string;
   invoiceNumber: string;
-  // Supplier
   supplierAccountCode: string;
   supplierName: string;
   supplierNif?: string;
   supplierPhone?: string;
   supplierBalance: number;
-  // Header
   ref?: string;
-  supplierInvoiceNo?: string; // Supplier's own invoice number
+  supplierInvoiceNo?: string;
   contact?: string;
   department?: string;
   ref2?: string;
@@ -63,27 +62,21 @@ export interface PurchaseInvoice {
   warehouseName: string;
   priceType: 'last_price' | 'average_price' | 'manual';
   address?: string;
-  // Accounting codes
-  purchaseAccountCode: string; // Conta de Fatura (e.g. 2121001)
-  ivaAccountCode: string;     // IVA Conta (e.g. 3456001)
-  transactionType: string;    // ALL
-  currencyRate: number;       // Moeda Valor
-  taxRate2: number;           // Taxa 2
+  purchaseAccountCode: string;
+  ivaAccountCode: string;
+  transactionType: string;
+  currencyRate: number;
+  taxRate2: number;
   orderNo?: string;
-  surchargePercent: number;   // Sobrecusto%
-  // Options
+  surchargePercent: number;
   changePrice: boolean;
   isPending: boolean;
   extraNote?: string;
-  // Lines
   lines: PurchaseInvoiceLine[];
-  // Journal entries (Entrada Diario)
   journalLines: PurchaseInvoiceJournalLine[];
-  // Totals
   subtotal: number;
   ivaTotal: number;
-  total: number; // Liquido
-  // Status
+  total: number;
   status: 'draft' | 'confirmed' | 'cancelled';
   branchId: string;
   branchName: string;
@@ -95,49 +88,52 @@ export interface PurchaseInvoice {
 
 // ---------- CRUD ----------
 
-function getAll(): PurchaseInvoice[] {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch { return []; }
-}
-
-function saveAll(invoices: PurchaseInvoice[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(invoices));
-}
-
-export function getPurchaseInvoices(branchId?: string): PurchaseInvoice[] {
-  let docs = getAll();
+export async function getPurchaseInvoices(branchId?: string): Promise<PurchaseInvoice[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('purchase_invoices');
+    let docs = rows.map(mapPIFromDb);
+    if (branchId) docs = docs.filter(d => d.branchId === branchId);
+    return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  let docs = lsGet<PurchaseInvoice[]>(STORAGE_KEY, []);
   if (branchId) docs = docs.filter(d => d.branchId === branchId);
   return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export function getPurchaseInvoiceById(id: string): PurchaseInvoice | undefined {
-  return getAll().find(d => d.id === id);
+export async function getPurchaseInvoiceById(id: string): Promise<PurchaseInvoice | undefined> {
+  const all = await getPurchaseInvoices();
+  return all.find(d => d.id === id);
 }
 
 export function generatePurchaseInvoiceNumber(branchCode: string): string {
   const now = new Date();
   const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-  const all = getAll();
-  const seq = all.length + 1;
-  return `FC-${branchCode}-${date}-${String(seq).padStart(4, '0')}`;
+  const seq = Date.now().toString().slice(-4);
+  return `FC-${branchCode}-${date}-${seq}`;
 }
 
-export function savePurchaseInvoice(invoice: PurchaseInvoice): PurchaseInvoice {
-  const all = getAll();
+export async function savePurchaseInvoice(invoice: PurchaseInvoice): Promise<PurchaseInvoice> {
+  if (isElectronMode()) {
+    await dbInsert('purchase_invoices', mapPIToDb(invoice));
+    return invoice;
+  }
+  const all = lsGet<PurchaseInvoice[]>(STORAGE_KEY, []);
   const idx = all.findIndex(d => d.id === invoice.id);
   if (idx >= 0) {
     all[idx] = { ...invoice, updatedAt: new Date().toISOString() };
   } else {
     all.push(invoice);
   }
-  saveAll(all);
+  lsSet(STORAGE_KEY, all);
   return invoice;
 }
 
-export function deletePurchaseInvoice(id: string): void {
-  saveAll(getAll().filter(d => d.id !== id));
+export async function deletePurchaseInvoice(id: string): Promise<void> {
+  if (isElectronMode()) {
+    await dbDeleteRow('purchase_invoices', id);
+    return;
+  }
+  lsSet(STORAGE_KEY, lsGet<PurchaseInvoice[]>(STORAGE_KEY, []).filter(d => d.id !== id));
 }
 
 // ---------- Line calculations ----------
@@ -226,8 +222,6 @@ export async function applyPriceUpdate(invoice: PurchaseInvoice): Promise<void> 
     const product = products.find(p => p.id === line.productId);
     if (!product) continue;
 
-    // Stock was already updated in applyStockUpdate, so reverse the incoming qty
-    // to get the true previous stock before this purchase.
     const currentStock = product.stock || 0;
     const previousStock = Math.max(currentStock - line.totalQty, 0);
     const previousAverageCost = product.avgCost || product.cost || 0;
@@ -255,7 +249,6 @@ export async function applyPriceUpdate(invoice: PurchaseInvoice): Promise<void> 
 export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvoiceJournalLine[] {
   const lines: PurchaseInvoiceJournalLine[] = [];
 
-  // Debit: Purchase account (Compra Mercadorias)
   if (invoice.subtotal > 0) {
     lines.push({
       id: `jl_${Date.now()}_1`,
@@ -268,7 +261,6 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
     });
   }
 
-  // Debit: IVA Dedutível
   if (invoice.ivaTotal > 0) {
     lines.push({
       id: `jl_${Date.now()}_2`,
@@ -281,7 +273,6 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
     });
   }
 
-  // Credit: Supplier account (Fornecedor)
   lines.push({
     id: `jl_${Date.now()}_3`,
     accountCode: invoice.supplierAccountCode,
@@ -300,7 +291,6 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
 export async function applySupplierBalanceUpdate(invoice: PurchaseInvoice): Promise<void> {
   if (invoice.total <= 0) return;
   const suppliers = await getSuppliers();
-  // Match by account code or name
   const supplier = suppliers.find(
     s => s.id === invoice.supplierAccountCode || s.name === invoice.supplierName || s.nif === invoice.supplierNif
   );
@@ -315,4 +305,91 @@ export async function applySupplierBalanceUpdate(invoice: PurchaseInvoice): Prom
   };
   await saveSupplier(updated);
   console.log(`[PurchaseInvoice] Updated supplier ${supplier.name} balance: ${supplier.balance} → ${updated.balance}`);
+}
+
+// DB mappers
+function mapPIFromDb(row: any): PurchaseInvoice {
+  return {
+    id: row.id,
+    invoiceNumber: row.invoice_number || '',
+    supplierAccountCode: row.supplier_account_code || '',
+    supplierName: row.supplier_name || '',
+    supplierNif: row.supplier_nif,
+    supplierPhone: row.supplier_phone,
+    supplierBalance: Number(row.supplier_balance || 0),
+    ref: row.ref,
+    supplierInvoiceNo: row.supplier_invoice_no,
+    contact: row.contact,
+    department: row.department,
+    ref2: row.ref2,
+    date: row.date || '',
+    paymentDate: row.payment_date || '',
+    project: row.project,
+    currency: row.currency || 'AOA',
+    warehouseId: row.warehouse_id || '',
+    warehouseName: row.warehouse_name || '',
+    priceType: row.price_type || 'last_price',
+    address: row.address,
+    purchaseAccountCode: row.purchase_account_code || '2.1',
+    ivaAccountCode: row.iva_account_code || '3.3.1',
+    transactionType: row.transaction_type || 'ALL',
+    currencyRate: Number(row.currency_rate || 1),
+    taxRate2: Number(row.tax_rate_2 || 0),
+    orderNo: row.order_no,
+    surchargePercent: Number(row.surcharge_percent || 0),
+    changePrice: !!row.change_price,
+    isPending: !!row.is_pending,
+    extraNote: row.extra_note,
+    lines: row.lines_json ? JSON.parse(row.lines_json) : [],
+    journalLines: row.journal_lines_json ? JSON.parse(row.journal_lines_json) : [],
+    subtotal: Number(row.subtotal || 0),
+    ivaTotal: Number(row.iva_total || 0),
+    total: Number(row.total || 0),
+    status: row.status || 'draft',
+    branchId: row.branch_id || '',
+    branchName: row.branch_name || '',
+    createdBy: row.created_by || '',
+    createdByName: row.created_by_name || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+function mapPIToDb(invoice: PurchaseInvoice): any {
+  return {
+    id: invoice.id,
+    invoice_number: invoice.invoiceNumber,
+    supplier_account_code: invoice.supplierAccountCode,
+    supplier_name: invoice.supplierName,
+    supplier_nif: invoice.supplierNif || '',
+    supplier_phone: invoice.supplierPhone || '',
+    supplier_balance: invoice.supplierBalance,
+    ref: invoice.ref || '',
+    supplier_invoice_no: invoice.supplierInvoiceNo || '',
+    date: invoice.date,
+    payment_date: invoice.paymentDate,
+    currency: invoice.currency,
+    warehouse_id: invoice.warehouseId,
+    warehouse_name: invoice.warehouseName,
+    price_type: invoice.priceType,
+    purchase_account_code: invoice.purchaseAccountCode,
+    iva_account_code: invoice.ivaAccountCode,
+    transaction_type: invoice.transactionType,
+    currency_rate: invoice.currencyRate,
+    tax_rate_2: invoice.taxRate2,
+    surcharge_percent: invoice.surchargePercent,
+    change_price: invoice.changePrice ? 1 : 0,
+    is_pending: invoice.isPending ? 1 : 0,
+    extra_note: invoice.extraNote || '',
+    lines_json: JSON.stringify(invoice.lines),
+    journal_lines_json: JSON.stringify(invoice.journalLines),
+    subtotal: invoice.subtotal,
+    iva_total: invoice.ivaTotal,
+    total: invoice.total,
+    status: invoice.status,
+    branch_id: invoice.branchId,
+    branch_name: invoice.branchName,
+    created_by: invoice.createdBy,
+    created_by_name: invoice.createdByName,
+  };
 }

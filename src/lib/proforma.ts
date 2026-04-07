@@ -1,66 +1,77 @@
 // Pro Forma storage and management for Kwanza ERP
+// DUAL-MODE: Electron → SQLite | Web → localStorage
 import { ProForma, ProFormaItem } from '@/types/proforma';
+import { isElectronMode, dbGetAll, dbInsert, dbDelete as dbDeleteRow, lsGet, lsSet } from '@/lib/dbHelper';
 
 const STORAGE_KEY = 'kwanzaerp_proformas';
 
-// Generic storage functions
-function getItem<T>(key: string, defaultValue: T): T {
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : defaultValue;
-  } catch {
-    return defaultValue;
-  }
-}
-
-function setItem<T>(key: string, value: T): void {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
 // Pro Forma CRUD
-export function getProFormas(branchId?: string): ProForma[] {
-  const proformas = getItem<ProForma[]>(STORAGE_KEY, []);
-  if (branchId) {
-    return proformas.filter(p => p.branchId === branchId);
+export async function getProFormas(branchId?: string): Promise<ProForma[]> {
+  if (isElectronMode()) {
+    const rows = await dbGetAll<any>('proformas');
+    const items = await dbGetAll<any>('proforma_items');
+    let proformas = rows.map(r => ({
+      ...mapProformaFromDb(r),
+      items: items.filter((i: any) => i.proforma_id === r.id).map(mapProformaItemFromDb),
+    }));
+    if (branchId) proformas = proformas.filter(p => p.branchId === branchId);
+    return proformas;
   }
-  return proformas;
+  const proformas = lsGet<ProForma[]>(STORAGE_KEY, []);
+  return branchId ? proformas.filter(p => p.branchId === branchId) : proformas;
 }
 
-export function getProFormaById(id: string): ProForma | undefined {
-  const proformas = getItem<ProForma[]>(STORAGE_KEY, []);
+export async function getProFormaById(id: string): Promise<ProForma | undefined> {
+  const proformas = await getProFormas();
   return proformas.find(p => p.id === id);
 }
 
-export function saveProForma(proforma: ProForma): void {
-  const proformas = getItem<ProForma[]>(STORAGE_KEY, []);
+export async function saveProForma(proforma: ProForma): Promise<void> {
+  if (isElectronMode()) {
+    await dbInsert('proformas', mapProformaToDb(proforma));
+    // Save items
+    for (const item of proforma.items || []) {
+      await dbInsert('proforma_items', {
+        id: item.id || `pi_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        proforma_id: proforma.id,
+        product_id: item.productId || '',
+        product_name: item.productName || item.description || '',
+        description: item.description || '',
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        discount: item.discount || 0,
+        tax_rate: item.taxRate,
+        tax_amount: item.taxAmount || 0,
+        total: item.total || 0,
+        branch_id: proforma.branchId || '',
+      });
+    }
+    return;
+  }
+  const proformas = lsGet<ProForma[]>(STORAGE_KEY, []);
   const index = proformas.findIndex(p => p.id === proforma.id);
-  
   if (index >= 0) {
     proformas[index] = { ...proforma, updatedAt: new Date().toISOString() };
   } else {
     proformas.push(proforma);
   }
-  
-  setItem(STORAGE_KEY, proformas);
+  lsSet(STORAGE_KEY, proformas);
 }
 
-export function deleteProForma(id: string): void {
-  const proformas = getItem<ProForma[]>(STORAGE_KEY, []);
-  const filtered = proformas.filter(p => p.id !== id);
-  setItem(STORAGE_KEY, filtered);
+export async function deleteProForma(id: string): Promise<void> {
+  if (isElectronMode()) {
+    await dbDeleteRow('proformas', id);
+    return;
+  }
+  const proformas = lsGet<ProForma[]>(STORAGE_KEY, []);
+  lsSet(STORAGE_KEY, proformas.filter(p => p.id !== id));
 }
 
 export function generateProFormaNumber(branchCode: string): string {
-  const proformas = getItem<ProForma[]>(STORAGE_KEY, []);
   const today = new Date();
   const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-  
-  // Count proformas for today
-  const todayPrefix = `OR ${branchCode}/${dateStr}/`;
-  const todayProformas = proformas.filter(p => p.documentNumber.startsWith(todayPrefix));
-  const sequence = (todayProformas.length + 1).toString().padStart(4, '0');
-  
-  return `${todayPrefix}${sequence}`;
+  const seq = Date.now().toString().slice(-4);
+  return `OR ${branchCode}/${dateStr}/${seq}`;
 }
 
 // Calculate totals for items
@@ -86,37 +97,24 @@ export function calculateProFormaTotals(items: ProFormaItem[]): {
   };
 }
 
-// Check and update expired proformas
-export function updateExpiredProFormas(): void {
-  const proformas = getItem<ProForma[]>(STORAGE_KEY, []);
+export async function updateExpiredProFormas(): Promise<void> {
+  const proformas = await getProFormas();
   const now = new Date();
-  let updated = false;
   
-  proformas.forEach(p => {
+  for (const p of proformas) {
     if (['draft', 'sent'].includes(p.status) && new Date(p.validUntil) < now) {
       p.status = 'expired';
       p.updatedAt = now.toISOString();
-      updated = true;
+      await saveProForma(p);
     }
-  });
-  
-  if (updated) {
-    setItem(STORAGE_KEY, proformas);
   }
 }
 
-// Get statistics
-export function getProFormaStats(branchId?: string): {
-  total: number;
-  draft: number;
-  sent: number;
-  accepted: number;
-  converted: number;
-  expired: number;
-  totalValue: number;
-  pendingValue: number;
-} {
-  const proformas = getProFormas(branchId);
+export async function getProFormaStats(branchId?: string): Promise<{
+  total: number; draft: number; sent: number; accepted: number;
+  converted: number; expired: number; totalValue: number; pendingValue: number;
+}> {
+  const proformas = await getProFormas(branchId);
   
   return {
     total: proformas.length,
@@ -129,5 +127,66 @@ export function getProFormaStats(branchId?: string): {
     pendingValue: proformas
       .filter(p => ['draft', 'sent', 'accepted'].includes(p.status))
       .reduce((sum, p) => sum + p.total, 0),
+  };
+}
+
+// DB mappers
+function mapProformaFromDb(row: any): ProForma {
+  return {
+    id: row.id,
+    documentNumber: row.proforma_number || '',
+    branchId: row.branch_id || '',
+    branchName: '',
+    clientId: row.client_id || '',
+    clientName: row.client_name || '',
+    clientNif: row.client_nif || '',
+    items: [],
+    subtotal: Number(row.subtotal || 0),
+    taxAmount: Number(row.tax_amount || 0),
+    discount: Number(row.discount || 0),
+    total: Number(row.total || 0),
+    currency: row.currency || 'AOA',
+    status: row.status || 'draft',
+    validUntil: row.valid_until || '',
+    notes: row.notes || '',
+    createdBy: row.created_by || '',
+    createdByName: '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+function mapProformaToDb(proforma: ProForma): any {
+  return {
+    id: proforma.id,
+    proforma_number: proforma.documentNumber,
+    client_id: proforma.clientId || '',
+    client_name: proforma.clientName || '',
+    client_nif: proforma.clientNif || '',
+    branch_id: proforma.branchId || '',
+    subtotal: proforma.subtotal,
+    tax_amount: proforma.taxAmount,
+    discount: proforma.discount || 0,
+    total: proforma.total,
+    currency: proforma.currency || 'AOA',
+    status: proforma.status,
+    valid_until: proforma.validUntil || '',
+    notes: proforma.notes || '',
+    created_by: proforma.createdBy || '',
+  };
+}
+
+function mapProformaItemFromDb(row: any): ProFormaItem {
+  return {
+    id: row.id,
+    productId: row.product_id || '',
+    productName: row.product_name || '',
+    description: row.description || row.product_name || '',
+    quantity: Number(row.quantity || 0),
+    unitPrice: Number(row.unit_price || 0),
+    discount: Number(row.discount || 0),
+    taxRate: Number(row.tax_rate || 14),
+    taxAmount: Number(row.tax_amount || 0),
+    total: Number(row.total || 0),
   };
 }
