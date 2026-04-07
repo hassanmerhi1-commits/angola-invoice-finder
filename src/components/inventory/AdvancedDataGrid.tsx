@@ -390,6 +390,7 @@ export function AdvancedDataGrid({
       {/* Custom Filter Dialog */}
       {currentDialogCol && customDialogCol && (
         <CustomFilterDialog
+          key={customDialogCol}
           open={!!customDialogCol}
           onOpenChange={(open) => { if (!open) setCustomDialogCol(null); }}
           columnLabel={currentDialogCol.label}
