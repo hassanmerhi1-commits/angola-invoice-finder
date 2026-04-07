@@ -61,6 +61,17 @@ async function dbDelete(table: string, id: string): Promise<boolean> {
   }
 }
 
+async function dbExec(sql: string, params: any[] = []): Promise<boolean> {
+  if (!isElectronMode()) return false;
+  try {
+    const result = await window.electronAPI!.db.query(sql, params);
+    return !(result && typeof result === 'object' && 'success' in result && result.success === false);
+  } catch (e) {
+    console.error(`[Storage] dbExec error:`, e);
+    return false;
+  }
+}
+
 // ============= LOCAL STORAGE HELPERS =============
 const STORAGE_KEYS = {
   branches: 'kwanzaerp_branches',
@@ -772,10 +783,12 @@ export async function getStockTransfers(branchId?: string): Promise<StockTransfe
 
 export async function saveStockTransfer(transfer: StockTransfer): Promise<void> {
   if (isElectronMode()) {
-    await dbInsert('stock_transfers', {
+    const payload = {
       id: transfer.id,
       transfer_number: transfer.transferNumber,
+      from_branch_name: transfer.fromBranchName,
       from_branch_id: transfer.fromBranchId,
+      to_branch_name: transfer.toBranchName,
       to_branch_id: transfer.toBranchId,
       status: transfer.status,
       requested_by: transfer.requestedBy,
@@ -785,10 +798,17 @@ export async function saveStockTransfer(transfer: StockTransfer): Promise<void> 
       approved_at: transfer.approvedAt || '',
       received_at: transfer.receivedAt || '',
       notes: transfer.notes || '',
-    });
-    for (const item of transfer.items) {
+    };
+
+    const existing = await window.electronAPI!.db.getById('stock_transfers', transfer.id);
+    if (existing?.data) await dbUpdate('stock_transfers', transfer.id, payload);
+    else await dbInsert('stock_transfers', payload);
+
+    await dbExec('DELETE FROM stock_transfer_items WHERE transfer_id = ?', [transfer.id]);
+
+    for (const [index, item] of transfer.items.entries()) {
       await dbInsert('stock_transfer_items', {
-        id: `sti_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        id: `${transfer.id}_item_${index + 1}`,
         transfer_id: transfer.id,
         product_id: item.productId,
         product_name: item.productName,
