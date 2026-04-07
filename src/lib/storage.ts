@@ -137,13 +137,10 @@ export function setCurrentBranch(branch: Branch): void {
 export async function getProducts(branchId?: string): Promise<Product[]> {
   if (isElectronMode()) {
     const rows = await dbGetAll<any>('products');
-    let products = rows.map(mapProductFromDb);
-    if (branchId) products = products.filter(p => p.branchId === branchId || p.branchId === 'all');
-    return products;
+    return filterProductsForBranch(rows.map(mapProductFromDb), branchId);
   }
   const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
-  if (branchId) return products.filter(p => p.branchId === branchId || p.branchId === 'all');
-  return products;
+  return filterProductsForBranch(products, branchId);
 }
 
 export async function getAllProducts(): Promise<Product[]> {
@@ -179,28 +176,105 @@ export async function deleteProduct(productId: string): Promise<void> {
 
 export async function updateProductStock(productId: string, quantityChange: number, branchId?: string): Promise<void> {
   if (isElectronMode()) {
-    const result = await window.electronAPI!.db.getById('products', productId);
-    if (result.data) {
-      // If branchId provided, only update if product belongs to that branch
-      if (branchId && result.data.branch_id && result.data.branch_id !== branchId && result.data.branch_id !== 'all') {
-        return;
-      }
-      const newStock = (result.data.stock || 0) + quantityChange;
-      await dbUpdate('products', productId, { stock: newStock });
+    const products = (await dbGetAll<any>('products')).map(mapProductFromDb);
+    const { targetProduct, createdProduct } = resolveStockProduct(products, productId, quantityChange, branchId);
+    if (!targetProduct) return;
+
+    const updatedAt = new Date().toISOString();
+
+    if (createdProduct) {
+      await dbInsert('products', mapProductToDb({
+        ...createdProduct,
+        stock: quantityChange,
+        updatedAt,
+      }));
+      return;
     }
+
+    const newStock = (targetProduct.stock || 0) + quantityChange;
+    await dbUpdate('products', targetProduct.id, {
+      stock: newStock,
+      updated_at: updatedAt,
+    });
     return;
   }
   const products = lsGet<Product[]>(STORAGE_KEYS.products, []);
-  // Find product matching both id AND branch
-  let index = products.findIndex(p => p.id === productId && (!branchId || !p.branchId || p.branchId === branchId || p.branchId === 'all'));
-  if (index < 0 && branchId) {
-    // Try exact id match as fallback (product may not have branchId set)
-    index = products.findIndex(p => p.id === productId);
+  const { targetProduct, createdProduct } = resolveStockProduct(products, productId, quantityChange, branchId);
+  if (createdProduct) {
+    products.push(createdProduct);
   }
+
+  const index = targetProduct ? products.findIndex(p => p.id === targetProduct.id) : -1;
   if (index >= 0) {
     products[index].stock += quantityChange;
+    products[index].updatedAt = new Date().toISOString();
     lsSet(STORAGE_KEYS.products, products);
   }
+}
+
+function filterProductsForBranch(products: Product[], branchId?: string): Product[] {
+  if (!branchId) return products;
+
+  const branchProducts = products.filter(p => p.branchId === branchId);
+  const branchSkus = new Set(branchProducts.map(p => normalizeSku(p.sku)).filter(Boolean));
+
+  const sharedProducts = products.filter(p => {
+    const isShared = !p.branchId || p.branchId === 'all';
+    return isShared && !branchSkus.has(normalizeSku(p.sku));
+  });
+
+  return [...branchProducts, ...sharedProducts];
+}
+
+function resolveStockProduct(
+  products: Product[],
+  productId: string,
+  quantityChange: number,
+  branchId?: string,
+): { targetProduct?: Product; createdProduct?: Product } {
+  if (!branchId) {
+    return { targetProduct: products.find(p => p.id === productId) };
+  }
+
+  const exactBranchProduct = products.find(p => p.id === productId && p.branchId === branchId);
+  if (exactBranchProduct) {
+    return { targetProduct: exactBranchProduct };
+  }
+
+  const sourceProduct = products.find(p => p.id === productId);
+  const sourceSku = normalizeSku(sourceProduct?.sku);
+
+  if (sourceSku) {
+    const branchProductBySku = products.find(
+      p => p.branchId === branchId && normalizeSku(p.sku) === sourceSku,
+    );
+
+    if (branchProductBySku) {
+      return { targetProduct: branchProductBySku };
+    }
+  }
+
+  if (quantityChange > 0 && sourceProduct) {
+    const createdProduct: Product = {
+      ...sourceProduct,
+      id: `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      branchId,
+      stock: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    return {
+      targetProduct: createdProduct,
+      createdProduct,
+    };
+  }
+
+  return { targetProduct: sourceProduct };
+}
+
+function normalizeSku(sku?: string): string {
+  return (sku || '').trim().toLowerCase();
 }
 
 // ============= SALES FUNCTIONS =============
