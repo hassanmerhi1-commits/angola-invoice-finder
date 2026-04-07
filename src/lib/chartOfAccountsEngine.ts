@@ -3,25 +3,96 @@
  * 
  * Automatically creates sub-accounts for suppliers/clients
  * and updates account balances when journal entries are posted.
+ * 
+ * Dual-mode: tries API first (for Electron/server), falls back to localStorage.
  */
 
 import { Account } from '@/types/accounting';
+import { api } from '@/lib/api/client';
 
 const LOCAL_COA_STORAGE_KEY = 'kwanzaerp_chart_of_accounts';
 
-function loadAccounts(): Account[] {
+type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+
+// ============= LOCAL STORAGE HELPERS =============
+
+function loadAccountsLocal(): Account[] {
   try {
     const raw = localStorage.getItem(LOCAL_COA_STORAGE_KEY);
     const accounts: Account[] = raw ? JSON.parse(raw) : [];
-    // Ensure essential accounts exist (upgrade path)
     return ensureEssentialAccounts(accounts);
   } catch { return []; }
 }
 
-/**
- * Ensure essential accounts (2.1, 3.3, 3.3.1, 4.1.1, etc.) exist.
- * Adds any missing ones from the required set.
- */
+function saveAccountsLocal(accounts: Account[]) {
+  localStorage.setItem(LOCAL_COA_STORAGE_KEY, JSON.stringify(
+    [...accounts].sort((a, b) => a.code.localeCompare(b.code))
+  ));
+}
+
+// ============= API HELPERS =============
+
+async function tryApiCreateAccount(account: Account): Promise<boolean> {
+  try {
+    const response = await api.chartOfAccounts.create({
+      code: account.code,
+      name: account.name,
+      description: account.description,
+      account_type: account.account_type,
+      account_nature: account.account_nature,
+      parent_id: account.parent_id,
+      level: account.level,
+      is_header: account.is_header,
+      opening_balance: account.opening_balance,
+      branch_id: account.branch_id,
+    });
+    if (response.error) {
+      console.warn('[CoA Engine] API create failed:', response.error);
+      return false;
+    }
+    console.log(`[CoA Engine] API: Created account ${account.code} — ${account.name}`);
+    return true;
+  } catch (e) {
+    // API not available (web preview mode)
+    return false;
+  }
+}
+
+async function tryApiUpdateBalance(accountCode: string, balanceChange: number): Promise<boolean> {
+  try {
+    // Fetch the account by listing and finding by code
+    const listResponse = await api.chartOfAccounts.list();
+    if (listResponse.error || !listResponse.data) return false;
+    
+    const account = listResponse.data.find((a: any) => a.code === accountCode);
+    if (!account) return false;
+    
+    const newBalance = (account.current_balance || 0) + balanceChange;
+    const response = await api.chartOfAccounts.update(account.id, {
+      current_balance: newBalance,
+    });
+    if (response.error) {
+      console.warn('[CoA Engine] API balance update failed:', response.error);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function tryLoadAccountsFromApi(): Promise<Account[] | null> {
+  try {
+    const response = await api.chartOfAccounts.list();
+    if (response.error || !response.data) return null;
+    return response.data as Account[];
+  } catch {
+    return null;
+  }
+}
+
+// ============= ESSENTIAL ACCOUNTS =============
+
 function ensureEssentialAccounts(accounts: Account[]): Account[] {
   const now = new Date().toISOString();
   const required: Array<{ code: string; name: string; type: AccountType; nature: 'debit' | 'credit'; level: number; is_header: boolean; parent_code: string }> = [
@@ -60,27 +131,28 @@ function ensureEssentialAccounts(accounts: Account[]): Account[] {
   }
   
   if (changed) {
-    saveAccounts(accounts);
+    saveAccountsLocal(accounts);
   }
   return accounts;
 }
 
-type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
-
-function saveAccounts(accounts: Account[]) {
-  localStorage.setItem(LOCAL_COA_STORAGE_KEY, JSON.stringify(
-    [...accounts].sort((a, b) => a.code.localeCompare(b.code))
-  ));
-}
+// ============= SUPPLIER ACCOUNT =============
 
 /**
  * Ensure a supplier has a sub-account under 3.2 (Fornecedores).
  * Returns the proper account code (e.g., "3.2.001").
+ * Now async — tries API first, then localStorage.
  */
-export function ensureSupplierAccount(supplierId: string, supplierName: string, supplierNif?: string): string {
-  const accounts = loadAccounts();
+export async function ensureSupplierAccount(supplierId: string, supplierName: string, supplierNif?: string): Promise<string> {
+  // Try to load from API first
+  let accounts = await tryLoadAccountsFromApi();
+  const usingApi = accounts !== null;
   
-  // Check if supplier already has an account (match by name or NIF in description)
+  if (!accounts) {
+    accounts = loadAccountsLocal();
+  }
+  
+  // Check if supplier already has an account
   const existing = accounts.find(a => 
     a.code.startsWith('3.2.') && 
     a.level >= 3 && 
@@ -94,7 +166,7 @@ export function ensureSupplierAccount(supplierId: string, supplierName: string, 
   const parent = accounts.find(a => a.code === '3.2');
   if (!parent) {
     console.warn('[CoA Engine] Parent account 3.2 (Fornecedores) not found');
-    return '3.2.001'; // Fallback
+    return '3.2.001';
   }
   
   // Find next sequence under 3.2.XXX
@@ -125,25 +197,39 @@ export function ensureSupplierAccount(supplierId: string, supplierName: string, 
     updated_at: now,
   };
   
-  // Update parent children_count
+  // Save to API if available
+  if (usingApi) {
+    const apiCreated = await tryApiCreateAccount(newAccount);
+    if (apiCreated) {
+      console.log(`[CoA Engine] Created supplier account ${code} — ${supplierName} (via API)`);
+    }
+  }
+  
+  // Always also save to localStorage (for offline fallback and immediate reads)
   const parentIdx = accounts.findIndex(a => a.id === parent.id);
   if (parentIdx >= 0) {
     accounts[parentIdx] = { ...accounts[parentIdx], children_count: (accounts[parentIdx].children_count || 0) + 1 };
   }
-  
   accounts.push(newAccount);
-  saveAccounts(accounts);
+  saveAccountsLocal(accounts);
   console.log(`[CoA Engine] Created supplier account ${code} — ${supplierName}`);
   
   return code;
 }
 
+// ============= CLIENT ACCOUNT =============
+
 /**
  * Ensure a client has a sub-account under 3.1 (Clientes).
  * Returns the proper account code (e.g., "3.1.001").
  */
-export function ensureClientAccount(clientId: string, clientName: string, clientNif?: string): string {
-  const accounts = loadAccounts();
+export async function ensureClientAccount(clientId: string, clientName: string, clientNif?: string): Promise<string> {
+  let accounts = await tryLoadAccountsFromApi();
+  const usingApi = accounts !== null;
+  
+  if (!accounts) {
+    accounts = loadAccountsLocal();
+  }
   
   const existing = accounts.find(a => 
     a.code.startsWith('3.1.') && 
@@ -183,24 +269,36 @@ export function ensureClientAccount(clientId: string, clientName: string, client
     updated_at: now,
   };
   
+  if (usingApi) {
+    await tryApiCreateAccount(newAccount);
+  }
+  
   const parentIdx = accounts.findIndex(a => a.id === parent.id);
   if (parentIdx >= 0) {
     accounts[parentIdx] = { ...accounts[parentIdx], children_count: (accounts[parentIdx].children_count || 0) + 1 };
   }
-  
   accounts.push(newAccount);
-  saveAccounts(accounts);
+  saveAccountsLocal(accounts);
   console.log(`[CoA Engine] Created client account ${code} — ${clientName}`);
   
   return code;
 }
 
+// ============= BALANCE UPDATES =============
+
 /**
  * Update account balances in the Chart of Accounts from journal lines.
- * Debit increases debit-nature accounts, Credit increases credit-nature accounts.
+ * Now async — syncs to API when available.
  */
-export function updateCoABalancesFromJournal(lines: { accountCode: string; debit: number; credit: number }[]) {
-  const accounts = loadAccounts();
+export async function updateCoABalancesFromJournal(lines: { accountCode: string; debit: number; credit: number }[]) {
+  // Load from API if available, otherwise localStorage
+  let accounts = await tryLoadAccountsFromApi();
+  const usingApi = accounts !== null;
+  
+  if (!accounts) {
+    accounts = loadAccountsLocal();
+  }
+  
   let changed = false;
   
   for (const line of lines) {
@@ -210,8 +308,6 @@ export function updateCoABalancesFromJournal(lines: { accountCode: string; debit
       continue;
     }
     
-    // For debit-nature accounts (assets, expenses): debit increases, credit decreases
-    // For credit-nature accounts (liabilities, equity, revenue): credit increases, debit decreases
     const balanceChange = account.account_nature === 'debit'
       ? (line.debit || 0) - (line.credit || 0)
       : (line.credit || 0) - (line.debit || 0);
@@ -224,14 +320,37 @@ export function updateCoABalancesFromJournal(lines: { accountCode: string; debit
         updated_at: new Date().toISOString(),
       };
       changed = true;
+      
+      // Also update via API if available
+      if (usingApi) {
+        try {
+          await api.chartOfAccounts.update(account.id, {
+            current_balance: accounts[idx].current_balance,
+          });
+        } catch (e) {
+          console.warn(`[CoA Engine] API balance update failed for ${account.code}:`, e);
+        }
+      }
+      
       console.log(`[CoA Engine] ${account.code} ${account.name}: balance ${balanceChange >= 0 ? '+' : ''}${balanceChange.toFixed(2)} → ${accounts[idx].current_balance.toFixed(2)}`);
     }
   }
   
   if (changed) {
-    // Also roll up balances to parent header accounts
     rollUpParentBalances(accounts);
-    saveAccounts(accounts);
+    saveAccountsLocal(accounts);
+    
+    // Update parent balances via API too
+    if (usingApi) {
+      const headers = accounts.filter(a => a.is_header);
+      for (const header of headers) {
+        try {
+          await api.chartOfAccounts.update(header.id, {
+            current_balance: header.current_balance,
+          });
+        } catch { /* best effort */ }
+      }
+    }
   }
 }
 
@@ -239,7 +358,6 @@ export function updateCoABalancesFromJournal(lines: { accountCode: string; debit
  * Roll up child account balances to parent header accounts
  */
 function rollUpParentBalances(accounts: Account[]) {
-  // Get all header accounts, sorted by level descending (deepest first)
   const headers = accounts.filter(a => a.is_header).sort((a, b) => b.level - a.level);
   
   for (const header of headers) {
