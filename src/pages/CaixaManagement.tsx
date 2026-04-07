@@ -147,6 +147,10 @@ export default function CaixaManagement() {
   const [closingNotes, setClosingNotes] = useState<string>('');
 
   const loadData = () => {
+    // Auto-seed a default Caixa for the current branch if none exists
+    if (currentBranch?.id) {
+      ensureBranchCaixa(currentBranch.id, currentBranch.name || 'Sede');
+    }
     setCaixas(getCaixas(currentBranch?.id));
     setSessions(getCaixaSessions());
     setTransactions(getCashTransactions());
