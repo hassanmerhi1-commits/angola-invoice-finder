@@ -1,7 +1,7 @@
 // Kwanza ERP - Main Server (THE HEART)
 // This runs on your main PC and all other computers connect to it
 
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const express = require('express');
 const path = require('path');
 const http = require('http');
