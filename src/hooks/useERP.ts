@@ -352,6 +352,32 @@ export function useAuth() {
       ? normalizedLower.split('@')[0]
       : normalizedLower;
 
+    // Try backend API first (network mode)
+    try {
+      const { api, setAuthToken } = await import('@/lib/api/client');
+      const response = await api.auth.login(maybeEmail, password || 'demo');
+      if (response.data) {
+        setAuthToken(response.data.token);
+        const apiUser = response.data.user;
+        const user: User = {
+          id: apiUser.id,
+          email: apiUser.email,
+          name: apiUser.name,
+          username: normalizedUsername,
+          role: apiUser.role || 'cashier',
+          branchId: apiUser.branchId || '',
+          isActive: true,
+          createdAt: apiUser.createdAt || new Date().toISOString(),
+        };
+        storage.setCurrentUser(user);
+        setAuthState({ user });
+        console.log('[Auth] Logged in via backend API');
+        return true;
+      }
+    } catch (e) {
+      console.log('[Auth] Backend API not available, falling back to local auth');
+    }
+
     // In Electron mode, check DB users (supports both username-first and email-first schemas)
     if (storage.isElectronMode()) {
       let dbReachable = true;
