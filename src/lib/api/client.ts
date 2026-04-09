@@ -397,4 +397,36 @@ export const api = {
       return `${baseUrl}/api/saft-xml/download${sp}`;
     },
   },
+
+  // Transactions (Central Transaction Engine)
+  transactions: {
+    process: (data: any) =>
+      apiFetch<any>('/transactions/process', { method: 'POST', body: JSON.stringify(data) }),
+    stockMovements: (params?: { productId?: string; warehouseId?: string; referenceType?: string; limit?: number }) => {
+      const sp = new URLSearchParams();
+      if (params?.productId) sp.append('productId', params.productId);
+      if (params?.warehouseId) sp.append('warehouseId', params.warehouseId);
+      if (params?.referenceType) sp.append('referenceType', params.referenceType);
+      if (params?.limit) sp.append('limit', params.limit.toString());
+      return apiFetch<any[]>(`/transactions/stock-movements?${sp}`);
+    },
+    createStockMovement: (data: any) =>
+      apiFetch<any>('/transactions/stock-movements', { method: 'POST', body: JSON.stringify(data) }),
+    openItems: (params?: { entityType?: string; entityId?: string; branchId?: string; status?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.entityType) sp.append('entityType', params.entityType);
+      if (params?.entityId) sp.append('entityId', params.entityId);
+      if (params?.branchId) sp.append('branchId', params.branchId);
+      if (params?.status) sp.append('status', params.status);
+      return apiFetch<any[]>(`/transactions/open-items?${sp}`);
+    },
+    documentLinks: (params?: { sourceType?: string; sourceId?: string; targetType?: string; targetId?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.sourceType) sp.append('sourceType', params.sourceType);
+      if (params?.sourceId) sp.append('sourceId', params.sourceId);
+      if (params?.targetType) sp.append('targetType', params.targetType);
+      if (params?.targetId) sp.append('targetId', params.targetId);
+      return apiFetch<any[]>(`/transactions/document-links?${sp}`);
+    },
+  },
 };
