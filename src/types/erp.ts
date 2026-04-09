@@ -47,6 +47,7 @@ export interface Product {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
+  version?: number;
 }
 
 export interface CartItem {
@@ -140,6 +141,7 @@ export interface Client {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  version?: number;
 }
 
 export interface StockTransfer {
@@ -243,6 +245,7 @@ export interface Supplier {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  version?: number;
 }
 
 export interface PurchaseOrder {
