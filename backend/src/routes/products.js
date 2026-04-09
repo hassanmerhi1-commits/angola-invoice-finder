@@ -114,19 +114,23 @@ module.exports = function(broadcastTable) {
 
       for (const p of products) {
         try {
+          if (!p?.name || !p?.sku) {
+            throw new Error('Missing required fields: name and sku');
+          }
+
           await db.query(
             `INSERT INTO products (name, sku, barcode, category, price, cost, stock, unit, tax_rate, branch_id, is_active)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              ON CONFLICT (sku, branch_id) DO UPDATE SET
                name = EXCLUDED.name, price = EXCLUDED.price, cost = EXCLUDED.cost,
                stock = EXCLUDED.stock, unit = EXCLUDED.unit, tax_rate = EXCLUDED.tax_rate,
-               barcode = EXCLUDED.barcode, category = EXCLUDED.category,
-               updated_at = NOW()
+                barcode = EXCLUDED.barcode, category = EXCLUDED.category,
+                is_active = EXCLUDED.is_active
              `,
             [
               p.name, p.sku, p.barcode || '', p.category || 'GERAL',
-              p.price || 0, p.cost || 0, p.stock || 0, p.unit || 'UN',
-              p.taxRate || 14, p.branchId || null, p.isActive !== false
+              Number(p.price) || 0, Number(p.cost) || 0, Number(p.stock) || 0, p.unit || 'UN',
+              Number(p.taxRate) || 14, p.branchId || null, p.isActive !== false
             ]
           );
           imported++;

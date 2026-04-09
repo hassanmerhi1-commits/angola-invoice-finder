@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '@/lib/api/config';
 
 export interface DatabaseStatus {
   isConnected: boolean;
@@ -78,64 +79,38 @@ export function useDatabaseStatus() {
         return;
       }
 
-      if (isServerMode) {
-        // Server mode - check SQLite database
-        let dbPath = serverConfig?.databasePath || null;
-        let connected = false;
-        const serverIp = serverConfig?.serverIp || null;
-        const serverPort = serverConfig?.serverPort || 3000;
-        
-        if (isElectron && window.electronAPI?.database?.getPath) {
-          try {
-            dbPath = await window.electronAPI.database.getPath();
-            // Try a simple query to verify connection
-            const result = await window.electronAPI.database?.query?.('SELECT 1 as test');
-            connected = result?.success === true;
-          } catch {
-            connected = false;
-          }
-        } else {
-          // Web preview - simulate connection
-          connected = true;
+      const rawApiUrl = getApiUrl();
+      const parsedApiUrl = (() => {
+        try {
+          return new URL(rawApiUrl);
+        } catch {
+          return new URL(`http://${rawApiUrl.replace(/^https?:\/\//, '')}`);
         }
-        
-        setStatus({
-          isConnected: connected,
-          isServer: true,
-          databasePath: dbPath,
-          serverIp,
-          serverPort,
-          mode: 'server',
-          lastChecked: new Date(),
+      })();
+
+      const serverIp = (isServerMode ? serverConfig?.serverIp : clientConfig?.serverIp) || parsedApiUrl.hostname || null;
+      const serverPort = Number((isServerMode ? serverConfig?.serverPort : clientConfig?.serverPort) || parsedApiUrl.port || 3000);
+      const databasePath = serverConfig?.databasePath || serverConfig?.connectionString || null;
+
+      let connected = false;
+      try {
+        const response = await fetch(`${parsedApiUrl.origin}/api/health`, {
+          signal: AbortSignal.timeout(3000),
         });
-      } else {
-        // Client mode - check connection to server
-        const serverIp = clientConfig?.serverIp || localStorage.getItem('kwanza_api_url')?.replace('http://', '').split(':')[0];
-        const serverPort = clientConfig?.serverPort || 3000;
-        
-        let connected = false;
-        
-        if (serverIp) {
-          try {
-            const response = await fetch(`http://${serverIp}:${serverPort}/api/health`, {
-              signal: AbortSignal.timeout(3000)
-            });
-            connected = response.ok;
-          } catch {
-            connected = false;
-          }
-        }
-        
-        setStatus({
-          isConnected: connected,
-          isServer: false,
-          databasePath: null,
-          serverIp,
-          serverPort,
-          mode: 'client',
-          lastChecked: new Date(),
-        });
+        connected = response.ok;
+      } catch {
+        connected = false;
       }
+
+      setStatus({
+        isConnected: connected,
+        isServer: isServerMode,
+        databasePath,
+        serverIp,
+        serverPort,
+        mode: isServerMode ? 'server' : 'client',
+        lastChecked: new Date(),
+      });
     } catch (error) {
       console.error('Failed to check database status:', error);
       setStatus(prev => ({
