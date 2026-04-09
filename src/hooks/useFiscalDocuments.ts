@@ -1,4 +1,4 @@
-// Fiscal Documents Hooks for AGT Compliance
+// Fiscal Documents Hooks for AGT Compliance — API-First
 import { useState, useEffect, useCallback } from 'react';
 import { 
   CreditNote, 
@@ -12,7 +12,7 @@ import {
   Sale
 } from '@/types/erp';
 import * as fiscalStorage from '@/lib/fiscalDocuments';
-import { getBranches, getAllSales, updateProductStock } from '@/lib/storage';
+import { api } from '@/lib/api/client';
 
 // ==================== CREDIT NOTES ====================
 
@@ -37,8 +37,16 @@ export function useCreditNotes(branchId?: string) {
     issuedBy: string,
     restoreStock: boolean = true
   ): Promise<CreditNote> => {
-    const branches = await getBranches();
-    const branch = branches.find(b => b.id === branchId);
+    // Get branches from API
+    let branches: any[] = [];
+    try {
+      const response = await api.branches.list();
+      branches = response.data || [];
+    } catch {
+      const raw = localStorage.getItem('kwanzaerp_branches');
+      branches = raw ? JSON.parse(raw) : [];
+    }
+    const branch = branches.find((b: any) => b.id === branchId);
     const previousHash = await fiscalStorage.getLastDocumentHash('credit');
     const documentNumber = fiscalStorage.generateCreditNoteNumber(branchCode);
     
@@ -75,10 +83,23 @@ export function useCreditNotes(branchId?: string) {
 
     fiscalStorage.saveCreditNote(creditNote);
 
-    // Restore stock if returning products
+    // Restore stock via API
     if (restoreStock) {
       for (const item of items) {
-        await updateProductStock(item.productId, item.quantity);
+        try {
+          await api.transactions.createStockMovement({
+            productId: item.productId,
+            movementType: 'IN',
+            quantity: item.quantity,
+            referenceType: 'return',
+            referenceId: creditNote.id,
+            referenceNumber: documentNumber,
+            notes: `Nota de Crédito: ${reasonDescription}`,
+          });
+        } catch {
+          // Fallback: update stock via products API
+          await api.products.updateStock(item.productId, item.quantity);
+        }
       }
     }
 
@@ -123,8 +144,15 @@ export function useDebitNotes(branchId?: string) {
     customerNif?: string,
     customerName?: string
   ): Promise<DebitNote> => {
-    const branches = await getBranches();
-    const branch = branches.find(b => b.id === branchId);
+    let branches: any[] = [];
+    try {
+      const response = await api.branches.list();
+      branches = response.data || [];
+    } catch {
+      const raw = localStorage.getItem('kwanzaerp_branches');
+      branches = raw ? JSON.parse(raw) : [];
+    }
+    const branch = branches.find((b: any) => b.id === branchId);
     const previousHash = await fiscalStorage.getLastDocumentHash('debit');
     const documentNumber = fiscalStorage.generateDebitNoteNumber(branchCode);
     
@@ -215,8 +243,15 @@ export function useTransportDocuments(branchId?: string) {
       totalVolume?: number;
     }
   ): Promise<TransportDocument> => {
-    const branches = await getBranches();
-    const branch = branches.find(b => b.id === branchId);
+    let branches: any[] = [];
+    try {
+      const response = await api.branches.list();
+      branches = response.data || [];
+    } catch {
+      const raw = localStorage.getItem('kwanzaerp_branches');
+      branches = raw ? JSON.parse(raw) : [];
+    }
+    const branch = branches.find((b: any) => b.id === branchId);
     const previousHash = await fiscalStorage.getLastDocumentHash('transport');
     const documentNumber = fiscalStorage.generateTransportDocNumber(branchCode);
 
@@ -311,12 +346,28 @@ export function useSAFTExport() {
     exportedBy: string,
     branchId?: string
   ): Promise<SAFTExport> => {
-    const branches = await getBranches();
-    const branch = branchId ? branches.find(b => b.id === branchId) : null;
+    let branches: any[] = [];
+    try {
+      const response = await api.branches.list();
+      branches = response.data || [];
+    } catch {
+      const raw = localStorage.getItem('kwanzaerp_branches');
+      branches = raw ? JSON.parse(raw) : [];
+    }
+    const branch = branchId ? branches.find((b: any) => b.id === branchId) : null;
     const xml = await fiscalStorage.generateSAFTXML(periodStart, periodEnd, branchId);
     const fileName = `SAFT_AO_${periodStart.replace(/-/g, '')}_${periodEnd.replace(/-/g, '')}.xml`;
 
-    const allSales = await getAllSales();
+    // Get sales from API
+    let allSales: Sale[] = [];
+    try {
+      const response = await api.sales.list();
+      allSales = response.data || [];
+    } catch {
+      const raw = localStorage.getItem('kwanzaerp_sales');
+      allSales = raw ? JSON.parse(raw) : [];
+    }
+
     const saftExport: SAFTExport = {
       id: `saft_${Date.now()}`,
       branchId: branchId || 'all',

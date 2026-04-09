@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Building2, Package, AlertTriangle, CheckCircle } from 'lucide-react';
-import * as storage from '@/lib/storage';
+import { api } from '@/lib/api/client';
 
 interface BranchStockDetailProps {
   selectedProduct: Product | null;
@@ -34,9 +34,15 @@ export function BranchStockDetail({ selectedProduct }: BranchStockDetailProps) {
     async function loadStocks() {
       const stocks: BranchStock[] = [];
       for (const branch of branches) {
-        const branchProducts = await storage.getProducts(branch.id);
+        let branchProducts: any[] = [];
+        try {
+          const response = await api.products.list(branch.id);
+          branchProducts = response.data || [];
+        } catch {
+          branchProducts = [];
+        }
         const matchingProduct = branchProducts.find(
-          p => p.sku === selectedProduct!.sku || p.id === selectedProduct!.id
+          (p: any) => p.sku === selectedProduct!.sku || p.id === selectedProduct!.id
         );
         stocks.push({
           branchId: branch.id,

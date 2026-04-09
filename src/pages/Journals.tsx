@@ -20,7 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Account } from '@/types/accounting';
-import { createLocalJournalEntry, getLocalJournalEntries } from '@/lib/storage';
+import { api } from '@/lib/api/client';
 
 const COA_STORAGE_KEY = 'kwanzaerp_chart_of_accounts';
 
@@ -64,30 +64,61 @@ function useJournalEntries(branchId?: string) {
     const allEntries: DisplayEntry[] = [];
 
     try {
-      const journalEntries = await getLocalJournalEntries(branchId);
+      // Fetch journal entries from API
+      const response = await api.journalEntries.list({ branchId });
+      const journalEntries = response.data || [];
       for (const je of journalEntries) {
         allEntries.push({
           id: je.id,
-          entryNumber: je.entryNumber,
-          date: je.entryDate || je.createdAt,
-          type: je.referenceType || 'manual',
+          entryNumber: je.entry_number || je.entryNumber,
+          date: je.entry_date || je.entryDate || je.created_at || je.createdAt,
+          type: je.reference_type || je.referenceType || 'manual',
           currency: 'AOA',
           description: je.description,
-          totalDebit: je.totalDebit,
-          totalCredit: je.totalCredit,
+          totalDebit: Number(je.total_debit || je.totalDebit || 0),
+          totalCredit: Number(je.total_credit || je.totalCredit || 0),
           isPosted: true,
-          createdBy: je.createdBy || 'Sistema',
-          lines: (je.lines || []).map(l => ({
-            id: `${je.id}_${l.accountCode}_${l.debit}_${l.credit}`,
-            accountCode: l.accountCode || '',
-            accountName: l.accountName || '',
+          createdBy: je.created_by || je.createdBy || 'Sistema',
+          lines: (je.lines || []).map((l: any) => ({
+            id: `${je.id}_${l.account_code || l.accountCode}_${l.debit}_${l.credit}`,
+            accountCode: l.account_code || l.accountCode || '',
+            accountName: l.account_name || l.accountName || '',
             description: l.description || '',
-            debit: l.debit,
-            credit: l.credit,
+            debit: Number(l.debit || 0),
+            credit: Number(l.credit || 0),
           })),
         });
       }
-    } catch { /* ignore */ }
+    } catch {
+      // Fallback: localStorage
+      try {
+        const raw = localStorage.getItem('kwanzaerp_journal_entries');
+        const journalEntries = raw ? JSON.parse(raw) : [];
+        for (const je of journalEntries) {
+          if (branchId && je.branchId !== branchId) continue;
+          allEntries.push({
+            id: je.id,
+            entryNumber: je.entryNumber,
+            date: je.entryDate || je.createdAt,
+            type: je.referenceType || 'manual',
+            currency: 'AOA',
+            description: je.description,
+            totalDebit: je.totalDebit,
+            totalCredit: je.totalCredit,
+            isPosted: true,
+            createdBy: je.createdBy || 'Sistema',
+            lines: (je.lines || []).map((l: any) => ({
+              id: `${je.id}_${l.accountCode}_${l.debit}_${l.credit}`,
+              accountCode: l.accountCode || '',
+              accountName: l.accountName || '',
+              description: l.description || '',
+              debit: l.debit,
+              credit: l.credit,
+            })),
+          });
+        }
+      } catch { /* ignore */ }
+    }
 
     if (!window.electronAPI?.isElectron) {
       try {
@@ -310,21 +341,58 @@ export default function Journals() {
       return;
     }
 
-    const createdEntry = await createLocalJournalEntry({
-      description: newEntryDescription,
-      referenceType: newEntryType,
-      referenceId: `manual_${Date.now()}`,
-      branchId: currentBranch?.id || '',
-      entryDate: newEntryDate,
-      createdBy: user?.name || 'Sistema',
-      lines: validLines.map((line) => ({
+    // Create journal entry via API
+    let createdEntry: any;
+    try {
+      const lines = validLines.map((line) => ({
         accountCode: line.accountCode,
         accountName: line.accountName,
         description: line.description || newEntryDescription,
         debit: parseFloat(line.debit) || 0,
         credit: parseFloat(line.credit) || 0,
-      })),
-    });
+      }));
+      
+      const response = await api.transactions.process({
+        type: 'manual_journal',
+        description: newEntryDescription,
+        referenceType: newEntryType,
+        referenceId: `manual_${Date.now()}`,
+        branchId: currentBranch?.id || '',
+        entryDate: newEntryDate,
+        createdBy: user?.name || 'Sistema',
+        journalEntries: lines,
+      });
+      
+      createdEntry = response.data || { entryNumber: `JE-${Date.now()}` };
+    } catch {
+      // Fallback: save to localStorage
+      const entryNumber = `JE-${Date.now().toString().slice(-6)}`;
+      createdEntry = { entryNumber };
+      const entry = {
+        id: `je_${Date.now()}`,
+        entryNumber,
+        description: newEntryDescription,
+        referenceType: newEntryType,
+        referenceId: `manual_${Date.now()}`,
+        branchId: currentBranch?.id || '',
+        entryDate: newEntryDate,
+        createdBy: user?.name || 'Sistema',
+        totalDebit: newEntryTotalDebit,
+        totalCredit: newEntryTotalCredit,
+        createdAt: new Date().toISOString(),
+        lines: validLines.map((line) => ({
+          accountCode: line.accountCode,
+          accountName: line.accountName,
+          description: line.description || newEntryDescription,
+          debit: parseFloat(line.debit) || 0,
+          credit: parseFloat(line.credit) || 0,
+        })),
+      };
+      const raw = localStorage.getItem('kwanzaerp_journal_entries');
+      const all = raw ? JSON.parse(raw) : [];
+      all.push(entry);
+      localStorage.setItem('kwanzaerp_journal_entries', JSON.stringify(all));
+    }
 
     toast.success(`Lançamento ${createdEntry.entryNumber} criado com sucesso`, {
       description: `Débito: ${newEntryTotalDebit.toLocaleString('pt-AO')} Kz | Crédito: ${newEntryTotalCredit.toLocaleString('pt-AO')} Kz`,

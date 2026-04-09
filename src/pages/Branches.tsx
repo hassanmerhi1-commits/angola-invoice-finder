@@ -8,41 +8,19 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Plus, Pencil, Trash2, Building2, MapPin, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n';
 import { api } from '@/lib/api/client';
-import * as storage from '@/lib/storage';
-
-const isLocalNetworkMode = () => {
-  const serverIp = localStorage.getItem('kwanza_server_ip');
-  const forceApi = localStorage.getItem('kwanza_force_api') === 'true';
-  return serverIp && forceApi;
-};
 
 export default function Branches() {
   const { t } = useLanguage();
@@ -54,37 +32,21 @@ export default function Branches() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    address: '',
-    phone: '',
-    isMain: false,
+    name: '', code: '', address: '', phone: '', isMain: false,
   });
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      code: '',
-      address: '',
-      phone: '',
-      isMain: false,
-    });
+    setFormData({ name: '', code: '', address: '', phone: '', isMain: false });
     setEditingBranch(null);
   };
 
-  const openCreateDialog = () => {
-    resetForm();
-    setDialogOpen(true);
-  };
+  const openCreateDialog = () => { resetForm(); setDialogOpen(true); };
 
   const openEditDialog = (branch: Branch) => {
     setEditingBranch(branch);
     setFormData({
-      name: branch.name,
-      code: branch.code || '',
-      address: branch.address || '',
-      phone: branch.phone || '',
-      isMain: branch.isMain || false,
+      name: branch.name, code: branch.code || '', address: branch.address || '',
+      phone: branch.phone || '', isMain: branch.isMain || false,
     });
     setDialogOpen(true);
   };
@@ -102,51 +64,22 @@ export default function Branches() {
 
     setIsLoading(true);
     try {
-      if (isLocalNetworkMode()) {
-        if (editingBranch) {
-          await api.branches.update(editingBranch.id, formData);
-          toast.success('Filial actualizada com sucesso');
-        } else {
-          await api.branches.create(formData);
-          toast.success('Filial criada com sucesso');
-        }
+      if (editingBranch) {
+        const response = await api.branches.update(editingBranch.id, formData);
+        if (response.error) throw new Error(response.error);
+        toast.success('Filial actualizada com sucesso');
       } else {
-        // Demo mode - use localStorage
-        if (editingBranch) {
-          const updatedBranch: Branch = {
-            ...editingBranch,
-            name: formData.name,
-            code: formData.code || '',
-            address: formData.address || '',
-            phone: formData.phone || '',
-            isMain: formData.isMain,
-            priceLevel: (formData as any).priceLevel || editingBranch.priceLevel || 1,
-          };
-          storage.saveBranch(updatedBranch);
-          toast.success('Filial actualizada com sucesso');
-        } else {
-          const newBranch: Branch = {
-            id: crypto.randomUUID(),
-            name: formData.name,
-            code: formData.code || '',
-            address: formData.address || '',
-            phone: formData.phone || '',
-            isMain: formData.isMain,
-            priceLevel: (formData as any).priceLevel || 1,
-            createdAt: new Date().toISOString(),
-          };
-          storage.saveBranch(newBranch);
-          toast.success('Filial criada com sucesso');
-        }
-        // Force re-render by reloading page (simple approach for demo mode)
-        window.location.reload();
+        const response = await api.branches.create(formData);
+        if (response.error) throw new Error(response.error);
+        toast.success('Filial criada com sucesso');
       }
-      
       setDialogOpen(false);
       resetForm();
-    } catch (error) {
+      // Reload to refresh branch context
+      window.location.reload();
+    } catch (error: any) {
       console.error('Error saving branch:', error);
-      toast.error('Erro ao guardar filial');
+      toast.error(error.message || 'Erro ao guardar filial');
     } finally {
       setIsLoading(false);
     }
@@ -163,21 +96,13 @@ export default function Branches() {
 
     setIsLoading(true);
     try {
-      if (isLocalNetworkMode()) {
-        // Network mode - call API (would need to add delete endpoint)
-        toast.error('Eliminação via API não implementada');
-      } else {
-        // Demo mode - use localStorage
-        storage.deleteBranch(branchToDelete.id);
-        toast.success('Filial eliminada com sucesso');
-        window.location.reload();
-      }
-      
+      // Try API delete
+      toast.error('Eliminação via API não implementada');
       setDeleteDialogOpen(false);
       setBranchToDelete(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting branch:', error);
-      toast.error('Erro ao eliminar filial');
+      toast.error(error.message || 'Erro ao eliminar filial');
     } finally {
       setIsLoading(false);
     }
@@ -254,19 +179,10 @@ export default function Branches() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(branch)}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(branch)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openDeleteDialog(branch)}
-                          disabled={branch.isMain}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(branch)} disabled={branch.isMain}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -279,72 +195,40 @@ export default function Branches() {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editingBranch ? 'Editar Filial' : 'Nova Filial'}
-            </DialogTitle>
+            <DialogTitle>{editingBranch ? 'Editar Filial' : 'Nova Filial'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nome *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ex: Sede Principal"
-              />
+              <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Ex: Sede Principal" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="code">Código</Label>
-              <Input
-                id="code"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="Ex: SEDE01"
-              />
+              <Input id="code" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} placeholder="Ex: SEDE01" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="address">Endereço</Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                placeholder="Ex: Rua Principal, Luanda"
-              />
+              <Input id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="Ex: Rua Principal, Luanda" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefone</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="Ex: +244 923 456 789"
-              />
+              <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="Ex: +244 923 456 789" />
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="isMain">Filial Principal (Sede)</Label>
-              <Switch
-                id="isMain"
-                checked={formData.isMain}
-                onCheckedChange={(checked) => setFormData({ ...formData, isMain: checked })}
-              />
+              <Switch id="isMain" checked={formData.isMain} onCheckedChange={(checked) => setFormData({ ...formData, isMain: checked })} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} disabled={isLoading}>
-              {isLoading ? 'A guardar...' : 'Guardar'}
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={isLoading}>{isLoading ? 'A guardar...' : 'Guardar'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

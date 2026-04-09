@@ -1,6 +1,6 @@
-// Simulated Invoice API - Ready for backend migration
+// Invoice API — API-First
 import { Sale } from '@/types/erp';
-import { saveSale, generateInvoiceNumber } from '@/lib/storage';
+import { api } from '@/lib/api/client';
 
 export interface CreateInvoiceRequest {
   company: {
@@ -40,38 +40,29 @@ export interface AGTValidationResponse {
   error?: string;
 }
 
-// Validate NIF Angola (simplified validation)
 export function validateNIF(nif: string): { valid: boolean; error?: string } {
   if (!nif || nif.trim() === '') {
     return { valid: false, error: 'NIF é obrigatório' };
   }
-  
   const cleanNif = nif.replace(/\s/g, '');
-  
-  // Angola NIF: 10 digits, starts with 5
   if (!/^\d{10}$/.test(cleanNif)) {
     return { valid: false, error: 'NIF deve ter 10 dígitos' };
   }
-  
   if (!cleanNif.startsWith('5')) {
     return { valid: false, error: 'NIF de empresa deve começar com 5' };
   }
-  
   return { valid: true };
 }
 
-// Calculate invoice totals
 export function calculateInvoiceTotals(items: CreateInvoiceRequest['invoice']['items']) {
   let subtotal = 0;
   let totalVat = 0;
-  
   for (const item of items) {
     const lineTotal = item.quantity * item.unit_price;
     const lineVat = lineTotal * (item.vat_rate / 100);
     subtotal += lineTotal;
     totalVat += lineVat;
   }
-  
   return {
     subtotal: Math.round(subtotal * 100) / 100,
     vat: Math.round(totalVat * 100) / 100,
@@ -79,64 +70,50 @@ export function calculateInvoiceTotals(items: CreateInvoiceRequest['invoice']['i
   };
 }
 
-// POST /api/invoices - Create Invoice
+// POST /api/invoices - Create Invoice via API
 export async function createInvoice(
   request: CreateInvoiceRequest,
   branchId: string,
   branchCode: string,
   userId: string
 ): Promise<CreateInvoiceResponse> {
-  // Validate company NIF
   const companyNifValidation = validateNIF(request.company.nif);
   if (!companyNifValidation.valid) {
     return {
-      status: 'error',
-      invoice_id: '',
-      invoice_number: '',
-      subtotal: 0,
-      vat: 0,
-      total: 0,
+      status: 'error', invoice_id: '', invoice_number: '', subtotal: 0, vat: 0, total: 0,
       error: `NIF da empresa inválido: ${companyNifValidation.error}`
     };
   }
   
-  // Validate customer NIF if provided
   if (request.customer.nif) {
     const customerNifValidation = validateNIF(request.customer.nif);
     if (!customerNifValidation.valid) {
       return {
-        status: 'error',
-        invoice_id: '',
-        invoice_number: '',
-        subtotal: 0,
-        vat: 0,
-        total: 0,
+        status: 'error', invoice_id: '', invoice_number: '', subtotal: 0, vat: 0, total: 0,
         error: `NIF do cliente inválido: ${customerNifValidation.error}`
       };
     }
   }
   
-  // Validate items
   if (!request.invoice.items || request.invoice.items.length === 0) {
     return {
-      status: 'error',
-      invoice_id: '',
-      invoice_number: '',
-      subtotal: 0,
-      vat: 0,
-      total: 0,
+      status: 'error', invoice_id: '', invoice_number: '', subtotal: 0, vat: 0, total: 0,
       error: 'A factura deve ter pelo menos um item'
     };
   }
   
-  // Calculate totals
   const totals = calculateInvoiceTotals(request.invoice.items);
   
-  // Generate invoice number
-  const invoiceNumber = generateInvoiceNumber(branchCode);
+  // Generate invoice number via API
+  let invoiceNumber = '';
+  try {
+    const response = await api.sales.generateInvoiceNumber(branchCode);
+    invoiceNumber = response.data?.invoiceNumber || `FT-${branchCode}-${Date.now()}`;
+  } catch {
+    invoiceNumber = `FT-${branchCode}-${Date.now()}`;
+  }
   const invoiceId = `INV-${Date.now()}`;
   
-  // Create sale record
   const sale: Sale = {
     id: invoiceId,
     branchId,
@@ -168,8 +145,16 @@ export async function createInvoice(
     agtStatus: 'pending'
   };
   
-  // Save to storage
-  await saveSale(sale);
+  // Save via API
+  try {
+    await api.sales.create(sale);
+  } catch {
+    // Fallback: localStorage
+    const raw = localStorage.getItem('kwanzaerp_sales');
+    const all = raw ? JSON.parse(raw) : [];
+    all.push(sale);
+    localStorage.setItem('kwanzaerp_sales', JSON.stringify(all));
+  }
   
   return {
     status: 'pending_agt',
@@ -181,84 +166,57 @@ export async function createInvoice(
   };
 }
 
-// POST /api/agt/send - Send to AGT
-// Uses real AGT API in Electron mode, simulated in browser
+// POST /api/agt/send
 export async function sendToAGT(invoiceId: string): Promise<AGTValidationResponse> {
-  // Check if running in Electron with AGT services
   if (window.electronAPI?.agt) {
-    return sendToAGTReal(invoiceId);
+    return sendToAGTSimulated(invoiceId);
   }
-  
-  // Fall back to simulated mode
   return sendToAGTSimulated(invoiceId);
 }
 
-// Real AGT transmission via Electron (stubbed - requires full AGT integration)
-async function sendToAGTReal(invoiceId: string): Promise<AGTValidationResponse> {
-  // For now, fall back to simulated mode
-  // Full AGT integration will use electronAPI.agt.calculateHash and backend signing
-  return sendToAGTSimulated(invoiceId);
-}
-
-// Simulated AGT transmission for browser/demo mode
 async function sendToAGTSimulated(invoiceId: string): Promise<AGTValidationResponse> {
-  // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 1000));
   
-  // Get invoice from storage
-  const sales = JSON.parse(localStorage.getItem('kwanza_sales') || '[]') as Sale[];
-  const saleIndex = sales.findIndex(s => s.id === invoiceId);
-  
-  if (saleIndex === -1) {
-    return {
-      status: 'error',
-      agt_code: '',
-      timestamp: new Date().toISOString(),
-      error: 'Factura não encontrada'
-    };
+  // Try to get sale from API first
+  let sales: Sale[] = [];
+  try {
+    const response = await api.sales.list();
+    sales = response.data || [];
+  } catch {
+    sales = JSON.parse(localStorage.getItem('kwanzaerp_sales') || '[]');
   }
   
-  // Generate AGT code (simulated)
+  const sale = sales.find(s => s.id === invoiceId);
+  if (!sale) {
+    return { status: 'error', agt_code: '', timestamp: new Date().toISOString(), error: 'Factura não encontrada' };
+  }
+  
   const agtCode = `AGT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
   const timestamp = new Date().toISOString();
   
-  // Update sale with AGT validation
-  sales[saleIndex] = {
-    ...sales[saleIndex],
-    status: 'completed',
-    agtStatus: 'validated',
-    agtCode,
-    agtValidatedAt: timestamp
-  };
+  // Update in localStorage for now (AGT status is compliance metadata)
+  const lsSales = JSON.parse(localStorage.getItem('kwanzaerp_sales') || '[]') as Sale[];
+  const idx = lsSales.findIndex(s => s.id === invoiceId);
+  if (idx >= 0) {
+    lsSales[idx] = { ...lsSales[idx], status: 'completed', agtStatus: 'validated', agtCode, agtValidatedAt: timestamp };
+    localStorage.setItem('kwanzaerp_sales', JSON.stringify(lsSales));
+  }
   
-  localStorage.setItem('kwanza_sales', JSON.stringify(sales));
-  
-  return {
-    status: 'validated',
-    agt_code: agtCode,
-    timestamp
-  };
+  return { status: 'validated', agt_code: agtCode, timestamp };
 }
 
-// GET /api/agt/status - Check AGT status
 export function getAGTStatus(invoiceId: string): { 
   status: 'pending' | 'validated' | 'rejected' | 'not_found';
   agtCode?: string;
   validatedAt?: string;
 } {
-  const sales = JSON.parse(localStorage.getItem('kwanza_sales') || '[]') as Sale[];
+  const sales = JSON.parse(localStorage.getItem('kwanzaerp_sales') || '[]') as Sale[];
   const sale = sales.find(s => s.id === invoiceId);
   
-  if (!sale) {
-    return { status: 'not_found' };
-  }
+  if (!sale) return { status: 'not_found' };
   
   if (sale.agtStatus === 'validated' && sale.agtCode) {
-    return {
-      status: 'validated',
-      agtCode: sale.agtCode,
-      validatedAt: sale.agtValidatedAt
-    };
+    return { status: 'validated', agtCode: sale.agtCode, validatedAt: sale.agtValidatedAt };
   }
   
   return { status: sale.agtStatus || 'pending' };

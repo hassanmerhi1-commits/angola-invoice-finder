@@ -398,6 +398,17 @@ export const api = {
     },
   },
 
+  // Users
+  users: {
+    list: () => apiFetch<any[]>('/auth/users'),
+    create: (data: any) =>
+      apiFetch<any>('/auth/users', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) =>
+      apiFetch<any>(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      apiFetch<any>(`/auth/users/${id}`, { method: 'DELETE' }),
+  },
+
   // Transactions (Central Transaction Engine)
   transactions: {
     process: (data: any) =>

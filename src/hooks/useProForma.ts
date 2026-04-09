@@ -1,4 +1,4 @@
-// Pro Forma hook for Kwanza ERP — all calls now async
+// Pro Forma hook for Kwanza ERP — API-First
 import { useState, useCallback, useEffect } from 'react';
 import { ProForma, ProFormaItem } from '@/types/proforma';
 import { Product, Sale, SaleItem } from '@/types/erp';
@@ -12,7 +12,7 @@ import {
   updateExpiredProFormas,
   getProFormaStats,
 } from '@/lib/proforma';
-import { saveSale, generateInvoiceNumber } from '@/lib/storage';
+import { api } from '@/lib/api/client';
 import { useTransactionHistory } from './useTransactionHistory';
 
 export function useProForma(branchId?: string) {
@@ -134,7 +134,14 @@ export function useProForma(branchId?: string) {
       subtotal: item.subtotal,
     }));
 
-    const invoiceNumber = generateInvoiceNumber(branchCode);
+    // Generate invoice number via API
+    let invoiceNumber = '';
+    try {
+      const response = await api.sales.generateInvoiceNumber(branchCode);
+      invoiceNumber = response.data?.invoiceNumber || `FT-${branchCode}-${Date.now()}`;
+    } catch {
+      invoiceNumber = `FT-${branchCode}-${Date.now()}`;
+    }
     
     const sale: Sale = {
       id: crypto.randomUUID(),
@@ -156,7 +163,16 @@ export function useProForma(branchId?: string) {
       createdAt: new Date().toISOString(),
     };
 
-    await saveSale(sale);
+    // Save sale via API
+    try {
+      await api.sales.create(sale);
+    } catch {
+      // Fallback: localStorage
+      const raw = localStorage.getItem('kwanzaerp_sales');
+      const all = raw ? JSON.parse(raw) : [];
+      all.push(sale);
+      localStorage.setItem('kwanzaerp_sales', JSON.stringify(all));
+    }
 
     proforma.status = 'converted';
     proforma.convertedToInvoiceId = sale.id;

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api/client';
 import { Account, AccountFormData, TrialBalanceRow, AccountType } from '@/types/accounting';
 import { ensureBranchCaixaAccounts } from '@/lib/chartOfAccountsEngine';
-import * as storage from '@/lib/storage';
 
 const LOCAL_COA_STORAGE_KEY = 'kwanzaerp_chart_of_accounts';
 
@@ -152,16 +151,31 @@ export function useChartOfAccounts() {
     if (isLoading || branchCaixaSeeded.current || accounts.length === 0) return;
     branchCaixaSeeded.current = true;
 
-    storage.getBranches().then(branches => {
+    // Fetch branches from API instead of storage
+    api.branches.list().then(response => {
+      const branches = response.data || [];
       if (branches.length > 0) {
-        ensureBranchCaixaAccounts(branches.map(b => ({ id: b.id, name: b.name }))).then(() => {
-          // Re-read local accounts to pick up any newly created caixa accounts
+        ensureBranchCaixaAccounts(branches.map((b: any) => ({ id: b.id, name: b.name }))).then(() => {
           const updated = loadLocalAccounts();
           if (updated.length > accounts.length) {
             setAccounts(sortAccountsByCode(updated));
           }
         });
       }
+    }).catch(() => {
+      // Fallback: read from localStorage
+      try {
+        const raw = localStorage.getItem('kwanzaerp_branches');
+        const branches = raw ? JSON.parse(raw) : [];
+        if (branches.length > 0) {
+          ensureBranchCaixaAccounts(branches.map((b: any) => ({ id: b.id, name: b.name }))).then(() => {
+            const updated = loadLocalAccounts();
+            if (updated.length > accounts.length) {
+              setAccounts(sortAccountsByCode(updated));
+            }
+          });
+        }
+      } catch { /* ignore */ }
     });
   }, [isLoading, accounts.length]);
 
@@ -287,10 +301,7 @@ export function useChartOfAccounts() {
     return accounts.filter(a => !a.parent_id);
   };
 
-  // Build tree structure for hierarchical display
   const getAccountTree = (): (Account & { children: Account[] })[] => {
-    const rootAccounts = getRootAccounts();
-    
     const buildTree = (parentId: string | null): (Account & { children: Account[] })[] => {
       return accounts
         .filter(a => a.parent_id === parentId)
