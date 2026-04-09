@@ -100,6 +100,50 @@ module.exports = function(broadcastTable) {
     }
   });
 
+  // Batch import products
+  router.post('/batch', async (req, res) => {
+    try {
+      const { products } = req.body;
+      if (!Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ error: 'products array is required' });
+      }
+
+      let imported = 0;
+      let failed = 0;
+      const errors = [];
+
+      for (const p of products) {
+        try {
+          await db.query(
+            `INSERT INTO products (name, sku, barcode, category, price, cost, stock, unit, tax_rate, branch_id, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (sku, branch_id) DO UPDATE SET
+               name = EXCLUDED.name, price = EXCLUDED.price, cost = EXCLUDED.cost,
+               stock = EXCLUDED.stock, unit = EXCLUDED.unit, tax_rate = EXCLUDED.tax_rate,
+               barcode = EXCLUDED.barcode, category = EXCLUDED.category,
+               updated_at = NOW()
+             `,
+            [
+              p.name, p.sku, p.barcode || '', p.category || 'GERAL',
+              p.price || 0, p.cost || 0, p.stock || 0, p.unit || 'UN',
+              p.taxRate || 14, p.branchId || null, p.isActive !== false
+            ]
+          );
+          imported++;
+        } catch (err) {
+          failed++;
+          errors.push({ sku: p.sku, error: err.message });
+        }
+      }
+
+      await broadcastTable('products');
+      res.status(201).json({ imported, failed, errors: errors.slice(0, 20) });
+    } catch (error) {
+      console.error('[PRODUCTS BATCH ERROR]', error);
+      res.status(500).json({ error: 'Failed to batch import products' });
+    }
+  });
+
   // Delete product (soft delete)
   router.delete('/:id', async (req, res) => {
     try {

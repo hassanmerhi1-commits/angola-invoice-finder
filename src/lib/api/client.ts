@@ -83,6 +83,11 @@ export const api = {
       apiFetch<any[]>(`/products${branchId ? `?branchId=${branchId}` : ''}`),
     create: (data: any) =>
       apiFetch<any>('/products', { method: 'POST', body: JSON.stringify(data) }),
+    batchImport: (products: any[]) =>
+      apiFetch<{ imported: number; failed: number; errors: any[] }>('/products/batch', {
+        method: 'POST',
+        body: JSON.stringify({ products }),
+      }),
     update: (id: string, data: any) =>
       apiFetch<any>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     updateStock: (id: string, quantityChange: number) =>
