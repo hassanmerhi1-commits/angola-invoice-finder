@@ -341,21 +341,58 @@ export default function Journals() {
       return;
     }
 
-    const createdEntry = await createLocalJournalEntry({
-      description: newEntryDescription,
-      referenceType: newEntryType,
-      referenceId: `manual_${Date.now()}`,
-      branchId: currentBranch?.id || '',
-      entryDate: newEntryDate,
-      createdBy: user?.name || 'Sistema',
-      lines: validLines.map((line) => ({
+    // Create journal entry via API
+    let createdEntry: any;
+    try {
+      const lines = validLines.map((line) => ({
         accountCode: line.accountCode,
         accountName: line.accountName,
         description: line.description || newEntryDescription,
         debit: parseFloat(line.debit) || 0,
         credit: parseFloat(line.credit) || 0,
-      })),
-    });
+      }));
+      
+      const response = await api.transactions.process({
+        type: 'manual_journal',
+        description: newEntryDescription,
+        referenceType: newEntryType,
+        referenceId: `manual_${Date.now()}`,
+        branchId: currentBranch?.id || '',
+        entryDate: newEntryDate,
+        createdBy: user?.name || 'Sistema',
+        journalEntries: lines,
+      });
+      
+      createdEntry = response.data || { entryNumber: `JE-${Date.now()}` };
+    } catch {
+      // Fallback: save to localStorage
+      const entryNumber = `JE-${Date.now().toString().slice(-6)}`;
+      createdEntry = { entryNumber };
+      const entry = {
+        id: `je_${Date.now()}`,
+        entryNumber,
+        description: newEntryDescription,
+        referenceType: newEntryType,
+        referenceId: `manual_${Date.now()}`,
+        branchId: currentBranch?.id || '',
+        entryDate: newEntryDate,
+        createdBy: user?.name || 'Sistema',
+        totalDebit: newEntryTotalDebit,
+        totalCredit: newEntryTotalCredit,
+        createdAt: new Date().toISOString(),
+        lines: validLines.map((line) => ({
+          accountCode: line.accountCode,
+          accountName: line.accountName,
+          description: line.description || newEntryDescription,
+          debit: parseFloat(line.debit) || 0,
+          credit: parseFloat(line.credit) || 0,
+        })),
+      };
+      const raw = localStorage.getItem('kwanzaerp_journal_entries');
+      const all = raw ? JSON.parse(raw) : [];
+      all.push(entry);
+      localStorage.setItem('kwanzaerp_journal_entries', JSON.stringify(all));
+    }
 
     toast.success(`Lançamento ${createdEntry.entryNumber} criado com sucesso`, {
       description: `Débito: ${newEntryTotalDebit.toLocaleString('pt-AO')} Kz | Crédito: ${newEntryTotalCredit.toLocaleString('pt-AO')} Kz`,
