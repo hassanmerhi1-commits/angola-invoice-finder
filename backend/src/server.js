@@ -30,9 +30,13 @@ const io = new Server(server, {
   }
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Phase 3: LAN Security Middleware
+const { lanCors, securityHeaders, rateLimiter } = require('./middleware/security');
+
+app.use(lanCors);
+app.use(securityHeaders);
+app.use(rateLimiter(60000, 300)); // 300 requests/min per IP
+app.use(express.json({ limit: '10mb' }));
 
 // ============================================
 // HOT UPDATE: SERVE WEBAPP FILES
@@ -169,6 +173,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const exchangeRateRoutes = require('./routes/exchangeRates');
 const saftXmlRoutes = require('./routes/saftXml');
 const transactionRoutes = require('./routes/transactions');
+const backupRoutes = require('./routes/backup');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -194,6 +199,7 @@ app.use('/api/dashboard', dashboardRoutes(broadcastTable));
 app.use('/api/exchange-rates', exchangeRateRoutes(broadcastTable));
 app.use('/api/saft-xml', saftXmlRoutes(broadcastTable));
 app.use('/api/transactions', transactionRoutes(broadcastTable));
+app.use('/api/backup', backupRoutes(broadcastTable));
 
 // Health check with extended info
 app.get('/api/health', (req, res) => {
