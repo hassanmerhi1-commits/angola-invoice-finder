@@ -160,7 +160,7 @@ export default function Setup() {
               <div className="grid gap-4 md:grid-cols-2">
                 <button
                   className="group border-2 border-border rounded-xl p-6 flex flex-col items-center gap-3 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer"
-                  onClick={() => { setMode('server-setup'); setIpFileContent('C:\\Kwanza ERP\\erp.db'); }}
+                  onClick={() => { setMode('server-setup'); setIpFileContent('postgresql://postgres:kwanza2024@localhost:5432/kwanza_erp'); }}
                 >
                   <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                     <Server className="h-7 w-7 text-primary" />
