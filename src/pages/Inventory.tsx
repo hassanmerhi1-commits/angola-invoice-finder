@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useProducts } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Product, StockMovement } from '@/types/erp';
+import { api } from '@/lib/api/client';
 import { saveProduct, getProducts as storageGetProducts, getStockMovements } from '@/lib/storage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
