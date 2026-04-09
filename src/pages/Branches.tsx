@@ -24,7 +24,7 @@ import { api } from '@/lib/api/client';
 
 export default function Branches() {
   const { t } = useLanguage();
-  const { branches, setCurrentBranch } = useBranchContext();
+  const { branches, setCurrentBranch, refreshBranches } = useBranchContext();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
@@ -75,8 +75,7 @@ export default function Branches() {
       }
       setDialogOpen(false);
       resetForm();
-      // Reload to refresh branch context
-      window.location.reload();
+      await refreshBranches();
     } catch (error: any) {
       console.error('Error saving branch:', error);
       toast.error(error.message || 'Erro ao guardar filial');
