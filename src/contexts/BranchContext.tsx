@@ -21,7 +21,6 @@ function mapBranch(b: any): Branch {
     address: b.address || '',
     phone: b.phone || '',
     isMain: b.isMain ?? b.is_main ?? false,
-    isActive: b.isActive ?? b.is_active ?? true,
     priceLevel: b.priceLevel ?? b.price_level ?? 1,
     createdAt: b.createdAt || b.created_at || '',
   };
