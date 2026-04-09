@@ -3,70 +3,126 @@
 
 -- ==================== 1. PRODUCTS: Add missing constraints ====================
 
--- Ensure price/cost are never negative
-ALTER TABLE products ADD CONSTRAINT chk_products_price_positive CHECK (price >= 0);
-ALTER TABLE products ADD CONSTRAINT chk_products_cost_positive CHECK (cost >= 0);
-ALTER TABLE products ADD CONSTRAINT chk_products_stock_nonneg CHECK (stock >= 0);
+-- Ensure price/cost are never negative (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_price_positive') THEN
+    ALTER TABLE products ADD CONSTRAINT chk_products_price_positive CHECK (price >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_cost_positive') THEN
+    ALTER TABLE products ADD CONSTRAINT chk_products_cost_positive CHECK (cost >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_stock_nonneg') THEN
+    ALTER TABLE products ADD CONSTRAINT chk_products_stock_nonneg CHECK (stock >= 0);
+  END IF;
+END $$;
 
 -- Ensure SKU is unique per branch
 CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku_branch ON products(sku, branch_id);
 
 -- ==================== 2. SALES: Tighten constraints ====================
 
-ALTER TABLE sales ADD CONSTRAINT chk_sales_total_positive CHECK (total >= 0);
-ALTER TABLE sales ADD CONSTRAINT chk_sales_subtotal_positive CHECK (subtotal >= 0);
-ALTER TABLE sales ADD CONSTRAINT chk_sales_tax_nonneg CHECK (tax_amount >= 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_sales_total_positive') THEN
+    ALTER TABLE sales ADD CONSTRAINT chk_sales_total_positive CHECK (total >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_sales_subtotal_positive') THEN
+    ALTER TABLE sales ADD CONSTRAINT chk_sales_subtotal_positive CHECK (subtotal >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_sales_tax_nonneg') THEN
+    ALTER TABLE sales ADD CONSTRAINT chk_sales_tax_nonneg CHECK (tax_amount >= 0);
+  END IF;
+END $$;
 
 -- ==================== 3. SALE ITEMS: Quantity & price constraints ====================
 
-ALTER TABLE sale_items ADD CONSTRAINT chk_sale_items_qty_positive CHECK (quantity > 0);
-ALTER TABLE sale_items ADD CONSTRAINT chk_sale_items_price_positive CHECK (unit_price >= 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_sale_items_qty_positive') THEN
+    ALTER TABLE sale_items ADD CONSTRAINT chk_sale_items_qty_positive CHECK (quantity > 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_sale_items_price_positive') THEN
+    ALTER TABLE sale_items ADD CONSTRAINT chk_sale_items_price_positive CHECK (unit_price >= 0);
+  END IF;
+END $$;
 
 -- ==================== 4. PURCHASE ORDERS: Tighten constraints ====================
 
-ALTER TABLE purchase_orders ADD CONSTRAINT chk_po_total_nonneg CHECK (total >= 0);
-ALTER TABLE purchase_order_items ADD CONSTRAINT chk_poi_qty_positive CHECK (quantity > 0);
-ALTER TABLE purchase_order_items ADD CONSTRAINT chk_poi_cost_nonneg CHECK (unit_cost >= 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_po_total_nonneg') THEN
+    ALTER TABLE purchase_orders ADD CONSTRAINT chk_po_total_nonneg CHECK (total >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_poi_qty_positive') THEN
+    ALTER TABLE purchase_order_items ADD CONSTRAINT chk_poi_qty_positive CHECK (quantity > 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_poi_cost_nonneg') THEN
+    ALTER TABLE purchase_order_items ADD CONSTRAINT chk_poi_cost_nonneg CHECK (unit_cost >= 0);
+  END IF;
+END $$;
 
 -- ==================== 5. STOCK TRANSFERS: Quantity constraints ====================
 
-ALTER TABLE stock_transfer_items ADD CONSTRAINT chk_sti_qty_positive CHECK (quantity > 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_sti_qty_positive') THEN
+    ALTER TABLE stock_transfer_items ADD CONSTRAINT chk_sti_qty_positive CHECK (quantity > 0);
+  END IF;
+END $$;
 
 -- ==================== 6. OPEN ITEMS: Amount constraints ====================
 
-ALTER TABLE open_items ADD CONSTRAINT chk_oi_original_positive CHECK (original_amount > 0);
-ALTER TABLE open_items ADD CONSTRAINT chk_oi_remaining_nonneg CHECK (remaining_amount >= 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_oi_original_positive') THEN
+    ALTER TABLE open_items ADD CONSTRAINT chk_oi_original_positive CHECK (original_amount > 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_oi_remaining_nonneg') THEN
+    ALTER TABLE open_items ADD CONSTRAINT chk_oi_remaining_nonneg CHECK (remaining_amount >= 0);
+  END IF;
+END $$;
 
 -- ==================== 7. CLEARINGS: Referential + amount ====================
 
-ALTER TABLE clearings ADD CONSTRAINT chk_clearings_amount_positive CHECK (amount > 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_clearings_amount_positive') THEN
+    ALTER TABLE clearings ADD CONSTRAINT chk_clearings_amount_positive CHECK (amount > 0);
+  END IF;
+END $$;
 
 -- ==================== 8. CLIENTS: Balance constraint ====================
 
--- credit_limit must be non-negative
-ALTER TABLE clients ADD CONSTRAINT chk_clients_credit_limit_nonneg CHECK (credit_limit >= 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_clients_credit_limit_nonneg') THEN
+    ALTER TABLE clients ADD CONSTRAINT chk_clients_credit_limit_nonneg CHECK (credit_limit >= 0);
+  END IF;
+END $$;
 
 -- ==================== 9. JOURNAL ENTRIES: Balance enforcement ====================
--- The accounting engine already validates in code, but this is the database-level safety net.
--- total_debit MUST equal total_credit for every posted entry.
 
-ALTER TABLE journal_entries ADD CONSTRAINT chk_journal_balanced 
-  CHECK (ABS(total_debit - total_credit) < 0.01);
-
-ALTER TABLE journal_entries ADD CONSTRAINT chk_journal_debit_nonneg CHECK (total_debit >= 0);
-ALTER TABLE journal_entries ADD CONSTRAINT chk_journal_credit_nonneg CHECK (total_credit >= 0);
-
--- Journal lines must have non-negative amounts
-ALTER TABLE journal_entry_lines ADD CONSTRAINT chk_jel_debit_nonneg CHECK (debit_amount >= 0);
-ALTER TABLE journal_entry_lines ADD CONSTRAINT chk_jel_credit_nonneg CHECK (credit_amount >= 0);
-
--- At least one side must be > 0 (no zero-zero lines)
-ALTER TABLE journal_entry_lines ADD CONSTRAINT chk_jel_has_amount 
-  CHECK (debit_amount > 0 OR credit_amount > 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_journal_balanced') THEN
+    ALTER TABLE journal_entries ADD CONSTRAINT chk_journal_balanced CHECK (ABS(total_debit - total_credit) < 0.01);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_journal_debit_nonneg') THEN
+    ALTER TABLE journal_entries ADD CONSTRAINT chk_journal_debit_nonneg CHECK (total_debit >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_journal_credit_nonneg') THEN
+    ALTER TABLE journal_entries ADD CONSTRAINT chk_journal_credit_nonneg CHECK (total_credit >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_jel_debit_nonneg') THEN
+    ALTER TABLE journal_entry_lines ADD CONSTRAINT chk_jel_debit_nonneg CHECK (debit_amount >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_jel_credit_nonneg') THEN
+    ALTER TABLE journal_entry_lines ADD CONSTRAINT chk_jel_credit_nonneg CHECK (credit_amount >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_jel_has_amount') THEN
+    ALTER TABLE journal_entry_lines ADD CONSTRAINT chk_jel_has_amount CHECK (debit_amount > 0 OR credit_amount > 0);
+  END IF;
+END $$;
 
 -- ==================== 10. PAYMENTS: Amount constraints ====================
 
-ALTER TABLE payments ADD CONSTRAINT chk_payments_amount_positive CHECK (amount > 0);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_payments_amount_positive') THEN
+    ALTER TABLE payments ADD CONSTRAINT chk_payments_amount_positive CHECK (amount > 0);
+  END IF;
+END $$;
 
 -- ==================== 11. STOCK MOVEMENTS: Immutability index ====================
 -- Stock movements are append-only (source of truth). Add a safeguard comment.
