@@ -1,97 +1,99 @@
 
 
-# Portable PostgreSQL with Docker for Kwanza ERP
+# Kwanza ERP — Production Checklist Plan
 
-## What We're Building
+## Current State Assessment
 
-A Docker-based PostgreSQL setup that packages the database into a portable container, so you can copy the entire server + data to any PC and start the ERP immediately — like Dolly ERP's InterBase approach.
+After inspecting the codebase, here's the reality:
 
-## Files to Create
+- **Backend PostgreSQL connection**: Fixed. `.env`, `db.js`, `docker-compose.yml` all use correct credentials (`yel3an7azi`).
+- **Transaction Engine**: Well-architected (SAP-inspired 4-layer model) BUT still writes to `localStorage` and `window.electronAPI.db` (old SQLite path) instead of going through the API.
+- **Direct storage calls**: **15 files** import from `@/lib/storage` directly, bypassing the API client. This is the biggest integrity risk.
 
-### 1. `docker-compose.yml` (project root)
-- PostgreSQL 16 container with persistent volume
-- Port 5432 exposed to host
-- Environment variables for DB credentials
-- Named volume `kwanza_pgdata` for data persistence
-- Auto-restart policy
+---
 
-### 2. `docker/postgres/init.sql`
-- Initialization script that runs on first container start
-- Creates `kwanza_erp` database if not exists
-- Sets up the DB user with proper privileges
+## PHASE 1 — CORE STABILITY (Current Priority)
 
-### 3. `docker/migrate-to-docker.sh`
-- Script to dump existing local PostgreSQL database (`pg_dump`)
-- Restore into Docker container (`pg_restore` / `psql`)
-- Verify data integrity after migration
+### Step 1: Backend connection ✅ DONE
+PostgreSQL `.env`, `db.js`, Docker credentials all aligned.
 
-### 4. `docker/portable-export.sh`
-- Exports the Docker volume data to a tar archive
-- Packages everything needed to move to another PC
+### Step 2: Route all writes through the API client
+The transaction engine (`src/lib/transactionEngine.ts`) currently calls `saveStockMovement`, `createLocalJournalEntry`, `updateProductStock` etc. from `@/lib/storage` — which writes to localStorage or Electron SQLite. This must be replaced with `api.*` calls from `src/lib/api/client.ts`.
 
-### 5. `docker/portable-import.sh`
-- On new PC: imports the tar archive into a Docker volume
-- Starts the container with restored data
-- Verifies ERP can connect
+**Files to migrate** (15 files with direct storage imports):
+- `src/lib/transactionEngine.ts` — the most critical one
+- `src/hooks/useERP.ts`
+- `src/hooks/useUsers.ts`
+- `src/hooks/useChartOfAccounts.ts`
+- `src/hooks/useFiscalDocuments.ts`
+- `src/hooks/useProForma.ts`
+- `src/hooks/useSupplierReturns.ts`
+- `src/contexts/BranchContext.tsx`
+- `src/pages/Inventory.tsx`
+- `src/pages/Journals.tsx`
+- `src/pages/Branches.tsx`
+- `src/components/inventory/BranchStockDetail.tsx`
+- `src/components/reports/StockMovementReport.tsx`
+- `src/lib/purchaseInvoiceStorage.ts`
+- `src/lib/api/invoices.ts`
 
-### 6. `DOCKER-SETUP.md`
-- Step-by-step instructions for initial setup, migration, portability, and troubleshooting
+**Approach**: For each file, replace `storage.*` calls with corresponding `api.*` methods. Add any missing API endpoints to the backend.
 
-## docker-compose.yml Structure
+### Step 3: Add missing backend API routes
+Audit `src/lib/api/client.ts` methods vs backend `routes/` folder. Add any endpoints the frontend needs but the backend doesn't serve yet (e.g., stock movements CRUD, journal entries, open items).
 
-```yaml
-version: '3.8'
-services:
-  postgres:
-    image: postgres:16
-    container_name: kwanza-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: kwanza_erp
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kwanza2024}
-    ports:
-      - "5432:5432"
-    volumes:
-      - kwanza_pgdata:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-volumes:
-  kwanza_pgdata:
-    driver: local
-```
+### Step 4: Error handling standardization
+- Backend: ensure all routes return `{ status, data, message }` format
+- Frontend: show toast errors from API failures, no silent swallows
 
-## What Changes in Backend
+---
 
-**Nothing.** The backend `.env` already points to `localhost:5432` — Docker exposes on the same port, so the connection string stays identical:
+## PHASE 2 — DATA INTEGRITY
 
-```
-DATABASE_URL=postgresql://postgres:kwanza2024@localhost:5432/kwanza_erp
-```
+### Step 5: PostgreSQL constraints
+Review all migration files. Add missing `NOT NULL`, `FOREIGN KEY`, `UNIQUE`, and indexes where absent.
 
-## Migration Workflow
+### Step 6: Accounting correctness
+- Add a database-level CHECK constraint ensuring journal entries balance (total debits = total credits per entry)
+- Add period locking enforcement in the transaction engine backend route
 
-1. `docker compose up -d` — start PostgreSQL container
-2. `bash docker/migrate-to-docker.sh` — dump local DB → restore into container
-3. Stop local PostgreSQL service (no longer needed)
-4. `cd backend && npm run migrate` — ensure schema is current
-5. `npm start` — ERP connects to Docker PostgreSQL seamlessly
+### Step 7: Stock integrity
+- Add CHECK constraint preventing negative stock (configurable)
+- Ensure stock transfers are atomic (debit source + credit destination in one transaction)
 
-## Portability Workflow (Move to Another PC)
+---
 
-**Export (source PC):**
-```bash
-bash docker/portable-export.sh
-# Creates: kwanza-erp-portable.tar.gz
-```
+## PHASE 3 — MULTI-USER / NETWORK
 
-**Import (new PC):**
-```bash
-# Install Docker, copy the tar.gz
-bash docker/portable-import.sh kwanza-erp-portable.tar.gz
-# PostgreSQL starts with all data intact
-```
+### Step 8: Concurrency testing
+- Add optimistic locking (version column) to critical tables
+- Test Socket.io real-time sync with multiple clients
 
-## Prerequisites for User
-- Docker Desktop installed on the server PC
-- Existing PostgreSQL with `kwanza_erp` database (for initial migration only)
+### Step 9: Network access
+- CORS already allows `*` — tighten to local network range
+- Verify `http://192.168.x.x:3000` access works from client machines
+
+### Step 10: Backup system
+- Add `pg_dump` script to backend (scheduled + manual trigger)
+- Verify `portable-export.sh` / `portable-import.sh` work end-to-end
+
+---
+
+## PHASES 4–6 — Already strong, refine after core is locked
+
+- POS, Inventory, Accounting, Reports: optimize performance
+- AGT compliance: validate hash chain + SAF-T export against spec
+- Electron installer + auto-update: already working
+
+---
+
+## Recommended Execution Order
+
+1. **Migrate transaction engine to API** (~biggest impact, ~1 session)
+2. **Migrate remaining 14 files** from storage to API (~2 sessions)
+3. **Add missing backend routes** as discovered during migration
+4. **Add PostgreSQL constraints** (1 migration file)
+5. **Test end-to-end**: Sale → Stock → Journal → Balance
+
+This is the "define → build → lock → move on" approach. Each step is self-contained and testable before moving to the next.
 
