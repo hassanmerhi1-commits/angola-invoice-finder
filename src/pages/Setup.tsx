@@ -41,7 +41,7 @@ export default function Setup() {
 
   const handleServerSetup = async () => {
     setIsLoading(true);
-    const dbPath = ipFileContent || 'C:\\Kwanza ERP\\erp.db';
+    const dbPath = ipFileContent || 'postgresql://postgres:kwanza2024@localhost:5432/kwanza_erp';
 
     try {
       if (isElectron) {
@@ -160,7 +160,7 @@ export default function Setup() {
               <div className="grid gap-4 md:grid-cols-2">
                 <button
                   className="group border-2 border-border rounded-xl p-6 flex flex-col items-center gap-3 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer"
-                  onClick={() => { setMode('server-setup'); setIpFileContent('C:\\Kwanza ERP\\erp.db'); }}
+                  onClick={() => { setMode('server-setup'); setIpFileContent('postgresql://postgres:kwanza2024@localhost:5432/kwanza_erp'); }}
                 >
                   <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                     <Server className="h-7 w-7 text-primary" />
@@ -226,27 +226,27 @@ export default function Setup() {
                   <CardTitle className="flex items-center gap-2">
                     <Server className="h-5 w-5 text-primary" /> Configurar Servidor
                   </CardTitle>
-                  <CardDescription>
-                    O ficheiro IP em C:\Kwanza ERP\IP será configurado com o caminho da base de dados
-                  </CardDescription>
+                   <CardDescription>
+230:                     Configurar conexão PostgreSQL (Docker) para a base de dados
+                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label>Caminho da Base de Dados</Label>
+                <Label>Conexão PostgreSQL</Label>
                 <div className="flex gap-2">
                   <Input
                     value={ipFileContent}
                     onChange={e => setIpFileContent(e.target.value)}
-                    placeholder="C:\Kwanza ERP\erp.db"
+                    placeholder="postgresql://postgres:kwanza2024@localhost:5432/kwanza_erp"
                   />
                   <Button variant="outline" size="icon">
                     <FolderOpen className="h-4 w-4" />
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  A base de dados será criada automaticamente se não existir
+                  Docker PostgreSQL será usado automaticamente
                 </p>
               </div>
 
@@ -339,8 +339,8 @@ export default function Setup() {
 
         {/* Info footer */}
         <div className="mt-6 text-center text-xs text-muted-foreground">
-          <p>Ficheiro de configuração: C:\Kwanza ERP\IP</p>
-          <p className="mt-1">Servidor = caminho da DB | Cliente = IP do servidor</p>
+          <p>Base de dados: PostgreSQL (Docker)</p>
+          <p className="mt-1">Servidor = conexão PostgreSQL | Cliente = IP do servidor</p>
         </div>
       </div>
     </div>
