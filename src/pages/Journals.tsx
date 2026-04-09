@@ -20,7 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Account } from '@/types/accounting';
-import { createLocalJournalEntry, getLocalJournalEntries } from '@/lib/storage';
+import { api } from '@/lib/api/client';
 
 const COA_STORAGE_KEY = 'kwanzaerp_chart_of_accounts';
 
