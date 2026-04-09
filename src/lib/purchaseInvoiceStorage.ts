@@ -1,10 +1,9 @@
 /**
- * Purchase Invoice (Fatura de Compra) Storage
- * DUAL-MODE: Electron → SQLite | Web → localStorage
+ * Purchase Invoice (Fatura de Compra) Storage — API-First
  */
 
 import { Product } from '@/types/erp';
-import { getAllProducts, saveProduct, updateProductStock, saveStockMovement, getSuppliers, saveSupplier } from '@/lib/storage';
+import { api } from '@/lib/api/client';
 import { isElectronMode, dbGetAll, dbInsert, dbDelete as dbDeleteRow, lsGet, lsSet } from '@/lib/dbHelper';
 
 const STORAGE_KEY = 'kwanzaerp_purchase_invoices';
@@ -187,60 +186,66 @@ export function calculateInvoiceTotals(lines: PurchaseInvoiceLine[]) {
   };
 }
 
-// ---------- Phase 2: Stock update ----------
+// ---------- Phase 2: Stock update via API ----------
 
 export async function applyStockUpdate(invoice: PurchaseInvoice): Promise<void> {
   for (const line of invoice.lines) {
     if (!line.productId || line.totalQty <= 0) continue;
-    await updateProductStock(line.productId, line.totalQty, invoice.branchId);
-    await saveStockMovement({
-      id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      productId: line.productId,
-      productName: line.description,
-      sku: line.productCode,
-      branchId: invoice.branchId,
-      type: 'IN',
-      quantity: line.totalQty,
-      reason: 'purchase',
-      referenceId: invoice.id,
-      referenceNumber: invoice.invoiceNumber,
-      costAtTime: line.unitPrice,
-      notes: `Fatura de Compra ${invoice.invoiceNumber} - ${invoice.supplierName}`,
-      createdBy: invoice.createdBy,
-      createdAt: new Date().toISOString(),
-    });
+    
+    try {
+      await api.transactions.createStockMovement({
+        productId: line.productId,
+        warehouseId: invoice.branchId,
+        movementType: 'IN',
+        quantity: line.totalQty,
+        unitCost: line.unitPrice,
+        referenceType: 'purchase',
+        referenceId: invoice.id,
+        referenceNumber: invoice.invoiceNumber,
+        notes: `Fatura de Compra ${invoice.invoiceNumber} - ${invoice.supplierName}`,
+        createdBy: invoice.createdBy,
+      });
+    } catch {
+      // Fallback: direct stock update
+      await api.products.updateStock(line.productId, line.totalQty);
+    }
   }
 }
 
-// ---------- Phase 5: Update product purchase price ----------
+// ---------- Phase 5: Update product purchase price via API ----------
 
 export async function applyPriceUpdate(invoice: PurchaseInvoice): Promise<void> {
   if (!invoice.changePrice) return;
-  const products = await getAllProducts();
+  
   for (const line of invoice.lines) {
     if (!line.productId) continue;
-    const product = products.find(p => p.id === line.productId);
-    if (!product) continue;
+    
+    try {
+      // Get current product data
+      const productsResponse = await api.products.list();
+      const products = productsResponse.data || [];
+      const product = products.find((p: any) => p.id === line.productId);
+      if (!product) continue;
 
-    const currentStock = product.stock || 0;
-    const previousStock = Math.max(currentStock - line.totalQty, 0);
-    const previousAverageCost = product.avgCost || product.cost || 0;
-    const previousTotalValue = previousStock * previousAverageCost;
-    const newItemsTotalValue = line.totalQty * line.unitPrice;
-    const newTotalStock = previousStock + line.totalQty;
-    const newAvgCost = newTotalStock > 0
-      ? (previousTotalValue + newItemsTotalValue) / newTotalStock
-      : line.unitPrice;
+      const currentStock = product.stock || 0;
+      const previousStock = Math.max(currentStock - line.totalQty, 0);
+      const previousAverageCost = product.avgCost || product.cost || 0;
+      const previousTotalValue = previousStock * previousAverageCost;
+      const newItemsTotalValue = line.totalQty * line.unitPrice;
+      const newTotalStock = previousStock + line.totalQty;
+      const newAvgCost = newTotalStock > 0
+        ? (previousTotalValue + newItemsTotalValue) / newTotalStock
+        : line.unitPrice;
 
-    const updated: Product = {
-      ...product,
-      cost: newAvgCost,
-      avgCost: newAvgCost,
-      lastCost: line.unitPrice,
-      firstCost: product.firstCost || line.unitPrice,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveProduct(updated);
+      await api.products.update(line.productId, {
+        cost: newAvgCost,
+        avgCost: newAvgCost,
+        lastCost: line.unitPrice,
+        firstCost: product.firstCost || line.unitPrice,
+      });
+    } catch (err) {
+      console.error('[PurchaseInvoice] Price update failed:', err);
+    }
   }
 }
 
@@ -286,25 +291,27 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
   return lines;
 }
 
-// ---------- Phase 6: Update supplier balance ----------
+// ---------- Phase 6: Update supplier balance via API ----------
 
 export async function applySupplierBalanceUpdate(invoice: PurchaseInvoice): Promise<void> {
   if (invoice.total <= 0) return;
-  const suppliers = await getSuppliers();
-  const supplier = suppliers.find(
-    s => s.id === invoice.supplierAccountCode || s.name === invoice.supplierName || s.nif === invoice.supplierNif
-  );
-  if (!supplier) {
-    console.warn(`[PurchaseInvoice] Supplier not found for balance update: ${invoice.supplierName}`);
-    return;
+  
+  try {
+    const response = await api.suppliers.list();
+    const suppliers = response.data || [];
+    const supplier = suppliers.find(
+      (s: any) => s.id === invoice.supplierAccountCode || s.name === invoice.supplierName || s.nif === invoice.supplierNif
+    );
+    if (!supplier) {
+      console.warn(`[PurchaseInvoice] Supplier not found: ${invoice.supplierName}`);
+      return;
+    }
+    const newBalance = (supplier.balance || 0) + invoice.total;
+    await api.suppliers.update(supplier.id, { balance: newBalance });
+    console.log(`[PurchaseInvoice] Updated supplier ${supplier.name} balance: ${supplier.balance} → ${newBalance}`);
+  } catch (err) {
+    console.error('[PurchaseInvoice] Supplier balance update failed:', err);
   }
-  const updated = {
-    ...supplier,
-    balance: (supplier.balance || 0) + invoice.total,
-    updatedAt: new Date().toISOString(),
-  };
-  await saveSupplier(updated);
-  console.log(`[PurchaseInvoice] Updated supplier ${supplier.name} balance: ${supplier.balance} → ${updated.balance}`);
 }
 
 // DB mappers

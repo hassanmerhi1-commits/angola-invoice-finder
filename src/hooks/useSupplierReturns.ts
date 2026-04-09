@@ -1,6 +1,6 @@
-// Supplier Returns Hook — async
+// Supplier Returns Hook — API-First
 import { useState, useEffect, useCallback } from 'react';
-import { PurchaseOrder, StockMovement } from '@/types/erp';
+import { PurchaseOrder } from '@/types/erp';
 import { 
   SupplierReturn, 
   SupplierReturnItem,
@@ -8,7 +8,7 @@ import {
   saveSupplierReturn, 
   generateSupplierReturnNumber 
 } from '@/lib/supplierReturns';
-import { getBranches, updateProductStock, saveStockMovement } from '@/lib/storage';
+import { api } from '@/lib/api/client';
 
 export function useSupplierReturns(branchId?: string) {
   const [supplierReturns, setSupplierReturns] = useState<SupplierReturn[]>([]);
@@ -33,8 +33,15 @@ export function useSupplierReturns(branchId?: string) {
     notes?: string,
     deductStock: boolean = true
   ): Promise<SupplierReturn> => {
-    const branches = await getBranches();
-    const branch = branches.find(b => b.id === branchId);
+    let branches: any[] = [];
+    try {
+      const response = await api.branches.list();
+      branches = response.data || [];
+    } catch {
+      const raw = localStorage.getItem('kwanzaerp_branches');
+      branches = raw ? JSON.parse(raw) : [];
+    }
+    const branch = branches.find((b: any) => b.id === branchId);
     const returnNumber = generateSupplierReturnNumber(branchCode);
     
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -66,24 +73,23 @@ export function useSupplierReturns(branchId?: string) {
 
     if (deductStock) {
       for (const item of items) {
-        await updateProductStock(item.productId, -item.quantity);
-        
-        const movement: StockMovement = {
-          id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          productId: item.productId,
-          productName: item.productName,
-          sku: item.sku,
-          branchId,
-          type: 'OUT',
-          quantity: item.quantity,
-          reason: 'return',
-          createdBy,
-          referenceId: supplierReturn.id,
-          referenceNumber: returnNumber,
-          notes: `Devolução a fornecedor: ${reasonDescription}`,
-          createdAt: new Date().toISOString(),
-        };
-        await saveStockMovement(movement);
+        // Use transaction engine API for stock movements
+        try {
+          await api.transactions.createStockMovement({
+            productId: item.productId,
+            warehouseId: branchId,
+            movementType: 'OUT',
+            quantity: item.quantity,
+            referenceType: 'return',
+            referenceId: supplierReturn.id,
+            referenceNumber: returnNumber,
+            notes: `Devolução a fornecedor: ${reasonDescription}`,
+            createdBy,
+          });
+        } catch {
+          // Fallback: direct product stock update
+          await api.products.updateStock(item.productId, -item.quantity);
+        }
       }
     }
 
@@ -130,23 +136,21 @@ export function useSupplierReturns(branchId?: string) {
     const returnDoc = returns.find(r => r.id === returnId);
     if (returnDoc && returnDoc.status === 'pending') {
       for (const item of returnDoc.items) {
-        await updateProductStock(item.productId, item.quantity);
-        const movement: StockMovement = {
-          id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          productId: item.productId,
-          productName: item.productName,
-          sku: item.sku,
-          branchId: returnDoc.branchId,
-          type: 'IN',
-          quantity: item.quantity,
-          reason: 'adjustment',
-          createdBy: userId,
-          referenceId: returnDoc.id,
-          referenceNumber: returnDoc.returnNumber,
-          notes: 'Cancelamento de devolução a fornecedor',
-          createdAt: new Date().toISOString(),
-        };
-        await saveStockMovement(movement);
+        try {
+          await api.transactions.createStockMovement({
+            productId: item.productId,
+            warehouseId: returnDoc.branchId,
+            movementType: 'IN',
+            quantity: item.quantity,
+            referenceType: 'adjustment',
+            referenceId: returnDoc.id,
+            referenceNumber: returnDoc.returnNumber,
+            notes: 'Cancelamento de devolução a fornecedor',
+            createdBy: userId,
+          });
+        } catch {
+          await api.products.updateStock(item.productId, item.quantity);
+        }
       }
       
       returnDoc.status = 'cancelled';
