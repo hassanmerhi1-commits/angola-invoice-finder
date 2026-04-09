@@ -64,30 +64,61 @@ function useJournalEntries(branchId?: string) {
     const allEntries: DisplayEntry[] = [];
 
     try {
-      const journalEntries = await getLocalJournalEntries(branchId);
+      // Fetch journal entries from API
+      const response = await api.journalEntries.list({ branchId });
+      const journalEntries = response.data || [];
       for (const je of journalEntries) {
         allEntries.push({
           id: je.id,
-          entryNumber: je.entryNumber,
-          date: je.entryDate || je.createdAt,
-          type: je.referenceType || 'manual',
+          entryNumber: je.entry_number || je.entryNumber,
+          date: je.entry_date || je.entryDate || je.created_at || je.createdAt,
+          type: je.reference_type || je.referenceType || 'manual',
           currency: 'AOA',
           description: je.description,
-          totalDebit: je.totalDebit,
-          totalCredit: je.totalCredit,
+          totalDebit: Number(je.total_debit || je.totalDebit || 0),
+          totalCredit: Number(je.total_credit || je.totalCredit || 0),
           isPosted: true,
-          createdBy: je.createdBy || 'Sistema',
-          lines: (je.lines || []).map(l => ({
-            id: `${je.id}_${l.accountCode}_${l.debit}_${l.credit}`,
-            accountCode: l.accountCode || '',
-            accountName: l.accountName || '',
+          createdBy: je.created_by || je.createdBy || 'Sistema',
+          lines: (je.lines || []).map((l: any) => ({
+            id: `${je.id}_${l.account_code || l.accountCode}_${l.debit}_${l.credit}`,
+            accountCode: l.account_code || l.accountCode || '',
+            accountName: l.account_name || l.accountName || '',
             description: l.description || '',
-            debit: l.debit,
-            credit: l.credit,
+            debit: Number(l.debit || 0),
+            credit: Number(l.credit || 0),
           })),
         });
       }
-    } catch { /* ignore */ }
+    } catch {
+      // Fallback: localStorage
+      try {
+        const raw = localStorage.getItem('kwanzaerp_journal_entries');
+        const journalEntries = raw ? JSON.parse(raw) : [];
+        for (const je of journalEntries) {
+          if (branchId && je.branchId !== branchId) continue;
+          allEntries.push({
+            id: je.id,
+            entryNumber: je.entryNumber,
+            date: je.entryDate || je.createdAt,
+            type: je.referenceType || 'manual',
+            currency: 'AOA',
+            description: je.description,
+            totalDebit: je.totalDebit,
+            totalCredit: je.totalCredit,
+            isPosted: true,
+            createdBy: je.createdBy || 'Sistema',
+            lines: (je.lines || []).map((l: any) => ({
+              id: `${je.id}_${l.accountCode}_${l.debit}_${l.credit}`,
+              accountCode: l.accountCode || '',
+              accountName: l.accountName || '',
+              description: l.description || '',
+              debit: l.debit,
+              credit: l.credit,
+            })),
+          });
+        }
+      } catch { /* ignore */ }
+    }
 
     if (!window.electronAPI?.isElectron) {
       try {
