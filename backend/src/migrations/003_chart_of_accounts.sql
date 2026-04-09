@@ -63,14 +63,14 @@ CREATE TABLE IF NOT EXISTS journal_entry_lines (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_coa_parent ON chart_of_accounts(parent_id);
-CREATE INDEX idx_coa_type ON chart_of_accounts(account_type);
-CREATE INDEX idx_coa_code ON chart_of_accounts(code);
-CREATE INDEX idx_coa_branch ON chart_of_accounts(branch_id);
-CREATE INDEX idx_journal_date ON journal_entries(entry_date);
-CREATE INDEX idx_journal_branch ON journal_entries(branch_id);
-CREATE INDEX idx_journal_lines_entry ON journal_entry_lines(journal_entry_id);
-CREATE INDEX idx_journal_lines_account ON journal_entry_lines(account_id);
+CREATE INDEX IF NOT EXISTS idx_coa_parent ON chart_of_accounts(parent_id);
+CREATE INDEX IF NOT EXISTS idx_coa_type ON chart_of_accounts(account_type);
+CREATE INDEX IF NOT EXISTS idx_coa_code ON chart_of_accounts(code);
+CREATE INDEX IF NOT EXISTS idx_coa_branch ON chart_of_accounts(branch_id);
+CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_entries(entry_date);
+CREATE INDEX IF NOT EXISTS idx_journal_branch ON journal_entries(branch_id);
+CREATE INDEX IF NOT EXISTS idx_journal_lines_entry ON journal_entry_lines(journal_entry_id);
+CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_entry_lines(account_id);
 
 -- Insert default Angolan Chart of Accounts (Plano Geral de Contabilidade - PGC)
 INSERT INTO chart_of_accounts (code, name, account_type, account_nature, level, is_header) VALUES
