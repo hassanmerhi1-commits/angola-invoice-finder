@@ -76,6 +76,36 @@ export function useBranches() {
 // ============================================
 // PRODUCTS
 // ============================================
+// Map API snake_case to frontend camelCase for products
+function mapProduct(p: any): Product {
+  return {
+    id: p.id,
+    name: p.name,
+    sku: p.sku || '',
+    barcode: p.barcode || '',
+    category: p.category || 'GERAL',
+    price: Number(p.price) || 0,
+    price2: p.price2 ?? p.price_2,
+    price3: p.price3 ?? p.price_3,
+    price4: p.price4 ?? p.price_4,
+    cost: Number(p.cost) || 0,
+    firstCost: Number(p.firstCost ?? p.first_cost ?? p.cost) || 0,
+    lastCost: Number(p.lastCost ?? p.last_cost ?? p.cost) || 0,
+    avgCost: Number(p.avgCost ?? p.avg_cost ?? p.cost) || 0,
+    stock: Number(p.stock) || 0,
+    minStock: p.minStock ?? p.min_stock,
+    maxStock: p.maxStock ?? p.max_stock,
+    unit: p.unit || 'UN',
+    taxRate: Number(p.taxRate ?? p.tax_rate) || 14,
+    branchId: p.branchId ?? p.branch_id ?? '',
+    supplierId: p.supplierId ?? p.supplier_id,
+    supplierName: p.supplierName ?? p.supplier_name,
+    isActive: p.isActive ?? p.is_active ?? true,
+    createdAt: p.createdAt ?? p.created_at ?? '',
+    updatedAt: p.updatedAt ?? p.updated_at,
+  };
+}
+
 export function useProducts(branchId?: string) {
   const [products, setProducts] = useState<Product[]>([]);
 
@@ -84,7 +114,7 @@ export function useProducts(branchId?: string) {
       () => api.products.list(branchId),
       () => storage.getProducts(branchId)
     );
-    setProducts(data);
+    setProducts(Array.isArray(data) ? data.map(mapProduct) : []);
   }, [branchId]);
 
   useEffect(() => { refreshProducts(); }, [refreshProducts]);
