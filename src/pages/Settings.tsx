@@ -379,9 +379,11 @@ export default function Settings() {
               <>
                 <Separator />
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Database Path</span>
-                  <span className="text-xs font-mono truncate max-w-[200px]">
-                    {setupConfig.serverConfig.databasePath || 'Default'}
+                  <span className="text-sm text-muted-foreground">Database</span>
+                  <span className="text-xs font-mono truncate max-w-[250px]">
+                    {setupConfig.serverConfig.databasePath?.startsWith('postgresql') 
+                      ? 'PostgreSQL (Docker)' 
+                      : setupConfig.serverConfig.databasePath || 'PostgreSQL (Default)'}
                   </span>
                 </div>
                 <Separator />
