@@ -168,6 +168,7 @@ const saftRoutes = require('./routes/saft');
 const dashboardRoutes = require('./routes/dashboard');
 const exchangeRateRoutes = require('./routes/exchangeRates');
 const saftXmlRoutes = require('./routes/saftXml');
+const transactionRoutes = require('./routes/transactions');
 
 // Use routes
 app.use('/api/auth', authRoutes);
