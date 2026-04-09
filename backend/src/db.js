@@ -13,7 +13,7 @@ function createPoolConfig() {
     port: Number(process.env.PGPORT || 5432),
     database: process.env.PGDATABASE || 'kwanza_erp',
     user: process.env.PGUSER || 'postgres',
-    password: String(process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || 'kwanza2024'),
+    password: String(process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || 'yel3an7azi'),
   };
 }
 

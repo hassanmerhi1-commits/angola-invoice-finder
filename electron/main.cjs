@@ -9,7 +9,7 @@
  * - Multi-company support via companies.json registry
  * 
  * IP file format:
- *   Server: postgresql://postgres:kwanza2024@127.0.0.1:5432/kwanza_erp
+ *   Server: postgresql://postgres:yel3an7azi@127.0.0.1:5432/kwanza_erp
  *   Client: SERVIDOR or 10.0.0.5  (hostname/IP = client mode)
  */
 
@@ -91,7 +91,7 @@ const COMPANIES_FILE_PATH = path.join(INSTALL_DIR, 'companies.json');
 const WS_PORT = 4546;
 
 // Default PostgreSQL connection
-const DEFAULT_PG_URL = 'postgresql://postgres:kwanza2024@127.0.0.1:5432/kwanza_erp';
+const DEFAULT_PG_URL = 'postgresql://postgres:yel3an7azi@127.0.0.1:5432/kwanza_erp';
 
 // Ensure install directory exists
 if (!fs.existsSync(INSTALL_DIR)) {
