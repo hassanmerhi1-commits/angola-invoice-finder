@@ -104,7 +104,7 @@ The default credentials (in `docker-compose.yml`):
 | Port | `5432` |
 | Database | `kwanza_erp` |
 | User | `postgres` |
-| Password | `kwanza2024` |
+| Password | `yel3an7azi` |
 
 To change the password, set the environment variable before starting:
 
