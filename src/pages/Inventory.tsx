@@ -135,61 +135,64 @@ export default function Inventory() {
     setDialogOpen(true);
   };
 
-  const handleImportProducts = (data: ExcelProduct[], options?: { updateDuplicates?: boolean }) => {
-    let imported = 0;
-    let updated = 0;
-    
-    data.forEach((item) => {
-      // Check if product with this SKU already exists
-      const existingProduct = products.find(p => p.sku.toLowerCase().trim() === item.codigo.toLowerCase().trim());
-      
-      if (existingProduct && options?.updateDuplicates) {
-        // Update existing product
-        updateProduct({
-          ...existingProduct,
-          name: item.descricao,
-          barcode: item.codigoBarras || existingProduct.barcode,
-          category: item.categoria || existingProduct.category,
-          price: item.preco,
-          cost: item.custo,
-          lastCost: item.custo,
-          avgCost: ((existingProduct.avgCost || existingProduct.cost) + item.custo) / 2,
-          stock: item.quantidade,
-          unit: item.unidade || existingProduct.unit,
-          taxRate: item.iva ?? existingProduct.taxRate,
-          updatedAt: new Date().toISOString(),
-        });
-        updated++;
-      } else if (!existingProduct) {
-        // Create new product
-        addProduct({
-          id: crypto.randomUUID(),
-          sku: item.codigo,
-          name: item.descricao,
-          barcode: item.codigoBarras || '',
-          category: item.categoria || 'GERAL',
-          price: item.preco,
-          cost: item.custo,
-          firstCost: item.custo,
-          lastCost: item.custo,
-          avgCost: item.custo,
-          stock: item.quantidade,
-          unit: item.unidade || 'UN',
-          taxRate: item.iva || 14,
-          isActive: true,
-          branchId: currentBranch?.id || '',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        imported++;
+  const handleImportProducts = async (data: ExcelProduct[], options?: { updateDuplicates?: boolean }) => {
+    // Build product objects for batch import
+    const productsToImport = data
+      .filter((item) => {
+        const exists = products.find(p => p.sku.toLowerCase().trim() === item.codigo.toLowerCase().trim());
+        return !exists || options?.updateDuplicates;
+      })
+      .map((item) => ({
+        sku: item.codigo,
+        name: item.descricao,
+        barcode: item.codigoBarras || '',
+        category: item.categoria || 'GERAL',
+        price: item.preco,
+        cost: item.custo,
+        stock: item.quantidade,
+        unit: item.unidade || 'UN',
+        taxRate: item.iva || 14,
+        isActive: true,
+        branchId: currentBranch?.id || '',
+      }));
+
+    if (productsToImport.length === 0) {
+      toast.info('Nenhum produto novo para importar');
+      return;
+    }
+
+    try {
+      // Try batch API first
+      const result = await api.products.batchImport(productsToImport);
+      if (result.data) {
+        const { imported, failed } = result.data;
+        const messages: string[] = [];
+        if (imported > 0) messages.push(`${imported} importados`);
+        if (failed > 0) messages.push(`${failed} falharam`);
+        toast.success(messages.join(', ') || 'Importação concluída');
+      } else {
+        // Fallback: save individually to localStorage
+        let count = 0;
+        for (const p of productsToImport) {
+          const product = {
+            id: crypto.randomUUID(),
+            ...p,
+            firstCost: p.cost,
+            lastCost: p.cost,
+            avgCost: p.cost,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          } as Product;
+          await addProduct(product);
+          count++;
+        }
+        toast.success(`${count} produtos importados (modo local)`);
       }
-    });
-    
-    const messages: string[] = [];
-    if (imported > 0) messages.push(`${imported} novos`);
-    if (updated > 0) messages.push(`${updated} actualizados`);
-    
-    toast.success(messages.join(', ') || 'Nenhum registo importado');
+    } catch (error: any) {
+      console.error('Import error:', error);
+      toast.error(error.message || 'Erro na importação');
+    }
+
     refreshProducts();
   };
 
