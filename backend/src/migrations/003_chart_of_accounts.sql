@@ -2,19 +2,16 @@
 -- Plano de Contas for Angolan accounting standards
 
 -- Account types enum
-CREATE TYPE account_type AS ENUM (
-    'asset',        -- Activo
-    'liability',    -- Passivo
-    'equity',       -- Capital Próprio
-    'revenue',      -- Receitas
-    'expense'       -- Gastos
-);
+DO $$ BEGIN
+  CREATE TYPE account_type AS ENUM ('asset', 'liability', 'equity', 'revenue', 'expense');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Account nature (for balance calculation)
-CREATE TYPE account_nature AS ENUM (
-    'debit',        -- Normal balance is debit (assets, expenses)
-    'credit'        -- Normal balance is credit (liabilities, equity, revenue)
-);
+DO $$ BEGIN
+  CREATE TYPE account_nature AS ENUM ('debit', 'credit');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Chart of Accounts table
 CREATE TABLE IF NOT EXISTS chart_of_accounts (
