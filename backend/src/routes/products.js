@@ -1,6 +1,7 @@
-// Products API routes
+// Products API routes — with Optimistic Locking (Phase 3)
 const express = require('express');
 const db = require('../db');
+const { checkOptimisticLock } = require('../middleware/security');
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
@@ -48,24 +49,29 @@ module.exports = function(broadcastTable) {
     }
   });
 
-  // Update product
+  // Update product (with optimistic locking)
   router.put('/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive } = req.body;
+      const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, version } = req.body;
       
+      if (version == null) {
+        return res.status(400).json({ error: 'version is required for updates' });
+      }
+
       const result = await db.query(
         `UPDATE products 
          SET name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
-             stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11
-         WHERE id = $12
+             stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
+             version = version + 1
+         WHERE id = $12 AND version = $13
          RETURNING *`,
-        [name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, id]
+        [name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, id, version]
       );
       
-      // Broadcast to ALL clients
-      await broadcastTable('products');
+      if (!checkOptimisticLock(result, res, 'Product')) return;
       
+      await broadcastTable('products');
       res.json(result.rows[0]);
     } catch (error) {
       console.error('[PRODUCTS ERROR]', error);
