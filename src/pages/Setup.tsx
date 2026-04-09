@@ -41,7 +41,7 @@ export default function Setup() {
 
   const handleServerSetup = async () => {
     setIsLoading(true);
-    const dbPath = ipFileContent || 'C:\\Kwanza ERP\\erp.db';
+    const dbPath = ipFileContent || 'postgresql://postgres:kwanza2024@localhost:5432/kwanza_erp';
 
     try {
       if (isElectron) {
