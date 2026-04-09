@@ -226,27 +226,27 @@ export default function Setup() {
                   <CardTitle className="flex items-center gap-2">
                     <Server className="h-5 w-5 text-primary" /> Configurar Servidor
                   </CardTitle>
-                  <CardDescription>
-                    O ficheiro IP em C:\Kwanza ERP\IP será configurado com o caminho da base de dados
-                  </CardDescription>
+                   <CardDescription>
+230:                     Configurar conexão PostgreSQL (Docker) para a base de dados
+                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label>Caminho da Base de Dados</Label>
+                <Label>Conexão PostgreSQL</Label>
                 <div className="flex gap-2">
                   <Input
                     value={ipFileContent}
                     onChange={e => setIpFileContent(e.target.value)}
-                    placeholder="C:\Kwanza ERP\erp.db"
+                    placeholder="postgresql://postgres:kwanza2024@localhost:5432/kwanza_erp"
                   />
                   <Button variant="outline" size="icon">
                     <FolderOpen className="h-4 w-4" />
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  A base de dados será criada automaticamente se não existir
+                  Docker PostgreSQL será usado automaticamente
                 </p>
               </div>
 
@@ -339,8 +339,8 @@ export default function Setup() {
 
         {/* Info footer */}
         <div className="mt-6 text-center text-xs text-muted-foreground">
-          <p>Ficheiro de configuração: C:\Kwanza ERP\IP</p>
-          <p className="mt-1">Servidor = caminho da DB | Cliente = IP do servidor</p>
+          <p>Base de dados: PostgreSQL (Docker)</p>
+          <p className="mt-1">Servidor = conexão PostgreSQL | Cliente = IP do servidor</p>
         </div>
       </div>
     </div>
