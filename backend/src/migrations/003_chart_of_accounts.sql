@@ -2,15 +2,15 @@
 -- Plano de Contas for Angolan accounting standards
 
 -- Account types enum
-DO $$ BEGIN
-  CREATE TYPE account_type AS ENUM ('asset', 'liability', 'equity', 'revenue', 'expense');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_type') THEN
+    CREATE TYPE public.account_type AS ENUM ('asset', 'liability', 'equity', 'revenue', 'expense');
+  END IF;
 
--- Account nature (for balance calculation)
-DO $$ BEGIN
-  CREATE TYPE account_nature AS ENUM ('debit', 'credit');
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_nature') THEN
+    CREATE TYPE public.account_nature AS ENUM ('debit', 'credit');
+  END IF;
 END $$;
 
 -- Chart of Accounts table
