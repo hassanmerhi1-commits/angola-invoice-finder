@@ -18,7 +18,8 @@ import {
 } from '@/components/ui/select';
 import { Download, Printer, ArrowDownCircle, ArrowUpCircle, FileSpreadsheet, Package, Search } from 'lucide-react';
 import { useBranches, useProducts } from '@/hooks/useERP';
-import { getStockMovements } from '@/lib/storage';
+import { api } from '@/lib/api/client';
+import { getStockMovements as getLocalStockMovements } from '@/lib/storage';
 import { StockMovement } from '@/types/erp';
 
 export default function StockMovementReport() {
@@ -39,7 +40,21 @@ export default function StockMovementReport() {
   // Load real stock movements from storage
   useEffect(() => {
     const loadMovements = async () => {
-      const data = await getStockMovements(currentBranch?.id);
+      try {
+        const result = await api.transactions.stockMovements({ warehouseId: currentBranch?.id });
+        if (result.data) {
+          setMovements(result.data.map((m: any) => ({
+            id: m.id, productId: m.product_id, productName: m.product_name,
+            sku: m.sku, branchId: m.warehouse_id, type: m.movement_type,
+            quantity: Number(m.quantity), reason: m.reference_type,
+            referenceId: m.reference_id, referenceNumber: m.reference_number,
+            costAtTime: Number(m.unit_cost || 0), notes: m.notes,
+            createdBy: m.created_by, createdAt: m.created_at,
+          })));
+          return;
+        }
+      } catch { /* fall through */ }
+      const data = await getLocalStockMovements(currentBranch?.id);
       setMovements(data);
     };
     loadMovements();

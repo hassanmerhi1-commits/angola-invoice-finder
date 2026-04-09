@@ -168,6 +168,7 @@ const saftRoutes = require('./routes/saft');
 const dashboardRoutes = require('./routes/dashboard');
 const exchangeRateRoutes = require('./routes/exchangeRates');
 const saftXmlRoutes = require('./routes/saftXml');
+const transactionRoutes = require('./routes/transactions');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -192,6 +193,7 @@ app.use('/api/saft', saftRoutes(broadcastTable));
 app.use('/api/dashboard', dashboardRoutes(broadcastTable));
 app.use('/api/exchange-rates', exchangeRateRoutes(broadcastTable));
 app.use('/api/saft-xml', saftXmlRoutes(broadcastTable));
+app.use('/api/transactions', transactionRoutes(broadcastTable));
 
 // Health check with extended info
 app.get('/api/health', (req, res) => {

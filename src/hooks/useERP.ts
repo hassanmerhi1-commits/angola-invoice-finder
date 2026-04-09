@@ -1,15 +1,26 @@
 /**
  * Kwanza ERP - Core Business Logic Hooks
  * 
- * All hooks use async storage functions that transparently route to:
- * - Electron SQLite (via IPC/WebSocket) when in desktop mode
- * - localStorage when in web preview / demo mode
+ * API-First architecture: All hooks try the backend API first,
+ * falling back to localStorage for web preview / demo mode.
  */
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, Supplier, PurchaseOrder, PurchaseOrderItem, Category } from '@/types/erp';
+import { api, setAuthToken } from '@/lib/api/client';
 import * as storage from '@/lib/storage';
 import { processSalePayment } from '@/lib/accountingStorage';
+
+// Helper: try API, fallback to storage
+async function apiFallback<T>(apiFn: () => Promise<{ data?: T; error?: string }>, storageFn: () => Promise<T> | T): Promise<T> {
+  try {
+    const result = await apiFn();
+    if (result.data !== undefined) return result.data;
+  } catch (e) {
+    // API unavailable
+  }
+  return await storageFn();
+}
 
 // ============================================
 // BRANCHES
@@ -19,9 +30,24 @@ export function useBranches() {
   const [currentBranch, setCurrentBranchState] = useState<Branch | null>(null);
 
   const refreshBranches = useCallback(async () => {
-    const data = await storage.getBranches();
-    setBranches(data);
-    return data;
+    const data = await apiFallback<any[]>(
+      () => api.branches.list(),
+      () => storage.getBranches()
+    );
+    // Map API response to Branch type
+    const mapped = data.map((b: any) => ({
+      id: b.id,
+      name: b.name,
+      code: b.code || b.branch_code || '',
+      address: b.address || '',
+      phone: b.phone || '',
+      isMain: b.isMain ?? b.is_main ?? false,
+      isActive: b.isActive ?? b.is_active ?? true,
+      priceLevel: b.priceLevel ?? b.price_level ?? 1,
+      createdAt: b.createdAt || b.created_at || '',
+    })) as Branch[];
+    setBranches(mapped);
+    return mapped;
   }, []);
 
   useEffect(() => {
@@ -30,7 +56,7 @@ export function useBranches() {
       if (current) {
         setCurrentBranchState(current);
       } else {
-        const mainBranch = data.find(b => b.isMain);
+        const mainBranch = data.find((b: Branch) => b.isMain);
         if (mainBranch) {
           storage.setCurrentBranch(mainBranch);
           setCurrentBranchState(mainBranch);
@@ -54,7 +80,10 @@ export function useProducts(branchId?: string) {
   const [products, setProducts] = useState<Product[]>([]);
 
   const refreshProducts = useCallback(async () => {
-    const data = await storage.getProducts(branchId);
+    const data = await apiFallback<any[]>(
+      () => api.products.list(branchId),
+      () => storage.getProducts(branchId)
+    );
     setProducts(data);
   }, [branchId]);
 
@@ -64,30 +93,29 @@ export function useProducts(branchId?: string) {
     const handleProductsChanged = (event: Event) => {
       const customEvent = event as CustomEvent<{ branchId?: string }>;
       const changedBranchId = customEvent.detail?.branchId;
-
       if (!branchId || !changedBranchId || changedBranchId === branchId) {
         refreshProducts();
       }
     };
-
     window.addEventListener(storage.PRODUCTS_CHANGED_EVENT, handleProductsChanged as EventListener);
-    return () => {
-      window.removeEventListener(storage.PRODUCTS_CHANGED_EVENT, handleProductsChanged as EventListener);
-    };
+    return () => window.removeEventListener(storage.PRODUCTS_CHANGED_EVENT, handleProductsChanged as EventListener);
   }, [branchId, refreshProducts]);
 
   const addProduct = useCallback(async (product: Product) => {
-    await storage.saveProduct(product);
+    const result = await api.products.create(product);
+    if (!result.data) await storage.saveProduct(product);
     await refreshProducts();
   }, [refreshProducts]);
 
   const updateProduct = useCallback(async (product: Product) => {
-    await storage.saveProduct(product);
+    const result = await api.products.update(product.id, product);
+    if (!result.data) await storage.saveProduct(product);
     await refreshProducts();
   }, [refreshProducts]);
 
   const deleteProduct = useCallback(async (productId: string) => {
-    await storage.deleteProduct(productId);
+    const result = await api.products.delete(productId);
+    if (!result.data) await storage.deleteProduct(productId);
     await refreshProducts();
   }, [refreshProducts]);
 
@@ -154,8 +182,40 @@ export function useSales(branchId?: string) {
   const [sales, setSales] = useState<Sale[]>([]);
 
   const refreshSales = useCallback(async () => {
-    const data = await storage.getSales(branchId);
-    setSales(data);
+    const data = await apiFallback<any[]>(
+      () => api.sales.list(branchId),
+      () => storage.getSales(branchId)
+    );
+    setSales(data.map((s: any) => ({
+      id: s.id,
+      invoiceNumber: s.invoiceNumber || s.invoice_number || '',
+      branchId: s.branchId || s.branch_id || '',
+      cashierId: s.cashierId || s.cashier_id || '',
+      cashierName: s.cashierName || s.cashier_name || '',
+      items: (s.items || []).map((i: any) => ({
+        productId: i.productId || i.product_id,
+        productName: i.productName || i.product_name,
+        sku: i.sku || '',
+        quantity: i.quantity,
+        unitPrice: i.unitPrice || i.unit_price,
+        discount: i.discount || 0,
+        taxRate: i.taxRate || i.tax_rate || 0,
+        taxAmount: i.taxAmount || i.tax_amount || 0,
+        subtotal: i.subtotal || i.total || 0,
+      })),
+      subtotal: Number(s.subtotal || 0),
+      taxAmount: Number(s.taxAmount || s.tax_amount || 0),
+      discount: Number(s.discount || 0),
+      total: Number(s.total || 0),
+      paymentMethod: s.paymentMethod || s.payment_method || 'cash',
+      amountPaid: Number(s.amountPaid || s.amount_paid || 0),
+      change: Number(s.change || s.change_amount || 0),
+      customerNif: s.customerNif || s.customer_nif || '',
+      customerName: s.customerName || s.customer_name || '',
+      status: s.status || 'completed',
+      saftHash: s.saftHash || s.agt_hash || '',
+      createdAt: s.createdAt || s.created_at || '',
+    })));
   }, [branchId]);
 
   useEffect(() => { refreshSales(); }, [refreshSales]);
@@ -193,8 +253,10 @@ export function useSales(branchId?: string) {
       } catch { return ''; }
     })();
 
-    const buildDirectSale = (): Sale => ({
-      id: crypto.randomUUID(),
+    let sale: Sale;
+
+    // Try API first (backend Transaction Engine — atomic PostgreSQL)
+    const apiResult = await api.sales.create({
       invoiceNumber: storage.generateInvoiceNumber(branchCode),
       branchId,
       cashierId,
@@ -209,20 +271,33 @@ export function useSales(branchId?: string) {
       change: amountPaid - total,
       customerNif,
       customerName,
-      status: 'completed',
-      createdAt: new Date().toISOString(),
     });
 
-    let sale: Sale;
-
-    if (storage.isElectronMode()) {
-      sale = buildDirectSale();
-      await storage.saveSale(sale);
-      console.log(`[POS] Sale ${sale.invoiceNumber} processed directly in erp.db ✓`);
+    if (apiResult.data) {
+      sale = {
+        id: apiResult.data.id,
+        invoiceNumber: apiResult.data.invoice_number || apiResult.data.invoiceNumber,
+        branchId,
+        cashierId,
+        cashierName,
+        items: saleItems,
+        subtotal,
+        taxAmount,
+        discount: 0,
+        total,
+        paymentMethod,
+        amountPaid,
+        change: amountPaid - total,
+        customerNif,
+        customerName,
+        status: 'completed',
+        createdAt: apiResult.data.created_at || new Date().toISOString(),
+      };
+      console.log(`[POS] Sale ${sale.invoiceNumber} processed via API Transaction Engine ✓`);
     } else {
-      // Try API first (Transaction Engine — atomic stock + journal + open items)
-      const { api } = await import('@/lib/api/client');
-      const apiResult = await api.sales.create({
+      console.warn('[POS] API unavailable, falling back to local:', apiResult.error);
+      sale = {
+        id: crypto.randomUUID(),
         invoiceNumber: storage.generateInvoiceNumber(branchCode),
         branchId,
         cashierId,
@@ -237,46 +312,17 @@ export function useSales(branchId?: string) {
         change: amountPaid - total,
         customerNif,
         customerName,
-      });
-
-      if (apiResult.data) {
-        // API succeeded — transaction engine handled stock, journals, open items
-        sale = {
-          id: apiResult.data.id,
-          invoiceNumber: apiResult.data.invoice_number || apiResult.data.invoiceNumber,
-          branchId,
-          cashierId,
-          cashierName,
-          items: saleItems,
-          subtotal,
-          taxAmount,
-          discount: 0,
-          total,
-          paymentMethod,
-          amountPaid,
-          change: amountPaid - total,
-          customerNif,
-          customerName,
-          status: 'completed',
-          createdAt: apiResult.data.created_at || new Date().toISOString(),
-        };
-        console.log(`[POS] Sale ${sale.invoiceNumber} processed via Transaction Engine ✓`);
-      } else {
-        console.warn('[POS] API unavailable, falling back to local storage mode:', apiResult.error);
-        sale = buildDirectSale();
-        await storage.saveSale(sale);
-      }
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+      };
+      await storage.saveSale(sale);
     }
 
-    // Update Caixa balance for cash payments (always local for real-time feedback)
+    // Update Caixa balance (local for real-time feedback)
     const caixaResult = await processSalePayment(
-      branchId,
-      sale.id,
-      sale.invoiceNumber,
-      sale.total,
+      branchId, sale.id, sale.invoiceNumber, sale.total,
       sale.paymentMethod === 'mixed' ? 'cash' : sale.paymentMethod,
-      cashierId,
-      customerName
+      cashierId, customerName
     );
     if (caixaResult.caixaName) {
       console.log(`[POS] Sale ${sale.invoiceNumber} → Caixa "${caixaResult.caixaName}" balance: ${caixaResult.newBalance?.toLocaleString('pt-AO')} Kz`);
@@ -328,6 +374,17 @@ async function initAuthStateOnce() {
 
   const currentUser = storage.getCurrentUser();
   if (currentUser && currentUser.id && currentUser.email) {
+    // Try to verify with API
+    try {
+      const meResult = await api.auth.me();
+      if (meResult.data) {
+        setAuthState({ user: currentUser, isLoading: false });
+        return;
+      }
+    } catch {
+      // API not available, check locally
+    }
+    
     const users = await storage.getUsers();
     const validUser = users.find(u => u.id === currentUser.id && u.isActive);
     if (validUser) {
@@ -352,9 +409,8 @@ export function useAuth() {
       ? normalizedLower.split('@')[0]
       : normalizedLower;
 
-    // Try backend API first (network mode)
+    // Try backend API first
     try {
-      const { api, setAuthToken } = await import('@/lib/api/client');
       const response = await api.auth.login(maybeEmail, password || 'demo');
       if (response.data) {
         setAuthToken(response.data.token);
@@ -365,9 +421,9 @@ export function useAuth() {
           name: apiUser.name,
           username: normalizedUsername,
           role: apiUser.role || 'cashier',
-          branchId: apiUser.branchId || '',
+          branchId: apiUser.branchId || apiUser.branch_id || '',
           isActive: true,
-          createdAt: apiUser.createdAt || new Date().toISOString(),
+          createdAt: apiUser.createdAt || apiUser.created_at || new Date().toISOString(),
         };
         storage.setCurrentUser(user);
         setAuthState({ user });
@@ -378,16 +434,14 @@ export function useAuth() {
       console.log('[Auth] Backend API not available, falling back to local auth');
     }
 
-    // In Electron mode, check DB users (supports both username-first and email-first schemas)
+    // Electron mode fallback
     if (storage.isElectronMode()) {
       let dbReachable = true;
       try {
         const tryQuery = async (sql: string, params: unknown[]) => {
           try {
             const result = await window.electronAPI!.db.query(sql, params);
-            if (result?.success === false) {
-              throw new Error(result.error || 'Query failed');
-            }
+            if (result?.success === false) throw new Error(result.error || 'Query failed');
             return Array.isArray(result?.data) ? result.data : [];
           } catch {
             dbReachable = false;
@@ -397,26 +451,15 @@ export function useAuth() {
 
         const userColumns = await tryQuery("SELECT name FROM pragma_table_info('users')", []);
         const availableColumns = new Set(
-          userColumns
-            .map((column: { name?: string }) => String(column.name || '').toLowerCase())
-            .filter(Boolean)
+          userColumns.map((column: { name?: string }) => String(column.name || '').toLowerCase()).filter(Boolean)
         );
 
         const identifierClauses: string[] = [];
         const identifierParams: unknown[] = [];
 
-        if (availableColumns.has('username')) {
-          identifierClauses.push('LOWER(username) = LOWER(?)');
-          identifierParams.push(normalized);
-        }
-        if (availableColumns.has('email')) {
-          identifierClauses.push('LOWER(email) = LOWER(?)');
-          identifierParams.push(maybeEmail);
-        }
-        if (availableColumns.has('id')) {
-          identifierClauses.push('id = ?');
-          identifierParams.push(normalized);
-        }
+        if (availableColumns.has('username')) { identifierClauses.push('LOWER(username) = LOWER(?)'); identifierParams.push(normalized); }
+        if (availableColumns.has('email')) { identifierClauses.push('LOWER(email) = LOWER(?)'); identifierParams.push(maybeEmail); }
+        if (availableColumns.has('id')) { identifierClauses.push('id = ?'); identifierParams.push(normalized); }
 
         if (identifierClauses.length > 0) {
           const activeClause = availableColumns.has('is_active')
@@ -431,28 +474,26 @@ export function useAuth() {
           if (matchedUsers.length > 0) {
             const dbUser = matchedUsers[0];
             const username = String(dbUser.username || dbUser.email?.split('@')?.[0] || dbUser.id || normalizedUsername).toLowerCase();
-            const role = ['admin', 'manager', 'cashier', 'viewer'].includes(String(dbUser.role))
-              ? dbUser.role
-              : 'cashier';
-          const isDemoAccount = username === 'admin' || username === 'caixa1';
-          const storedPassword = dbUser.password ?? dbUser.password_hash;
-          const validPassword = isDemoAccount || password === '' || !storedPassword || storedPassword === password;
+            const role = ['admin', 'manager', 'cashier', 'viewer'].includes(String(dbUser.role)) ? dbUser.role : 'cashier';
+            const isDemoAccount = username === 'admin' || username === 'caixa1';
+            const storedPassword = dbUser.password ?? dbUser.password_hash;
+            const validPassword = isDemoAccount || password === '' || !storedPassword || storedPassword === password;
 
-          if (validPassword) {
-            const user: User = {
-              id: dbUser.id,
-              email: dbUser.email || `${dbUser.username || normalized}@kwanzaerp.ao`,
-              name: dbUser.name || dbUser.username || normalized,
-              username: dbUser.username || normalizedUsername,
-              role,
-              branchId: dbUser.branch_id || '',
-              isActive: true,
-              createdAt: dbUser.created_at || '',
-            };
-            storage.setCurrentUser(user);
-            setAuthState({ user });
-            return true;
-          }
+            if (validPassword) {
+              const user: User = {
+                id: dbUser.id,
+                email: dbUser.email || `${dbUser.username || normalized}@kwanzaerp.ao`,
+                name: dbUser.name || dbUser.username || normalized,
+                username: dbUser.username || normalizedUsername,
+                role,
+                branchId: dbUser.branch_id || '',
+                isActive: true,
+                createdAt: dbUser.created_at || '',
+              };
+              storage.setCurrentUser(user);
+              setAuthState({ user });
+              return true;
+            }
           }
         }
       } catch (e) {
@@ -472,19 +513,18 @@ export function useAuth() {
           isActive: true,
           createdAt: new Date().toISOString(),
         };
-
         storage.setCurrentUser(user);
         setAuthState({ user });
         return true;
       }
 
       if (!dbReachable) {
-        console.error('[Auth] Database not reachable in Electron mode during login');
+        console.error('[Auth] Database not reachable in Electron mode');
       }
       return false;
     }
 
-    // Demo mode: allow login by username or email (password ignored)
+    // Demo mode fallback
     const users = await storage.getUsers();
     const foundUser = users.find(u =>
       u.isActive && (u.username === normalized || u.email === normalized || u.email === maybeEmail)
@@ -500,6 +540,7 @@ export function useAuth() {
 
   const logout = useCallback(() => {
     storage.setCurrentUser(null);
+    setAuthToken(null);
     setAuthState({ user: null });
   }, []);
 
@@ -513,13 +554,21 @@ export function useDailyReports(branchId?: string) {
   const [reports, setReports] = useState<DailySummary[]>([]);
 
   const refreshReports = useCallback(async () => {
-    const data = await storage.getDailyReports(branchId);
+    const data = await apiFallback<any[]>(
+      () => api.dailyReports.list(branchId),
+      () => storage.getDailyReports(branchId)
+    );
     setReports(data);
   }, [branchId]);
 
   useEffect(() => { refreshReports(); }, [refreshReports]);
 
   const generateReport = useCallback(async (branchId: string, date: string): Promise<DailySummary> => {
+    const apiResult = await api.dailyReports.generate(branchId, date);
+    if (apiResult.data) {
+      await refreshReports();
+      return apiResult.data;
+    }
     const report = await storage.generateDailyReport(branchId, date);
     await storage.saveDailyReport(report);
     await refreshReports();
@@ -527,17 +576,20 @@ export function useDailyReports(branchId?: string) {
   }, [refreshReports]);
 
   const closeDay = useCallback(async (reportId: string, closingBalance: number, notes: string, userId: string) => {
-    const allReports = await storage.getDailyReports();
-    const report = allReports.find(r => r.id === reportId);
-    if (report) {
-      report.status = 'closed';
-      report.closingBalance = closingBalance;
-      report.notes = notes;
-      report.closedBy = userId;
-      report.closedAt = new Date().toISOString();
-      await storage.saveDailyReport(report);
-      await refreshReports();
+    const apiResult = await api.dailyReports.close(reportId, { closingBalance, notes, closedBy: userId });
+    if (!apiResult.data) {
+      const allReports = await storage.getDailyReports();
+      const report = allReports.find(r => r.id === reportId);
+      if (report) {
+        report.status = 'closed';
+        report.closingBalance = closingBalance;
+        report.notes = notes;
+        report.closedBy = userId;
+        report.closedAt = new Date().toISOString();
+        await storage.saveDailyReport(report);
+      }
     }
+    await refreshReports();
   }, [refreshReports]);
 
   const getTodayReport = useCallback(async (branchId: string): Promise<DailySummary | null> => {
@@ -554,23 +606,33 @@ export function useClients() {
   const [clients, setClients] = useState<Client[]>([]);
 
   const refreshClients = useCallback(async () => {
-    const data = await storage.getClients();
+    const data = await apiFallback<any[]>(
+      () => api.clients.list(),
+      () => storage.getClients()
+    );
     setClients(data);
   }, []);
 
   useEffect(() => { refreshClients(); }, [refreshClients]);
 
   const saveClient = useCallback(async (client: Client) => {
-    await storage.saveClient(client);
+    const result = await api.clients.update(client.id, client);
+    if (!result.data) await storage.saveClient(client);
     await refreshClients();
   }, [refreshClients]);
 
   const deleteClient = useCallback(async (clientId: string) => {
-    await storage.deleteClient(clientId);
+    const result = await api.clients.delete(clientId);
+    if (!result.data) await storage.deleteClient(clientId);
     await refreshClients();
   }, [refreshClients]);
 
   const createClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
+    const result = await api.clients.create(data);
+    if (result.data) {
+      await refreshClients();
+      return result.data;
+    }
     const client: Client = {
       ...data,
       id: `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -592,7 +654,10 @@ export function useStockTransfers(branchId?: string) {
   const [transfers, setTransfers] = useState<StockTransfer[]>([]);
 
   const refreshTransfers = useCallback(async () => {
-    const data = await storage.getStockTransfers(branchId);
+    const data = await apiFallback<any[]>(
+      () => api.stockTransfers.list(branchId),
+      () => storage.getStockTransfers(branchId)
+    );
     setTransfers(data);
   }, [branchId]);
 
@@ -603,10 +668,17 @@ export function useStockTransfers(branchId?: string) {
     items: { productId: string; productName: string; sku: string; quantity: number }[],
     requestedBy: string, notes?: string
   ): Promise<StockTransfer> => {
+    const result = await api.stockTransfers.create({
+      fromBranchId, toBranchId, items, requestedBy, notes,
+    });
+    if (result.data) {
+      await refreshTransfers();
+      return result.data;
+    }
+    // Fallback
     const branches = await storage.getBranches();
     const fromBranch = branches.find(b => b.id === fromBranchId);
     const toBranch = branches.find(b => b.id === toBranchId);
-
     const transfer: StockTransfer = {
       id: `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       transferNumber: storage.generateTransferNumber(),
@@ -615,78 +687,52 @@ export function useStockTransfers(branchId?: string) {
       items, status: 'pending', requestedBy,
       requestedAt: new Date().toISOString(), notes,
     };
-
     await storage.saveStockTransfer(transfer);
     await refreshTransfers();
     return transfer;
   }, [refreshTransfers]);
 
   const approveTransfer = useCallback(async (transferId: string, userId: string) => {
-    const allTransfers = await storage.getStockTransfers();
-    const transfer = allTransfers.find(t => t.id === transferId);
-    if (transfer) {
-      transfer.status = 'in_transit';
-      transfer.approvedBy = userId;
-      transfer.approvedAt = new Date().toISOString();
-      // Deduct from SOURCE branch and record stock movements
-      for (const item of transfer.items) {
-        await storage.updateProductStock(item.productId, -item.quantity, transfer.fromBranchId);
-        await storage.saveStockMovement({
-          id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          productId: item.productId,
-          productName: item.productName,
-          sku: item.sku,
-          branchId: transfer.fromBranchId,
-          type: 'OUT',
-          quantity: item.quantity,
-          reason: 'transfer_out',
-          referenceId: transfer.id,
-          referenceNumber: transfer.transferNumber,
-          notes: `Transferência para ${transfer.toBranchName}`,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-        });
+    const result = await api.stockTransfers.approve(transferId, userId);
+    if (!result.data) {
+      // Fallback to local
+      const allTransfers = await storage.getStockTransfers();
+      const transfer = allTransfers.find(t => t.id === transferId);
+      if (transfer) {
+        transfer.status = 'in_transit';
+        transfer.approvedBy = userId;
+        transfer.approvedAt = new Date().toISOString();
+        for (const item of transfer.items) {
+          await storage.updateProductStock(item.productId, -item.quantity, transfer.fromBranchId);
+        }
+        await storage.saveStockTransfer(transfer);
       }
-      await storage.saveStockTransfer(transfer);
-      await refreshTransfers();
     }
+    await refreshTransfers();
   }, [refreshTransfers]);
 
   const receiveTransfer = useCallback(async (transferId: string, userId: string, receivedQuantities?: Record<string, number>) => {
-    const allTransfers = await storage.getStockTransfers();
-    const transfer = allTransfers.find(t => t.id === transferId);
-    if (transfer) {
-      if (receivedQuantities) {
-        transfer.items.forEach(item => {
-          item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
-        });
+    const result = await api.stockTransfers.receive(transferId, userId, receivedQuantities);
+    if (!result.data) {
+      const allTransfers = await storage.getStockTransfers();
+      const transfer = allTransfers.find(t => t.id === transferId);
+      if (transfer) {
+        if (receivedQuantities) {
+          transfer.items.forEach(item => {
+            item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
+          });
+        }
+        transfer.status = 'received';
+        transfer.receivedBy = userId;
+        transfer.receivedAt = new Date().toISOString();
+        for (const item of transfer.items) {
+          const qty = item.receivedQuantity || item.quantity;
+          await storage.updateProductStock(item.productId, qty, transfer.toBranchId);
+        }
+        await storage.saveStockTransfer(transfer);
       }
-      transfer.status = 'received';
-      transfer.receivedBy = userId;
-      transfer.receivedAt = new Date().toISOString();
-      // Add to DESTINATION branch and record stock movements
-      for (const item of transfer.items) {
-        const qty = item.receivedQuantity || item.quantity;
-        await storage.updateProductStock(item.productId, qty, transfer.toBranchId);
-        await storage.saveStockMovement({
-          id: `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          productId: item.productId,
-          productName: item.productName,
-          sku: item.sku,
-          branchId: transfer.toBranchId,
-          type: 'IN',
-          quantity: qty,
-          reason: 'transfer_in',
-          referenceId: transfer.id,
-          referenceNumber: transfer.transferNumber,
-          notes: `Transferência de ${transfer.fromBranchName}`,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-        });
-      }
-      await storage.saveStockTransfer(transfer);
-      await refreshTransfers();
     }
+    await refreshTransfers();
   }, [refreshTransfers]);
 
   const cancelTransfer = useCallback(async (transferId: string, _userId: string) => {
@@ -709,32 +755,40 @@ export function useSuppliers() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
   const refreshSuppliers = useCallback(async () => {
-    const data = await storage.getSuppliers();
+    const data = await apiFallback<any[]>(
+      () => api.suppliers.list(),
+      () => storage.getSuppliers()
+    );
     setSuppliers(data);
   }, []);
 
   useEffect(() => { refreshSuppliers(); }, [refreshSuppliers]);
 
   const saveSupplier = useCallback(async (supplier: Supplier) => {
-    await storage.saveSupplier(supplier);
+    const result = await api.suppliers.update(supplier.id, supplier);
+    if (!result.data) await storage.saveSupplier(supplier);
     await refreshSuppliers();
   }, [refreshSuppliers]);
 
   const deleteSupplier = useCallback(async (supplierId: string) => {
-    await storage.deleteSupplier(supplierId);
+    const result = await api.suppliers.delete(supplierId);
+    if (!result.data) await storage.deleteSupplier(supplierId);
     await refreshSuppliers();
   }, [refreshSuppliers]);
 
   const createSupplier = useCallback(async (data: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier> => {
+    const result = await api.suppliers.create(data);
+    if (result.data) {
+      await refreshSuppliers();
+      return result.data;
+    }
     const supplier: Supplier = {
       ...data,
       id: `supplier_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    console.log('[Suppliers] Creating supplier:', supplier.id, supplier.name);
     await storage.saveSupplier(supplier);
-    console.log('[Suppliers] Supplier saved, refreshing list...');
     await refreshSuppliers();
     return supplier;
   }, [refreshSuppliers]);
@@ -749,7 +803,10 @@ export function usePurchaseOrders(branchId?: string) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
 
   const refreshOrders = useCallback(async () => {
-    const data = await storage.getPurchaseOrders(branchId);
+    const data = await apiFallback<any[]>(
+      () => api.purchaseOrders.list(branchId),
+      () => storage.getPurchaseOrders(branchId)
+    );
     setOrders(data);
   }, [branchId]);
 
@@ -760,15 +817,22 @@ export function usePurchaseOrders(branchId?: string) {
     createdBy: string, notes?: string, expectedDeliveryDate?: string,
     freightCost?: number, otherCosts?: number, otherCostsDescription?: string
   ): Promise<PurchaseOrder> => {
+    const result = await api.purchaseOrders.create({
+      supplierId, branchId, items, createdBy, notes, expectedDeliveryDate,
+      freightCost, otherCosts, otherCostsDescription,
+    });
+    if (result.data) {
+      await refreshOrders();
+      return result.data;
+    }
+    // Fallback
     const suppliers = await storage.getSuppliers();
     const branches = await storage.getBranches();
     const supplier = suppliers.find(s => s.id === supplierId);
     const branch = branches.find(b => b.id === branchId);
-
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
     const taxAmount = items.reduce((sum, item) => sum + (item.subtotal * item.taxRate / 100), 0);
     const totalWithCosts = subtotal + taxAmount + (freightCost || 0) + (otherCosts || 0);
-
     const order: PurchaseOrder = {
       id: `po_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       orderNumber: storage.generatePurchaseOrderNumber(),
@@ -779,26 +843,31 @@ export function usePurchaseOrders(branchId?: string) {
       status: 'pending', notes, createdBy,
       createdAt: new Date().toISOString(), expectedDeliveryDate,
     };
-
     await storage.savePurchaseOrder(order);
     await refreshOrders();
     return order;
   }, [refreshOrders]);
 
   const approveOrder = useCallback(async (orderId: string, userId: string) => {
-    const allOrders = await storage.getPurchaseOrders();
-    const order = allOrders.find(o => o.id === orderId);
-    if (order) {
-      order.status = 'approved';
-      order.approvedBy = userId;
-      order.approvedAt = new Date().toISOString();
-      await storage.savePurchaseOrder(order);
-      await refreshOrders();
+    const result = await api.purchaseOrders.approve(orderId, userId);
+    if (!result.data) {
+      const allOrders = await storage.getPurchaseOrders();
+      const order = allOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = 'approved';
+        order.approvedBy = userId;
+        order.approvedAt = new Date().toISOString();
+        await storage.savePurchaseOrder(order);
+      }
     }
+    await refreshOrders();
   }, [refreshOrders]);
 
   const receiveOrder = useCallback(async (orderId: string, userId: string, receivedQuantities: Record<string, number>) => {
-    await storage.processPurchaseOrderReceive(orderId, receivedQuantities, userId);
+    const result = await api.purchaseOrders.receive(orderId, userId, receivedQuantities);
+    if (!result.data) {
+      await storage.processPurchaseOrderReceive(orderId, receivedQuantities, userId);
+    }
     await refreshOrders();
   }, [refreshOrders]);
 
@@ -822,23 +891,33 @@ export function useCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
 
   const refreshCategories = useCallback(async () => {
-    const data = await storage.getCategories();
+    const data = await apiFallback<any[]>(
+      () => api.categories.list(),
+      () => storage.getCategories()
+    );
     setCategories(data);
   }, []);
 
   useEffect(() => { refreshCategories(); }, [refreshCategories]);
 
   const saveCategory = useCallback(async (category: Category) => {
-    await storage.saveCategory(category);
+    const result = await api.categories.update(category.id, category);
+    if (!result.data) await storage.saveCategory(category);
     await refreshCategories();
   }, [refreshCategories]);
 
   const deleteCategory = useCallback(async (categoryId: string) => {
-    await storage.deleteCategory(categoryId);
+    const result = await api.categories.delete(categoryId);
+    if (!result.data) await storage.deleteCategory(categoryId);
     await refreshCategories();
   }, [refreshCategories]);
 
   const createCategory = useCallback(async (data: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Promise<Category> => {
+    const result = await api.categories.create(data);
+    if (result.data) {
+      await refreshCategories();
+      return result.data;
+    }
     const category: Category = {
       ...data,
       id: `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -880,9 +959,7 @@ export function useDataSync() {
       branchId, branchCode: branch?.code || '', branchName: branch?.name || '',
       exportDate: new Date().toISOString(),
       dateRange: { from: dateFrom, to: dateTo },
-      products,
-      suppliers,
-      clients,
+      products, suppliers, clients,
       purchases: [] as PurchaseOrder[],
       sales: sales.filter(s => isInRange(s.createdAt)),
       stockMovements: stockMovements.filter(m => isInRange(m.createdAt)),
