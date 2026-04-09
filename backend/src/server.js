@@ -6,7 +6,7 @@ const express = require('express');
 const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
+// cors replaced by lanCors in middleware/security.js
 const os = require('os');
 const db = require('./db');
 const { DiscoveryBroadcaster } = require('./discovery');
