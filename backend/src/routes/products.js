@@ -55,21 +55,31 @@ module.exports = function(broadcastTable) {
       const { id } = req.params;
       const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, version } = req.body;
       
-      if (version == null) {
-        return res.status(400).json({ error: 'version is required for updates' });
+      let result;
+      if (version != null) {
+        result = await db.query(
+          `UPDATE products 
+           SET name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
+               stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
+               version = version + 1
+           WHERE id = $12 AND version = $13
+           RETURNING *`,
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, id, version]
+        );
+        if (!checkOptimisticLock(result, res, 'Product')) return;
+      } else {
+        result = await db.query(
+          `UPDATE products 
+           SET name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
+               stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11
+           WHERE id = $12
+           RETURNING *`,
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, id]
+        );
+        if (result.rowCount === 0) {
+          return res.status(404).json({ error: 'Product not found' });
+        }
       }
-
-      const result = await db.query(
-        `UPDATE products 
-         SET name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
-             stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
-             version = version + 1
-         WHERE id = $12 AND version = $13
-         RETURNING *`,
-        [name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, id, version]
-      );
-      
-      if (!checkOptimisticLock(result, res, 'Product')) return;
       
       await broadcastTable('products');
       res.json(result.rows[0]);

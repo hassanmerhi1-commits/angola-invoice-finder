@@ -103,6 +103,7 @@ function mapProduct(p: any): Product {
     isActive: p.isActive ?? p.is_active ?? true,
     createdAt: p.createdAt ?? p.created_at ?? '',
     updatedAt: p.updatedAt ?? p.updated_at,
+    version: p.version ?? undefined,
   };
 }
 

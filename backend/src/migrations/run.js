@@ -15,6 +15,8 @@ const MIGRATIONS = [
   '008_multi_currency.sql',
   '009_seed_data.sql',
   '010_data_integrity.sql',
+  '011_optimistic_locking.sql',
+  '012_products_updated_at.sql',
 ];
 
 async function runMigrations() {
