@@ -14,6 +14,7 @@ const MIGRATIONS = [
   '007_enterprise_controls.sql',
   '008_multi_currency.sql',
   '009_seed_data.sql',
+  '010_data_integrity.sql',
 ];
 
 async function runMigrations() {
