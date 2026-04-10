@@ -730,7 +730,25 @@ function createSplashWindow() {
   splashWindow.center();
 }
 
-function resolveRendererIndexPath() {
+function normalizeServerUrl(url) {
+  if (!url) return '';
+  const trimmed = String(url).trim().replace(/\/$/, '');
+  if (!trimmed) return '';
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+}
+
+function getRendererSource() {
+  const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
+  if (isDev) {
+    return { type: 'dev', url: 'http://localhost:5173' };
+  }
+
+  const hotUpdate = loadHotUpdateConfig();
+  const serverUrl = normalizeServerUrl(hotUpdate.serverUrl);
+  if (hotUpdate.enabled && serverUrl) {
+    return { type: 'server', url: `${serverUrl}/app` };
+  }
+
   const possiblePaths = [
     path.join(__dirname, '../dist/index.html'),
     path.join(process.resourcesPath, 'app/dist/index.html'),
@@ -740,25 +758,30 @@ function resolveRendererIndexPath() {
   for (const possiblePath of possiblePaths) {
     try {
       if (fs.existsSync(possiblePath)) {
-        return possiblePath;
+        return { type: 'local', path: possiblePath };
       }
     } catch (error) {}
   }
 
-  return possiblePaths[0];
+  return { type: 'local', path: possiblePaths[0] };
 }
 
 function loadRendererRoute(targetWindow, route = '/') {
-  const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
   const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
+  const source = getRendererSource();
 
-  if (isDev) {
-    targetWindow.loadURL(`http://localhost:5173/#${normalizedRoute}`);
+  if (source.type === 'dev') {
+    targetWindow.loadURL(`${source.url}/#${normalizedRoute}`);
     return;
   }
 
-  const indexPath = resolveRendererIndexPath();
-  targetWindow.loadFile(indexPath, { hash: normalizedRoute });
+  if (source.type === 'server') {
+    const routePath = normalizedRoute === '/' ? '' : normalizedRoute;
+    targetWindow.loadURL(`${source.url}${routePath}`);
+    return;
+  }
+
+  targetWindow.loadFile(source.path, { hash: normalizedRoute });
 }
 
 function resolvePendingProductPicker(payload) {
@@ -1172,6 +1195,37 @@ ipcMain.handle('hotUpdate:getConfig', () => {
 });
 ipcMain.handle('hotUpdate:setConfig', (_, config) => {
   return saveHotUpdateConfig(config);
+});
+ipcMain.handle('hotUpdate:getSource', () => {
+  const source = getRendererSource();
+  return { success: true, source: source.type === 'server' ? 'server' : 'local' };
+});
+ipcMain.handle('hotUpdate:checkServer', async (_, url) => {
+  try {
+    const baseUrl = normalizeServerUrl(url);
+    if (!baseUrl) return { success: false, available: false, error: 'Server URL is required' };
+
+    const response = await fetch(`${baseUrl}/api/webapp-version`);
+    if (!response.ok) {
+      return { success: false, available: false, error: `HTTP ${response.status}` };
+    }
+
+    const version = await response.json();
+    return { success: true, available: true, version };
+  } catch (e) {
+    return { success: false, available: false, error: e.message };
+  }
+});
+ipcMain.handle('hotUpdate:reload', async () => {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return { success: false, error: 'Main window not available' };
+    }
+    loadRendererRoute(mainWindow, '/');
+    return { success: true, source: getRendererSource().type === 'server' ? 'server' : 'local' };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 // AGT signing (simplified - crypto only, no external modules needed)

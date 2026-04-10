@@ -92,6 +92,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
+  // Hot updates
+  hotUpdate: {
+    getConfig: () => ipcRenderer.invoke('hotUpdate:getConfig'),
+    setConfig: (config) => ipcRenderer.invoke('hotUpdate:setConfig', config),
+    checkServer: (url) => ipcRenderer.invoke('hotUpdate:checkServer', url),
+    reload: () => ipcRenderer.invoke('hotUpdate:reload'),
+    getSource: () => ipcRenderer.invoke('hotUpdate:getSource'),
+  },
+
   // AGT (simplified)
   agt: {
     calculateHash: (data) => ipcRenderer.invoke('agt:calculate-hash', { data }),
