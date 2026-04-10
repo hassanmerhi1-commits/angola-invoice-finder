@@ -16,8 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Building2, User as UserIcon, LogOut, Settings, Menu, Database, Server, Monitor, RefreshCw } from 'lucide-react';
+import { Building2, User as UserIcon, LogOut, Settings, Menu } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { CompanyLogo } from '@/components/layout/CompanyLogo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
