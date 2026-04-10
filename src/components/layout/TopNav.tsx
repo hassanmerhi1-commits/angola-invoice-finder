@@ -251,6 +251,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
         </div>
 
         <div className="flex items-center gap-2">
+          <ServerConnectionIndicator />
           <LanguageSwitcher />
 
           <Select
