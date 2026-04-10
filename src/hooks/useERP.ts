@@ -393,7 +393,7 @@ function initWindowSession() {
   if (!existingToken) {
     const token = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     sessionStorage.setItem(SESSION_TOKEN_KEY, token);
-    storage.setCurrentUser(null);
+    // Don't clear user on new tab - let initAuthStateOnce validate instead
   }
 }
 
