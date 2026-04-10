@@ -42,7 +42,6 @@ export function Header({
   onMenuClick,
 }: HeaderProps) {
   const { t } = useTranslation();
-  const { status: dbStatus, isChecking, checkStatus } = useDatabaseStatus();
   
   return (
     <header className="h-16 border-b bg-card px-4 flex items-center justify-between">
