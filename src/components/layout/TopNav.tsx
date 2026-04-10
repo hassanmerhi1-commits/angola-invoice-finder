@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '@/i18n';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { ServerConnectionIndicator } from '@/components/layout/ServerConnectionIndicator';
 import { useCompanyLogo } from '@/hooks/useCompanyLogo';
 import defaultLogo from '/favicon.png?url';
 
