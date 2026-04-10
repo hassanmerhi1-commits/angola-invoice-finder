@@ -201,14 +201,48 @@ app.use('/api/saft-xml', saftXmlRoutes(broadcastTable));
 app.use('/api/transactions', transactionRoutes(broadcastTable));
 app.use('/api/backup', backupRoutes(broadcastTable));
 
-// Health check with extended info
-app.get('/api/health', (req, res) => {
+// Health check with extended info + DB connectivity
+app.get('/api/health', async (req, res) => {
+  let dbConnected = false;
+  let dbLatency = null;
+  let dbVersion = null;
+  let dockerInfo = null;
+
+  try {
+    const start = Date.now();
+    const result = await db.query('SELECT version() as pg_version, NOW() as server_time, current_database() as db_name, inet_server_addr() as server_addr, inet_server_port() as server_port');
+    dbLatency = Date.now() - start;
+    dbConnected = true;
+    const row = result.rows[0];
+    dbVersion = row.pg_version;
+    dockerInfo = {
+      database: row.db_name,
+      serverAddr: row.server_addr,
+      serverPort: row.server_port,
+      serverTime: row.server_time,
+    };
+  } catch (err) {
+    console.error('[Health] DB check failed:', err.message);
+  }
+
   res.json({ 
-    status: 'ok', 
+    status: dbConnected ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     serverName: process.env.SERVER_NAME || 'Kwanza ERP Server',
     version: '1.0.0',
-    connectedClients: io.sockets.sockets.size
+    connectedClients: io.sockets.sockets.size,
+    database: {
+      connected: dbConnected,
+      latency: dbLatency,
+      version: dbVersion,
+      ...dockerInfo,
+    },
+    system: {
+      hostname: os.hostname(),
+      platform: os.platform(),
+      uptime: Math.floor(process.uptime()),
+      nodeVersion: process.version,
+    }
   });
 });
 
