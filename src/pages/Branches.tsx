@@ -82,7 +82,6 @@ export default function Branches() {
             address: formData.address || '',
             phone: formData.phone || '',
             isMain: formData.isMain || false,
-            isActive: true,
             priceLevel: 1,
             createdAt: new Date().toISOString(),
           };
