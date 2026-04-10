@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '@/i18n';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { ServerConnectionIndicator } from '@/components/layout/ServerConnectionIndicator';
 import { useCompanyLogo } from '@/hooks/useCompanyLogo';
 import defaultLogo from '/favicon.png?url';
 
@@ -250,6 +251,7 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
         </div>
 
         <div className="flex items-center gap-2">
+          <ServerConnectionIndicator />
           <LanguageSwitcher />
 
           <Select
