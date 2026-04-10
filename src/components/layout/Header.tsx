@@ -22,7 +22,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { CompanyLogo } from '@/components/layout/CompanyLogo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { useTranslation } from '@/i18n';
-import { useDatabaseStatus } from '@/hooks/useDatabaseStatus';
+import { ServerConnectionIndicator } from '@/components/layout/ServerConnectionIndicator';
 
 interface HeaderProps {
   user: User | null;
