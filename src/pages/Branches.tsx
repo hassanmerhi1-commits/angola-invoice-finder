@@ -70,8 +70,25 @@ export default function Branches() {
         toast.success('Filial actualizada com sucesso');
       } else {
         const response = await api.branches.create(formData);
-        if (response.error) throw new Error(response.error);
-        toast.success('Filial criada com sucesso');
+        if (response.data) {
+          toast.success('Filial criada com sucesso');
+        } else {
+          // API unavailable - save to localStorage as fallback
+          const { saveBranch } = await import('@/lib/storage');
+          const newBranch: Branch = {
+            id: crypto.randomUUID(),
+            name: formData.name,
+            code: formData.code || `FIL${Date.now().toString().slice(-4)}`,
+            address: formData.address || '',
+            phone: formData.phone || '',
+            isMain: formData.isMain || false,
+            isActive: true,
+            priceLevel: 1,
+            createdAt: new Date().toISOString(),
+          };
+          await saveBranch(newBranch);
+          toast.success('Filial criada com sucesso (modo local)');
+        }
       }
       setDialogOpen(false);
       resetForm();
