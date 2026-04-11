@@ -10,6 +10,7 @@ import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, 
 import { api, setAuthToken } from '@/lib/api/client';
 import * as storage from '@/lib/storage';
 import { processSalePayment } from '@/lib/accountingStorage';
+import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 
 // Helper: try API, fallback to storage only on network errors
 async function apiFallback<T>(apiFn: () => Promise<{ data?: T; error?: string }>, storageFn: () => Promise<T> | T): Promise<T> {
@@ -328,7 +329,13 @@ export function useSales(branchId?: string) {
       };
       console.log(`[POS] Sale ${sale.invoiceNumber} processed via API Transaction Engine ✓`);
     } else {
-      console.warn('[POS] API unavailable, falling back to local:', apiResult.error);
+      // API failed — log the error. Only fallback for network errors.
+      const isNetworkError = apiResult.error?.includes('Network error') || apiResult.error?.includes('Failed to fetch');
+      if (!isNetworkError) {
+        console.error('[POS] API business error:', apiResult.error);
+        throw new Error(apiResult.error || 'Falha ao processar venda no servidor');
+      }
+      console.warn('[POS] API unreachable, falling back to local:', apiResult.error);
       sale = {
         id: crypto.randomUUID(),
         invoiceNumber: storage.generateInvoiceNumber(branchCode),
