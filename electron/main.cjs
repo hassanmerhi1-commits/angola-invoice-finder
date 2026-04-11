@@ -737,18 +737,7 @@ function normalizeServerUrl(url) {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
 }
 
-function getRendererSource() {
-  const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
-  if (isDev) {
-    return { type: 'dev', url: 'http://localhost:5173' };
-  }
-
-  const hotUpdate = loadHotUpdateConfig();
-  const serverUrl = normalizeServerUrl(hotUpdate.serverUrl);
-  if (hotUpdate.enabled && serverUrl) {
-    return { type: 'server', url: `${serverUrl}/app` };
-  }
-
+function getLocalRendererSource() {
   const possiblePaths = [
     path.join(__dirname, '../dist/index.html'),
     path.join(process.resourcesPath, 'app/dist/index.html'),
@@ -766,6 +755,47 @@ function getRendererSource() {
   return { type: 'local', path: possiblePaths[0] };
 }
 
+function getRendererSource() {
+  const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
+  if (isDev) {
+    return { type: 'dev', url: 'http://localhost:5173' };
+  }
+
+  const hotUpdate = loadHotUpdateConfig();
+  const serverUrl = normalizeServerUrl(hotUpdate.serverUrl);
+  if (hotUpdate.enabled && serverUrl) {
+    return { type: 'server', url: `${serverUrl}/app`, baseUrl: serverUrl };
+  }
+
+  return getLocalRendererSource();
+}
+
+function showRendererRecoveryScreen(targetWindow, message) {
+  const html = `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Kwanza ERP</title>
+      <style>
+        body { font-family: Segoe UI, Arial, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f7fb; color: #121826; }
+        .card { width: min(560px, calc(100vw - 32px)); background: white; border: 1px solid #d9deea; border-radius: 16px; padding: 24px; box-shadow: 0 16px 40px rgba(16,24,40,.08); }
+        h1 { margin: 0 0 8px; font-size: 24px; }
+        p { margin: 0 0 12px; line-height: 1.5; color: #475467; }
+        code { display: block; padding: 12px; border-radius: 10px; background: #f2f4f7; color: #101828; overflow-wrap: anywhere; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h1>Kwanza ERP could not load</h1>
+        <p>The desktop app could not open the live update server or packaged app files.</p>
+        <p>${String(message || 'Unknown startup error')}</p>
+        <code>Tip: disable Hot Updates or start the local backend server on the configured URL.</code>
+      </div>
+    </body>
+  </html>`;
+  targetWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+}
+
 function loadRendererRoute(targetWindow, route = '/') {
   const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
   const source = getRendererSource();
@@ -777,11 +807,47 @@ function loadRendererRoute(targetWindow, route = '/') {
 
   if (source.type === 'server') {
     const routePath = normalizedRoute === '/' ? '' : normalizedRoute;
-    targetWindow.loadURL(`${source.url}${routePath}`);
+    const fallbackSource = getLocalRendererSource();
+    let recovered = false;
+
+    const cleanup = () => {
+      targetWindow.webContents.removeListener('did-fail-load', handleFail);
+      targetWindow.webContents.removeListener('render-process-gone', handleGone);
+    };
+
+    const fallbackToLocal = (reason) => {
+      if (recovered) return;
+      recovered = true;
+      cleanup();
+      console.warn('[HotUpdate] Server renderer failed, falling back to local bundle:', reason);
+      try {
+        targetWindow.loadFile(fallbackSource.path, { hash: normalizedRoute });
+      } catch (error) {
+        console.error('[HotUpdate] Local fallback failed:', error);
+        showRendererRecoveryScreen(targetWindow, error?.message || reason);
+      }
+    };
+
+    const handleFail = (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return;
+      fallbackToLocal(`${errorDescription || 'Load failed'} (${validatedURL || source.url}${routePath})`);
+    };
+
+    const handleGone = (_event, details) => {
+      fallbackToLocal(details?.reason || 'Renderer process crashed');
+    };
+
+    cleanup();
+    targetWindow.webContents.once('did-fail-load', handleFail);
+    targetWindow.webContents.once('render-process-gone', handleGone);
+    targetWindow.loadURL(`${source.url}${routePath}`).catch((error) => fallbackToLocal(error?.message || 'loadURL failed'));
     return;
   }
 
-  targetWindow.loadFile(source.path, { hash: normalizedRoute });
+  targetWindow.loadFile(source.path, { hash: normalizedRoute }).catch((error) => {
+    console.error('[Renderer] Failed to load local renderer:', error);
+    showRendererRecoveryScreen(targetWindow, error?.message || 'Local renderer load failed');
+  });
 }
 
 function resolvePendingProductPicker(payload) {
