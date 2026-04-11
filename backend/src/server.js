@@ -290,4 +290,40 @@ server.listen(PORT, '0.0.0.0', async () => {
   } catch (error) {
     console.error('[Discovery] Failed to start broadcaster:', error.message);
   }
+
+  // Backfill missing Caixa sub-accounts for existing branches
+  try {
+    const branches = await db.query('SELECT id, name FROM branches');
+    if (branches.rows.length > 0) {
+      const parent = await db.query(
+        `SELECT id FROM chart_of_accounts WHERE code = '4.1' AND is_active = true LIMIT 1`
+      );
+      if (parent.rows.length > 0) {
+        for (const branch of branches.rows) {
+          const existing = await db.query(
+            `SELECT code FROM chart_of_accounts WHERE code LIKE '4.1.%' AND level = 3 AND is_header = false
+             AND (branch_id = $1 OR name LIKE '%' || $2 || '%')`,
+            [branch.id, branch.name]
+          );
+          if (existing.rows.length === 0) {
+            const seqResult = await db.query(
+              `SELECT COUNT(*) as count FROM chart_of_accounts WHERE code LIKE '4.1.%' AND level = 3 AND is_header = false`
+            );
+            const nextSeq = parseInt(seqResult.rows[0].count) + 1;
+            const code = `4.1.${nextSeq}`;
+            await db.query(
+              `INSERT INTO chart_of_accounts
+               (code, name, description, account_type, account_nature, parent_id, level, is_header, opening_balance, current_balance, branch_id)
+               VALUES ($1, $2, $3, 'asset', 'debit', $4, 3, false, 0, 0, $5)
+               ON CONFLICT (code) DO NOTHING`,
+              [code, `Caixa - ${branch.name}`, `Conta caixa da filial ${branch.name}`, parent.rows[0].id, branch.id]
+            );
+            console.log(`[STARTUP] Created missing sub-account ${code} — Caixa - ${branch.name}`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[STARTUP] Backfill Caixa accounts error:', err.message);
+  }
 });
