@@ -332,6 +332,20 @@ export const api = {
       if (isElectronMode()) return ipcInsert('suppliers', { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() });
       return apiFetch<any>('/suppliers', { method: 'POST', body: JSON.stringify(data) });
     },
+    batchImport: (suppliers: any[]) => {
+      if (isElectronMode()) {
+        return (async () => {
+          let imported = 0, failed = 0;
+          const errors: any[] = [];
+          for (const s of suppliers) {
+            const result = await ipcInsert('suppliers', { id: crypto.randomUUID(), ...s, created_at: new Date().toISOString() });
+            if (result.data) imported++; else { failed++; errors.push({ supplier: s.name, error: result.error }); }
+          }
+          return { data: { imported, failed, errors } } as ApiResponse<any>;
+        })();
+      }
+      return apiFetch<any>('/suppliers/batch', { method: 'POST', body: JSON.stringify({ suppliers }) });
+    },
     update: (id: string, data: any) => {
       if (isElectronMode()) return ipcUpdate('suppliers', id, data);
       return apiFetch<any>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
