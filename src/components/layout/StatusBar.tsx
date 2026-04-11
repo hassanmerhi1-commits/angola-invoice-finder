@@ -45,10 +45,20 @@ export function StatusBar() {
     return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
   };
 
+  const maskConnectionString = (connStr: string): string => {
+    try {
+      // Mask password in postgresql://user:password@host:port/db
+      return connStr.replace(/:([^@/:]+)@/, ':****@');
+    } catch {
+      return 'PostgreSQL';
+    }
+  };
+
   const getConnectionInfo = () => {
-    if (dbStatus.mode === 'server') return `${dbStatus.path}@${user?.name || 'Unknown'}`;
-    if (dbStatus.mode === 'client') return `${dbStatus.serverAddress}@${user?.name || 'Unknown'}`;
-    return `Demo@${user?.name || 'Unknown'}`;
+    const userName = user?.name || 'Unknown';
+    if (dbStatus.mode === 'server') return `${maskConnectionString(dbStatus.path)}@${userName}`;
+    if (dbStatus.mode === 'client') return `${dbStatus.serverAddress}@${userName}`;
+    return `Demo@${userName}`;
   };
 
   return (
