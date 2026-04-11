@@ -1205,13 +1205,37 @@ ipcMain.handle('hotUpdate:checkServer', async (_, url) => {
     const baseUrl = normalizeServerUrl(url);
     if (!baseUrl) return { success: false, available: false, error: 'Server URL is required' };
 
-    const response = await fetch(`${baseUrl}/api/webapp-version`);
-    if (!response.ok) {
-      return { success: false, available: false, error: `HTTP ${response.status}` };
-    }
+    // Use http/https module for compatibility with all Node.js versions
+    const httpModule = baseUrl.startsWith('https') ? require('https') : require('http');
+    
+    const checkUrl = (endpoint) => new Promise((resolve, reject) => {
+      const req = httpModule.get(`${baseUrl}${endpoint}`, { timeout: 5000 }, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            try { resolve(JSON.parse(data)); } catch { resolve({ status: 'ok' }); }
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    });
 
-    const version = await response.json();
-    return { success: true, available: true, version };
+    // Try webapp-version first, then health as fallback
+    try {
+      const version = await checkUrl('/api/webapp-version');
+      return { success: true, available: true, version };
+    } catch {
+      try {
+        const health = await checkUrl('/api/health');
+        return { success: true, available: true, version: { version: health.version || 'unknown' } };
+      } catch (e2) {
+        return { success: false, available: false, error: e2.message };
+      }
+    }
   } catch (e) {
     return { success: false, available: false, error: e.message };
   }
