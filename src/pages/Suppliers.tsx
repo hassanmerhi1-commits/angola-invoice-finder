@@ -72,7 +72,7 @@ const initialFormData = {
 
 export default function Suppliers() {
   const navigate = useNavigate();
-  const { suppliers, saveSupplier, deleteSupplier, createSupplier } = useSuppliers();
+  const { suppliers, saveSupplier, deleteSupplier, createSupplier, refreshSuppliers } = useSuppliers();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
