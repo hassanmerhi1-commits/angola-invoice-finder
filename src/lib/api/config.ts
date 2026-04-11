@@ -38,3 +38,12 @@ export function setForceApiMode(enabled: boolean): void {
   localStorage.setItem('kwanza_force_api', enabled ? 'true' : 'false');
   window.location.reload();
 }
+
+// Detect if running in web preview (no Electron, no setup configured)
+// Used to disable background polling that would spam ECONNREFUSED errors
+export function isWebPreview(): boolean {
+  const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI?.isElectron;
+  if (isElectron) return false;
+  const setupComplete = typeof window !== 'undefined' && localStorage.getItem('kwanza_setup_complete') === 'true';
+  return !setupComplete;
+}
