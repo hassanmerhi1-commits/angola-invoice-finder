@@ -1354,6 +1354,22 @@ ipcMain.handle('tx:processSale', async (_, saleData) => {
   return result;
 });
 
+ipcMain.handle('tx:processTransaction', async (_, txData) => {
+  const result = await withTransaction(client => txEngine.processTransaction(client, pool, txData));
+  if (result.success) {
+    if (txData?.stockEntries?.length) {
+      broadcastUpdate('products', 'update', null);
+    }
+    if (txData?.entityBalanceUpdate?.entityType === 'supplier') {
+      broadcastUpdate('suppliers', 'update', txData.entityBalanceUpdate.entityId);
+    }
+    if (txData?.entityBalanceUpdate?.entityType === 'customer') {
+      broadcastUpdate('clients', 'update', txData.entityBalanceUpdate.entityId);
+    }
+  }
+  return result;
+});
+
 // Process Purchase Receive (atomic: stock IN + WAC + journal + open items)
 ipcMain.handle('tx:processPurchaseReceive', async (_, orderId, receivedQuantities, receivedBy) => {
   const result = await withTransaction(client => txEngine.processPurchaseReceive(client, pool, orderId, receivedQuantities, receivedBy));

@@ -9,6 +9,10 @@
 const db = require('./db');
 const { createJournalEntry, findAccountByCode } = require('./accounting');
 
+function isUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 // ==================== AUDIT LOGGING ====================
 
 /**
@@ -55,8 +59,8 @@ async function recordStockMovement(client, params) {
   // Also update the products.stock field for backward compatibility
   const stockChange = movementType === 'IN' ? quantity : -quantity;
   await client.query(
-    'UPDATE products SET stock = stock + $1 WHERE id = $2 AND branch_id = $3',
-    [stockChange, productId, warehouseId]
+    'UPDATE products SET stock = stock + $1 WHERE id = $2',
+    [stockChange, productId]
   );
 
   return result.rows[0];
@@ -216,33 +220,34 @@ async function processSale(client, saleData) {
   // 3. Insert items + stock movements
   let totalCOGS = 0;
   for (const item of items) {
+    const normalizedProductId = isUuid(item.productId) ? item.productId : null;
+
     await client.query(
       `INSERT INTO sale_items (
         sale_id, product_id, product_name, sku, quantity,
         unit_price, discount, tax_rate, tax_amount, subtotal
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [sale.id, item.productId, item.productName, item.sku, item.quantity,
+      [sale.id, normalizedProductId, item.productName, item.sku, item.quantity,
        item.unitPrice, item.discount || 0, item.taxRate, item.taxAmount, item.subtotal]
     );
 
-    // Stock movement OUT
-    await recordStockMovement(client, {
-      productId: item.productId,
-      warehouseId: branchId,
-      movementType: 'OUT',
-      quantity: item.quantity,
-      unitCost: item.costAtSale || 0,
-      referenceType: 'sale',
-      referenceId: sale.id,
-      referenceNumber: invoiceNumber,
-      createdBy: cashierId,
-    });
+    if (normalizedProductId) {
+      await recordStockMovement(client, {
+        productId: normalizedProductId,
+        warehouseId: branchId,
+        movementType: 'OUT',
+        quantity: item.quantity,
+        unitCost: item.costAtSale || 0,
+        referenceType: 'sale',
+        referenceId: sale.id,
+        referenceNumber: invoiceNumber,
+        createdBy: cashierId,
+      });
 
-    // Calculate COGS
-    // Calculate COGS
-    const productResult = await client.query('SELECT cost, tax_code FROM products WHERE id = $1', [item.productId]);
-    if (productResult.rows.length > 0) {
-      totalCOGS += parseFloat(productResult.rows[0].cost) * item.quantity;
+      const productResult = await client.query('SELECT cost, tax_code FROM products WHERE id = $1', [normalizedProductId]);
+      if (productResult.rows.length > 0) {
+        totalCOGS += parseFloat(productResult.rows[0].cost) * item.quantity;
+      }
     }
   }
 

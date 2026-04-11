@@ -110,6 +110,27 @@ function mapProduct(p: any): Product {
   };
 }
 
+function mapSupplier(s: any): Supplier {
+  return {
+    id: s.id,
+    name: s.name || '',
+    nif: s.nif || '',
+    email: s.email || '',
+    phone: s.phone || '',
+    address: s.address || '',
+    city: s.city || '',
+    country: s.country || 'Angola',
+    contactPerson: s.contactPerson ?? s.contact_person ?? '',
+    paymentTerms: s.paymentTerms ?? s.payment_terms ?? '30_days',
+    balance: Number(s.balance ?? s.current_balance ?? 0),
+    isActive: s.isActive ?? s.is_active ?? true,
+    notes: s.notes || '',
+    createdAt: s.createdAt ?? s.created_at ?? '',
+    updatedAt: s.updatedAt ?? s.updated_at ?? s.createdAt ?? s.created_at ?? '',
+    version: s.version ?? undefined,
+  };
+}
+
 export function useProducts(branchId?: string) {
   const [products, setProducts] = useState<Product[]>([]);
 
@@ -799,7 +820,7 @@ export function useSuppliers() {
       () => api.suppliers.list(),
       () => storage.getSuppliers()
     );
-    setSuppliers(data);
+    setSuppliers(Array.isArray(data) ? data.map(mapSupplier) : []);
   }, []);
 
   useEffect(() => { refreshSuppliers(); }, [refreshSuppliers]);
