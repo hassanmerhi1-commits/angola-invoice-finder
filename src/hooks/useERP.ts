@@ -819,9 +819,12 @@ export function useSuppliers() {
   const createSupplier = useCallback(async (data: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier> => {
     const result = await api.suppliers.create(data);
     if (result.data) {
+      // Backend auto-creates sub-account now, but also ensure local CoA cache is synced
+      await ensureSupplierAccount(result.data.id, data.name, data.nif);
       await refreshSuppliers();
       return result.data;
     }
+    // Fallback for offline/demo
     const supplier: Supplier = {
       ...data,
       id: `supplier_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -829,6 +832,8 @@ export function useSuppliers() {
       updatedAt: new Date().toISOString(),
     };
     await storage.saveSupplier(supplier);
+    // Also create sub-account locally
+    await ensureSupplierAccount(supplier.id, supplier.name, supplier.nif);
     await refreshSuppliers();
     return supplier;
   }, [refreshSuppliers]);
