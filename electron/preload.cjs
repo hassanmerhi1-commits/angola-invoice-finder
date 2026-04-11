@@ -106,6 +106,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     calculateHash: (data) => ipcRenderer.invoke('agt:calculate-hash', { data }),
   },
 
+  // Transaction Engine (direct DB operations)
+  tx: {
+    processSale: (saleData) => ipcRenderer.invoke('tx:processSale', saleData),
+    processPurchaseReceive: (orderId, receivedQuantities, receivedBy) =>
+      ipcRenderer.invoke('tx:processPurchaseReceive', orderId, receivedQuantities, receivedBy),
+    processTransferApprove: (transferId, approvedBy) =>
+      ipcRenderer.invoke('tx:processTransferApprove', transferId, approvedBy),
+    processTransferReceive: (transferId, receivedQuantities, receivedBy) =>
+      ipcRenderer.invoke('tx:processTransferReceive', transferId, receivedQuantities, receivedBy),
+    processPayment: (paymentData) => ipcRenderer.invoke('tx:processPayment', paymentData),
+    recordStockMovement: (data) => ipcRenderer.invoke('tx:recordStockMovement', data),
+    generateInvoiceNumber: (branchCode) => ipcRenderer.invoke('tx:generateInvoiceNumber', branchCode),
+  },
+
   // Platform info
   platform: process.platform,
   isElectron: true,

@@ -184,6 +184,17 @@ export interface ElectronAPI {
     checkStatus: (invoiceNumber: string) => Promise<AGTStatusResult>;
     voidInvoice: (invoiceNumber: string, reason: string) => Promise<{ success: boolean; errorMessage?: string }>;
   };
+
+  // Transaction Engine (direct PostgreSQL operations)
+  tx?: {
+    processSale: (saleData: any) => Promise<{ success: boolean; data?: any; error?: string }>;
+    processPurchaseReceive: (orderId: string, receivedQuantities: Record<string, number>, receivedBy: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+    processTransferApprove: (transferId: string, approvedBy: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+    processTransferReceive: (transferId: string, receivedQuantities: Record<string, number>, receivedBy: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+    processPayment: (paymentData: any) => Promise<{ success: boolean; data?: any; error?: string }>;
+    recordStockMovement: (data: any) => Promise<{ success: boolean; data?: any; error?: string }>;
+    generateInvoiceNumber: (branchCode: string) => Promise<{ success: boolean; data?: { invoiceNumber: string }; error?: string }>;
+  };
 }
 
 export interface IPFileConfig {
