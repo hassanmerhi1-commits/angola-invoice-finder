@@ -11,13 +11,15 @@ import { api, setAuthToken } from '@/lib/api/client';
 import * as storage from '@/lib/storage';
 import { processSalePayment } from '@/lib/accountingStorage';
 
-// Helper: try API, fallback to storage
+// Helper: try API, fallback to storage only on network errors
 async function apiFallback<T>(apiFn: () => Promise<{ data?: T; error?: string }>, storageFn: () => Promise<T> | T): Promise<T> {
   try {
     const result = await apiFn();
     if (result.data !== undefined) return result.data;
+    // API reachable but returned error — still fall back for reads
+    console.warn('[ERP] API returned error, falling back to local:', result.error);
   } catch (e) {
-    // API unavailable
+    // API unreachable
   }
   return await storageFn();
 }
