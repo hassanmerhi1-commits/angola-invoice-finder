@@ -136,6 +136,27 @@ async function validatePeriod(client, date) {
   return true;
 }
 
+async function getCashAccountCode(client, branchId, paymentMethod) {
+  if (paymentMethod !== 'cash') {
+    return '4.2.1';
+  }
+
+  const branchCaixaResult = await client.query(
+    `SELECT code FROM chart_of_accounts
+     WHERE code LIKE '4.1.%' AND level = 3 AND is_header = false
+       AND branch_id = $1 AND is_active = true
+     ORDER BY code
+     LIMIT 1`,
+    [branchId]
+  );
+
+  if (branchCaixaResult.rows.length > 0) {
+    return branchCaixaResult.rows[0].code;
+  }
+
+  return '4.1.1';
+}
+
 // ==================== PROCESS SALE ====================
 async function processSale(client, pool, saleData) {
   const {
@@ -190,7 +211,7 @@ async function processSale(client, pool, saleData) {
     }
   }
 
-  const cashAccountCode = paymentMethod === 'cash' ? '4.1.1' : '4.2.1';
+  const cashAccountCode = await getCashAccountCode(client, branchId, paymentMethod);
   const revenueLines = [
     { accountCode: cashAccountCode, description: `Venda ${invoiceNumber}`, debit: parseFloat(total), credit: 0 },
     { accountCode: '7.1.1', description: `Receita ${invoiceNumber}`, debit: 0, credit: parseFloat(subtotal) },

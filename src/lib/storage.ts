@@ -1320,10 +1320,10 @@ function mapSupplierToDb(supplier: Supplier): any {
     id: supplier.id, name: supplier.name, nif: supplier.nif,
     email: supplier.email || '', phone: supplier.phone || '',
     address: supplier.address || '', city: supplier.city || '',
-    province: supplier.country || 'Angola',
+    country: supplier.country || 'Angola',
     contact_person: supplier.contactPerson || '',
     payment_terms: supplier.paymentTerms, balance: supplier.balance || 0,
-    is_active: supplier.isActive ? 1 : 0, notes: supplier.notes || '',
+    is_active: supplier.isActive !== false, notes: supplier.notes || '',
   };
 }
 
