@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSuppliers } from '@/hooks/useERP';
+import { api } from '@/lib/api/client';
+import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 import { Supplier } from '@/types/erp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -158,10 +160,7 @@ export default function Suppliers() {
     setDeleteDialogOpen(true);
   };
 
-  const handleImportSuppliers = (data: ExcelSupplier[], options?: { updateDuplicates?: boolean }) => {
-    let imported = 0;
-    let updated = 0;
-    
+  const handleImportSuppliers = useCallback(async (data: ExcelSupplier[], options?: { updateDuplicates?: boolean }) => {
     const paymentTermsMap: Record<string, Supplier['paymentTerms']> = {
       'immediate': 'immediate',
       '15_days': '15_days',
@@ -169,14 +168,49 @@ export default function Suppliers() {
       '60_days': '60_days',
       '90_days': '90_days',
     };
+
+    // Map to supplier format
+    const supplierList = data.map(item => ({
+      name: item.nome,
+      nif: item.nif,
+      contactPerson: item.pessoaContacto || '',
+      phone: item.telefone || '',
+      email: item.email || '',
+      address: item.morada || '',
+      city: item.cidade || '',
+      country: item.pais || 'Angola',
+      paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || 'immediate',
+      notes: item.notas || '',
+    }));
+
+    // Try batch API first (auto-creates sub-accounts on backend)
+    try {
+      const result = await api.suppliers.batchImport(supplierList);
+      if (result.data) {
+        // Also ensure local CoA cache has sub-accounts
+        for (const s of supplierList) {
+          await ensureSupplierAccount(`supplier-${s.nif}`, s.name, s.nif);
+        }
+        await refreshSuppliers();
+        toast({
+          title: 'Importação concluída',
+          description: `${result.data.imported} importados${result.data.failed > 0 ? `, ${result.data.failed} falharam` : ''}`,
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('[Suppliers] Batch API unavailable, using sequential create');
+    }
+
+    // Fallback: sequential create
+    let imported = 0;
+    let updated = 0;
     
-    data.forEach((item) => {
-      // Check if supplier with this NIF already exists
+    for (const item of data) {
       const existingSupplier = suppliers.find(s => s.nif.toLowerCase().trim() === item.nif.toLowerCase().trim());
       
       if (existingSupplier && options?.updateDuplicates) {
-        // Update existing supplier
-        saveSupplier({
+        await saveSupplier({
           ...existingSupplier,
           name: item.nome,
           contactPerson: item.pessoaContacto || existingSupplier.contactPerson,
@@ -191,8 +225,7 @@ export default function Suppliers() {
         });
         updated++;
       } else if (!existingSupplier) {
-        // Create new supplier
-        createSupplier({
+        await createSupplier({
           name: item.nome,
           nif: item.nif,
           contactPerson: item.pessoaContacto || '',
@@ -208,7 +241,7 @@ export default function Suppliers() {
         });
         imported++;
       }
-    });
+    }
     
     const messages: string[] = [];
     if (imported > 0) messages.push(`${imported} novos`);
@@ -218,7 +251,7 @@ export default function Suppliers() {
       title: 'Importação concluída',
       description: messages.join(', ') || 'Nenhum registo importado',
     });
-  };
+  }, [suppliers, saveSupplier, createSupplier, refreshSuppliers, toast]);
 
   // Get existing NIFs for duplicate detection
   const existingNifs = suppliers.map(s => s.nif);
