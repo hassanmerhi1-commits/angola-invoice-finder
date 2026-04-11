@@ -1,12 +1,13 @@
 // Branches API routes
 const express = require('express');
 const db = require('../db');
+const crypto = require('crypto');
 
 function buildBranchCode(name = '') {
   const cleaned = String(name).toUpperCase().replace(/[^A-Z0-9]/g, '');
   const base = (cleaned.slice(0, 3) || 'FIL').padEnd(3, 'X');
-  const suffix = String(Date.now()).slice(-4);
-  return `${base}${suffix}`.slice(0, 10);
+  const suffix = crypto.randomUUID().slice(0, 6).toUpperCase();
+  return `${base}-${suffix}`.slice(0, 10);
 }
 
 module.exports = function(broadcastTable) {
@@ -28,10 +29,26 @@ module.exports = function(broadcastTable) {
     try {
       const { name, code, address, phone, isMain } = req.body;
       const normalizedName = String(name || '').trim();
-      const normalizedCode = String(code || '').trim().toUpperCase() || buildBranchCode(normalizedName);
+      let normalizedCode = String(code || '').trim().toUpperCase();
 
       if (!normalizedName) {
         return res.status(400).json({ error: 'Branch name is required' });
+      }
+
+      // If code provided, check for duplicates
+      if (normalizedCode) {
+        const existing = await db.query('SELECT id FROM branches WHERE code = $1', [normalizedCode]);
+        if (existing.rows.length > 0) {
+          return res.status(409).json({ error: `Branch code '${normalizedCode}' already exists. Please use a different code.` });
+        }
+      } else {
+        // Auto-generate a collision-proof code
+        normalizedCode = buildBranchCode(normalizedName);
+        // Double-check uniqueness (extremely unlikely collision with UUID)
+        const existing = await db.query('SELECT id FROM branches WHERE code = $1', [normalizedCode]);
+        if (existing.rows.length > 0) {
+          normalizedCode = buildBranchCode(normalizedName); // regenerate
+        }
       }
       
       const result = await db.query(
@@ -46,7 +63,7 @@ module.exports = function(broadcastTable) {
     } catch (error) {
       console.error('[BRANCHES ERROR]', error);
       if (error.code === '23505') {
-        return res.status(409).json({ error: 'Branch code already exists' });
+        return res.status(409).json({ error: 'Branch code already exists. Please try again.' });
       }
       res.status(500).json({ error: 'Failed to create branch' });
     }
@@ -58,10 +75,16 @@ module.exports = function(broadcastTable) {
       const { id } = req.params;
       const { name, code, address, phone, isMain } = req.body;
       const normalizedName = String(name || '').trim();
-      const normalizedCode = String(code || '').trim().toUpperCase() || buildBranchCode(normalizedName);
+      let normalizedCode = String(code || '').trim().toUpperCase() || buildBranchCode(normalizedName);
 
       if (!normalizedName) {
         return res.status(400).json({ error: 'Branch name is required' });
+      }
+
+      // Check code uniqueness excluding current branch
+      const existing = await db.query('SELECT id FROM branches WHERE code = $1 AND id != $2', [normalizedCode, id]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ error: `Branch code '${normalizedCode}' is already used by another branch.` });
       }
       
       const result = await db.query(
