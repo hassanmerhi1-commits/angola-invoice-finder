@@ -934,7 +934,7 @@ export const api = {
   // Transactions (Central Transaction Engine)
   transactions: {
     process: (data: any) => {
-      if (isElectronMode()) return ipcTransaction('processSale', data);
+      if (isElectronMode()) return ipcTransaction('processTransaction', data);
       return apiFetch<any>('/transactions/process', { method: 'POST', body: JSON.stringify(data) });
     },
     stockMovements: (params?: { productId?: string; warehouseId?: string; referenceType?: string; limit?: number }) => {

@@ -6,6 +6,10 @@
 
 const { createJournalEntry } = require('./accounting.cjs');
 
+function isUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 // ==================== AUDIT ====================
 async function auditLog(client, params) {
   const { tableName, recordId, action, userId, userName, branchId, oldValues, newValues, description } = params;
@@ -42,8 +46,8 @@ async function recordStockMovement(client, params) {
 
   const stockChange = movementType === 'IN' ? quantity : -quantity;
   await client.query(
-    'UPDATE products SET stock = stock + $1 WHERE id = $2 AND branch_id = $3',
-    [stockChange, productId, warehouseId]
+    'UPDATE products SET stock = stock + $1 WHERE id = $2',
+    [stockChange, productId]
   );
 
   return result.rows[0];
@@ -159,26 +163,30 @@ async function processSale(client, pool, saleData) {
 
   let totalCOGS = 0;
   for (const item of items) {
+    const normalizedProductId = isUuid(item.productId) ? item.productId : null;
+
     await client.query(
       `INSERT INTO sale_items (
         sale_id, product_id, product_name, sku, quantity,
         unit_price, discount, tax_rate, tax_amount, subtotal
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [sale.id, item.productId, item.productName, item.sku, item.quantity,
+      [sale.id, normalizedProductId, item.productName, item.sku, item.quantity,
        item.unitPrice, item.discount || 0, item.taxRate, item.taxAmount, item.subtotal]
     );
 
-    await recordStockMovement(client, {
-      productId: item.productId, warehouseId: branchId,
-      movementType: 'OUT', quantity: item.quantity,
-      unitCost: item.costAtSale || 0,
-      referenceType: 'sale', referenceId: sale.id,
-      referenceNumber: invoiceNumber, createdBy: cashierId,
-    });
+    if (normalizedProductId) {
+      await recordStockMovement(client, {
+        productId: normalizedProductId, warehouseId: branchId,
+        movementType: 'OUT', quantity: item.quantity,
+        unitCost: item.costAtSale || 0,
+        referenceType: 'sale', referenceId: sale.id,
+        referenceNumber: invoiceNumber, createdBy: cashierId,
+      });
 
-    const productResult = await client.query('SELECT cost FROM products WHERE id = $1', [item.productId]);
-    if (productResult.rows.length > 0) {
-      totalCOGS += parseFloat(productResult.rows[0].cost) * item.quantity;
+      const productResult = await client.query('SELECT cost FROM products WHERE id = $1', [normalizedProductId]);
+      if (productResult.rows.length > 0) {
+        totalCOGS += parseFloat(productResult.rows[0].cost) * item.quantity;
+      }
     }
   }
 
@@ -505,12 +513,120 @@ async function processPayment(client, pool, paymentData) {
   return payment;
 }
 
+async function processTransaction(client, pool, txData) {
+  const {
+    transactionType, documentId, documentNumber, branchId,
+    userId, date, description, currency,
+    stockEntries, journalLines, openItem, documentLinks,
+    priceUpdates, entityBalanceUpdate,
+  } = txData;
+
+  const result = {
+    success: false,
+    stockMovementIds: [],
+    journalEntryId: null,
+    openItemId: null,
+    documentLinkIds: [],
+    errors: [],
+  };
+
+  await validatePeriod(client, date || new Date().toISOString());
+
+  if (stockEntries && stockEntries.length > 0) {
+    for (const entry of stockEntries) {
+      const movement = await recordStockMovement(client, {
+        productId: entry.productId,
+        warehouseId: entry.warehouseId,
+        movementType: entry.direction,
+        quantity: entry.quantity,
+        unitCost: entry.unitCost || 0,
+        referenceType: transactionType,
+        referenceId: documentId,
+        referenceNumber: documentNumber,
+        createdBy: userId,
+      });
+      result.stockMovementIds.push(movement.id);
+    }
+  }
+
+  if (priceUpdates && priceUpdates.length > 0) {
+    for (const pu of priceUpdates) {
+      const prodResult = await client.query('SELECT stock, cost FROM products WHERE id = $1', [pu.productId]);
+      if (prodResult.rows.length > 0) {
+        const p = prodResult.rows[0];
+        const currentStock = parseInt(p.stock) || 0;
+        const currentCost = parseFloat(p.cost) || 0;
+        const prevTotal = currentStock * currentCost;
+        const newTotal = pu.quantityReceived * pu.newUnitCost;
+        const totalStock = currentStock + pu.quantityReceived;
+        const newAvg = totalStock > 0 ? (prevTotal + newTotal) / totalStock : pu.newUnitCost;
+
+        await client.query('UPDATE products SET cost = $1 WHERE id = $2', [newAvg.toFixed(2), pu.productId]);
+      }
+    }
+  }
+
+  if (journalLines && journalLines.length > 0) {
+    const entry = await createJournalEntry(client, pool, {
+      description,
+      referenceType: transactionType,
+      referenceId: documentId,
+      branchId,
+      createdBy: userId,
+      lines: journalLines.map((line) => ({
+        accountCode: line.accountCode,
+        description: line.note || description,
+        debit: line.debit || 0,
+        credit: line.credit || 0,
+      })),
+    });
+    result.journalEntryId = entry.id;
+  }
+
+  if (openItem) {
+    const oi = await createOpenItem(client, {
+      entityType: openItem.entityType,
+      entityId: openItem.entityId,
+      documentType: openItem.documentType,
+      documentId,
+      documentNumber,
+      documentDate: date || new Date().toISOString().split('T')[0],
+      dueDate: openItem.dueDate || null,
+      originalAmount: openItem.originalAmount,
+      isDebit: openItem.isDebit,
+      branchId,
+      currency: openItem.currency || currency || 'AOA',
+    });
+    result.openItemId = oi.id;
+  }
+
+  if (documentLinks && documentLinks.length > 0) {
+    for (const dl of documentLinks) {
+      await linkDocuments(client, dl.sourceType, dl.sourceId, dl.sourceNumber, dl.targetType, dl.targetId, dl.targetNumber);
+      result.documentLinkIds.push(`dl_${Date.now()}`);
+    }
+  }
+
+  if (entityBalanceUpdate) {
+    if (entityBalanceUpdate.entityType === 'supplier') {
+      await client.query('UPDATE suppliers SET balance = COALESCE(balance, 0) + $1 WHERE id = $2', [entityBalanceUpdate.amount, entityBalanceUpdate.entityId]);
+    } else if (entityBalanceUpdate.entityType === 'customer') {
+      await client.query('UPDATE clients SET current_balance = COALESCE(current_balance, 0) + $1 WHERE id = $2', [entityBalanceUpdate.amount, entityBalanceUpdate.entityId]);
+    }
+  }
+
+  result.success = true;
+  console.log(`[TX ENGINE] ${transactionType} ${documentNumber}: ${result.stockMovementIds.length} stock, journal=${!!result.journalEntryId}, openItem=${!!result.openItemId} ✓`);
+  return result;
+}
+
 module.exports = {
   recordStockMovement,
   createOpenItem,
   clearOpenItems,
   linkDocuments,
   validatePeriod,
+  processTransaction,
   processSale,
   processPurchaseReceive,
   processTransferReceive,

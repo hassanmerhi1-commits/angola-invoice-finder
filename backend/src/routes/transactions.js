@@ -171,8 +171,8 @@ module.exports = function(broadcastTable) {
       if (priceUpdates && priceUpdates.length > 0) {
         for (const pu of priceUpdates) {
           const prodResult = await client.query(
-            'SELECT stock, cost FROM products WHERE id = $1 AND branch_id = $2',
-            [pu.productId, branchId]
+              'SELECT stock, cost FROM products WHERE id = $1',
+              [pu.productId]
           );
           if (prodResult.rows.length > 0) {
             const p = prodResult.rows[0];
@@ -184,8 +184,8 @@ module.exports = function(broadcastTable) {
             const newAvg = totalStock > 0 ? (prevTotal + newTotal) / totalStock : pu.newUnitCost;
 
             await client.query(
-              'UPDATE products SET cost = $1 WHERE id = $2 AND branch_id = $3',
-              [newAvg.toFixed(2), pu.productId, branchId]
+                'UPDATE products SET cost = $1 WHERE id = $2',
+                [newAvg.toFixed(2), pu.productId]
             );
           }
         }

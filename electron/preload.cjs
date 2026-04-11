@@ -108,6 +108,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Transaction Engine (direct DB operations)
   tx: {
+    processTransaction: (data) => ipcRenderer.invoke('tx:processTransaction', data),
     processSale: (saleData) => ipcRenderer.invoke('tx:processSale', saleData),
     processPurchaseReceive: (orderId, receivedQuantities, receivedBy) =>
       ipcRenderer.invoke('tx:processPurchaseReceive', orderId, receivedQuantities, receivedBy),
