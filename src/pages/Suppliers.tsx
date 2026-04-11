@@ -183,75 +183,20 @@ export default function Suppliers() {
       notes: item.notas || '',
     }));
 
-    // Try batch API first (auto-creates sub-accounts on backend)
-    try {
-      const result = await api.suppliers.batchImport(supplierList);
-      if (result.data) {
-        // Also ensure local CoA cache has sub-accounts
-        for (const s of supplierList) {
-          await ensureSupplierAccount(`supplier-${s.nif}`, s.name, s.nif);
-        }
-        await refreshSuppliers();
-        toast({
-          title: 'Importação concluída',
-          description: `${result.data.imported} importados${result.data.failed > 0 ? `, ${result.data.failed} falharam` : ''}`,
-        });
-        return;
-      }
-    } catch (e) {
-      console.warn('[Suppliers] Batch API unavailable, using sequential create');
+    // Use batch API — the backend auto-creates 3.2.XXX sub-accounts
+    const result = await api.suppliers.batchImport(supplierList);
+    if (result.data) {
+      await refreshSuppliers();
+      toast({
+        title: 'Importação concluída',
+        description: `${result.data.imported} importados${result.data.failed > 0 ? `, ${result.data.failed} falharam` : ''}`,
+      });
+      return;
     }
 
-    // Fallback: sequential create
-    let imported = 0;
-    let updated = 0;
-    
-    for (const item of data) {
-      const existingSupplier = suppliers.find(s => s.nif.toLowerCase().trim() === item.nif.toLowerCase().trim());
-      
-      if (existingSupplier && options?.updateDuplicates) {
-        await saveSupplier({
-          ...existingSupplier,
-          name: item.nome,
-          contactPerson: item.pessoaContacto || existingSupplier.contactPerson,
-          phone: item.telefone || existingSupplier.phone,
-          email: item.email || existingSupplier.email,
-          address: item.morada || existingSupplier.address,
-          city: item.cidade || existingSupplier.city,
-          country: item.pais || existingSupplier.country,
-          paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || existingSupplier.paymentTerms,
-          notes: item.notas || existingSupplier.notes,
-          updatedAt: new Date().toISOString(),
-        });
-        updated++;
-      } else if (!existingSupplier) {
-        await createSupplier({
-          name: item.nome,
-          nif: item.nif,
-          contactPerson: item.pessoaContacto || '',
-          phone: item.telefone || '',
-          email: item.email || '',
-          address: item.morada || '',
-          city: item.cidade || '',
-          country: item.pais || 'Angola',
-          paymentTerms: paymentTermsMap[item.prazoPagamento || ''] || 'immediate',
-          balance: 0,
-          isActive: true,
-          notes: item.notas || '',
-        });
-        imported++;
-      }
-    }
-    
-    const messages: string[] = [];
-    if (imported > 0) messages.push(`${imported} novos`);
-    if (updated > 0) messages.push(`${updated} actualizados`);
-    
-    toast({
-      title: 'Importação concluída',
-      description: messages.join(', ') || 'Nenhum registo importado',
-    });
-  }, [suppliers, saveSupplier, createSupplier, refreshSuppliers, toast]);
+    // API returned an error — do NOT silently fall back to localStorage
+    throw new Error(result.error || 'Falha ao importar fornecedores. Verifique a conexão ao servidor.');
+  }, [refreshSuppliers, toast]);
 
   // Get existing NIFs for duplicate detection
   const existingNifs = suppliers.map(s => s.nif);

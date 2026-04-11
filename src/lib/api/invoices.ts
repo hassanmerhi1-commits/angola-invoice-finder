@@ -145,15 +145,14 @@ export async function createInvoice(
     agtStatus: 'pending'
   };
   
-  // Save via API
+  // Save via API — no localStorage fallback
   try {
     await api.sales.create(sale);
-  } catch {
-    // Fallback: localStorage
-    const raw = localStorage.getItem('kwanzaerp_sales');
-    const all = raw ? JSON.parse(raw) : [];
-    all.push(sale);
-    localStorage.setItem('kwanzaerp_sales', JSON.stringify(all));
+  } catch (err: any) {
+    return {
+      status: 'error', invoice_id: '', invoice_number: '', subtotal: 0, vat: 0, total: 0,
+      error: err?.message || 'Falha ao guardar venda no servidor'
+    };
   }
   
   return {

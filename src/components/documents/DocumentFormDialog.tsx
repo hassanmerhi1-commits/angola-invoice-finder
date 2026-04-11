@@ -16,6 +16,7 @@ import { DocumentType, DocumentLine, ERPDocument, DOCUMENT_TYPE_CONFIG } from '@
 import { calculateLineTotals, calculateDocumentTotals, createDocument, saveDocument } from '@/lib/documentStorage';
 import { useProducts, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
+import { api } from '@/lib/api/client';
 
 interface DocumentFormDialogProps {
   open: boolean;
@@ -163,35 +164,109 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
         onSaved?.(updated);
         toast.success(`${config.shortLabel} actualizado`);
       } else {
-        const doc = createDocument(
-          documentType,
-          currentBranch?.id || '',
-          currentBranch?.code || 'SEDE',
-          currentBranch?.name || '',
-          user?.id || '',
-          user?.name || '',
-          {
-            entityName: entityName || 'Consumidor Final',
-            entityNif,
-            entityAddress,
-            entityPhone,
-            lines,
-            ...totals,
-            paymentMethod: paymentMethod as any,
-            amountPaid: config.requiresPayment ? amountPaid : 0,
-            amountDue: config.requiresPayment ? totals.total - amountPaid : totals.total,
-            parentDocumentId: prefillFrom?.id,
-            parentDocumentNumber: prefillFrom?.documentNumber,
-            parentDocumentType: prefillFrom?.documentType,
-            dueDate,
-            validUntil,
-            notes,
-            status,
+        // For confirmed fatura_venda, route through the backend transaction engine
+        // so stock is decremented and journal entries (including branch Caixa) are created
+        if (documentType === 'fatura_venda' && status === 'confirmed') {
+          const saleItems = lines.map(l => ({
+            productId: l.productId || `manual-${l.description}`,
+            productName: l.description,
+            sku: l.productSku || '',
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            discount: l.discount || 0,
+            taxRate: l.taxRate,
+            taxAmount: l.taxAmount,
+            subtotal: l.lineTotal - l.taxAmount,
+          }));
+
+          const branchId = currentBranch?.id || '';
+          const branchCode = currentBranch?.code || 'SEDE';
+
+          // Generate invoice number from backend
+          let invoiceNumber = '';
+          try {
+            const numResult = await api.sales.generateInvoiceNumber(branchCode);
+            invoiceNumber = numResult.data?.invoiceNumber || `FT ${branchCode}/${Date.now()}`;
+          } catch {
+            invoiceNumber = `FT ${branchCode}/${Date.now()}`;
           }
-        );
-        const savedDoc = await doc;
-        onSaved?.(savedDoc);
-        toast.success(`${config.shortLabel} ${savedDoc.documentNumber} criado`);
+
+          const saleResult = await api.sales.create({
+            invoiceNumber,
+            branchId,
+            cashierId: user?.id || '',
+            cashierName: user?.name || '',
+            items: saleItems,
+            subtotal: totals.subtotal,
+            taxAmount: totals.totalTax,
+            discount: totals.totalDiscount,
+            total: totals.total,
+            paymentMethod: paymentMethod || 'cash',
+            amountPaid: config.requiresPayment ? amountPaid : totals.total,
+            change: config.requiresPayment ? Math.max(0, amountPaid - totals.total) : 0,
+            customerNif: entityNif || undefined,
+            customerName: (entityName || 'Consumidor Final') || undefined,
+          });
+
+          if (!saleResult.data) {
+            throw new Error(saleResult.error || 'Falha ao processar venda no servidor');
+          }
+
+          // Also save as ERP document for the document list
+          const doc = await createDocument(
+            documentType,
+            branchId,
+            branchCode,
+            currentBranch?.name || '',
+            user?.id || '',
+            user?.name || '',
+            {
+              entityName: entityName || 'Consumidor Final',
+              entityNif,
+              entityAddress,
+              entityPhone,
+              lines,
+              ...totals,
+              paymentMethod: paymentMethod as any,
+              amountPaid: config.requiresPayment ? amountPaid : totals.total,
+              amountDue: 0,
+              notes,
+              status: 'confirmed',
+            }
+          );
+          onSaved?.(doc);
+          toast.success(`${config.shortLabel} ${doc.documentNumber} criado — Stock e Caixa actualizados`);
+        } else {
+          // All other document types (proforma, draft, etc.) — save locally
+          const doc = await createDocument(
+            documentType,
+            currentBranch?.id || '',
+            currentBranch?.code || 'SEDE',
+            currentBranch?.name || '',
+            user?.id || '',
+            user?.name || '',
+            {
+              entityName: entityName || 'Consumidor Final',
+              entityNif,
+              entityAddress,
+              entityPhone,
+              lines,
+              ...totals,
+              paymentMethod: paymentMethod as any,
+              amountPaid: config.requiresPayment ? amountPaid : 0,
+              amountDue: config.requiresPayment ? totals.total - amountPaid : totals.total,
+              parentDocumentId: prefillFrom?.id,
+              parentDocumentNumber: prefillFrom?.documentNumber,
+              parentDocumentType: prefillFrom?.documentType,
+              dueDate,
+              validUntil,
+              notes,
+              status,
+            }
+          );
+          onSaved?.(doc);
+          toast.success(`${config.shortLabel} ${doc.documentNumber} criado`);
+        }
       }
       onOpenChange(false);
     } catch (error: any) {
