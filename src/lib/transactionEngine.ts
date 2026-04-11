@@ -122,10 +122,17 @@ export async function processTransaction(request: TransactionRequest): Promise<T
       result.documentLinkIds = apiResult.data.documentLinkIds || [];
 
       console.log(`[TransactionEngine] ✅ ${request.transactionType} ${request.documentNumber} processed via API`);
-    } else {
-      // API failed — fall back to local demo mode
-      console.warn('[TransactionEngine] API unavailable, using local demo mode:', apiResult.error);
-      return await processTransactionLocal(request);
+    } else if (apiResult.error) {
+      // API returned an error — log it but still try local fallback for demo/preview
+      console.error(`[TransactionEngine] ❌ API error for ${request.transactionType} ${request.documentNumber}:`, apiResult.error);
+      result.errors.push(apiResult.error);
+      // Only fall back to local if API is truly unreachable (network error), not on business errors
+      if (apiResult.error.includes('Network error') || apiResult.error.includes('Failed to fetch')) {
+        console.warn('[TransactionEngine] Network unreachable, using local demo mode');
+        return await processTransactionLocal(request);
+      }
+      // For business errors (missing accounts, unbalanced entries), propagate the error
+      return result;
     }
   } catch (error) {
     console.warn('[TransactionEngine] API error, falling back to local:', error);

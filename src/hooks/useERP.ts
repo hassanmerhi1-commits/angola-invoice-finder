@@ -10,14 +10,17 @@ import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, 
 import { api, setAuthToken } from '@/lib/api/client';
 import * as storage from '@/lib/storage';
 import { processSalePayment } from '@/lib/accountingStorage';
+import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 
-// Helper: try API, fallback to storage
+// Helper: try API, fallback to storage only on network errors
 async function apiFallback<T>(apiFn: () => Promise<{ data?: T; error?: string }>, storageFn: () => Promise<T> | T): Promise<T> {
   try {
     const result = await apiFn();
     if (result.data !== undefined) return result.data;
+    // API reachable but returned error — still fall back for reads
+    console.warn('[ERP] API returned error, falling back to local:', result.error);
   } catch (e) {
-    // API unavailable
+    // API unreachable
   }
   return await storageFn();
 }
@@ -326,7 +329,13 @@ export function useSales(branchId?: string) {
       };
       console.log(`[POS] Sale ${sale.invoiceNumber} processed via API Transaction Engine ✓`);
     } else {
-      console.warn('[POS] API unavailable, falling back to local:', apiResult.error);
+      // API failed — log the error. Only fallback for network errors.
+      const isNetworkError = apiResult.error?.includes('Network error') || apiResult.error?.includes('Failed to fetch');
+      if (!isNetworkError) {
+        console.error('[POS] API business error:', apiResult.error);
+        throw new Error(apiResult.error || 'Falha ao processar venda no servidor');
+      }
+      console.warn('[POS] API unreachable, falling back to local:', apiResult.error);
       sale = {
         id: crypto.randomUUID(),
         invoiceNumber: storage.generateInvoiceNumber(branchCode),
@@ -810,9 +819,12 @@ export function useSuppliers() {
   const createSupplier = useCallback(async (data: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier> => {
     const result = await api.suppliers.create(data);
     if (result.data) {
+      // Backend auto-creates sub-account now, but also ensure local CoA cache is synced
+      await ensureSupplierAccount(result.data.id, data.name, data.nif);
       await refreshSuppliers();
       return result.data;
     }
+    // Fallback for offline/demo
     const supplier: Supplier = {
       ...data,
       id: `supplier_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -820,6 +832,8 @@ export function useSuppliers() {
       updatedAt: new Date().toISOString(),
     };
     await storage.saveSupplier(supplier);
+    // Also create sub-account locally
+    await ensureSupplierAccount(supplier.id, supplier.name, supplier.nif);
     await refreshSuppliers();
     return supplier;
   }, [refreshSuppliers]);

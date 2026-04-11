@@ -1,6 +1,56 @@
-// Suppliers API routes
+// Suppliers API routes — with auto Chart of Accounts sub-account creation
 const express = require('express');
 const db = require('../db');
+
+/**
+ * Auto-create a 3.2.XXX sub-account in chart_of_accounts for a supplier.
+ * Idempotent — skips if an account with the same name already exists.
+ */
+async function ensureSupplierSubAccount(client, supplierName, supplierNif) {
+  // Check if already exists
+  const existing = await client.query(
+    `SELECT code FROM chart_of_accounts WHERE code LIKE '3.2.%' AND level = 3 AND is_header = false
+     AND (name = $1 OR ($2 IS NOT NULL AND $2 != '' AND description LIKE '%' || $2 || '%'))`,
+    [supplierName, supplierNif || null]
+  );
+  if (existing.rows.length > 0) return existing.rows[0].code;
+
+  // Find parent 3.2
+  const parent = await client.query(
+    `SELECT id FROM chart_of_accounts WHERE code = '3.2' AND is_active = true LIMIT 1`
+  );
+  if (parent.rows.length === 0) {
+    console.warn('[SUPPLIERS] Parent account 3.2 (Fornecedores) not found — skipping sub-account');
+    return null;
+  }
+  const parentId = parent.rows[0].id;
+
+  // Next sequence
+  const seqResult = await client.query(
+    `SELECT COUNT(*) as count FROM chart_of_accounts WHERE code LIKE '3.2.%' AND level = 3 AND is_header = false`
+  );
+  const nextSeq = parseInt(seqResult.rows[0].count) + 1;
+  const code = `3.2.${nextSeq.toString().padStart(3, '0')}`;
+
+  await client.query(
+    `INSERT INTO chart_of_accounts
+     (code, name, description, account_type, account_nature, parent_id, level, is_header, opening_balance, current_balance)
+     VALUES ($1, $2, $3, 'liability', 'credit', $4, 3, false, 0, 0)
+     ON CONFLICT (code) DO NOTHING`,
+    [code, supplierName, supplierNif ? `NIF: ${supplierNif}` : '', parentId]
+  );
+
+  // Update parent children_count
+  await client.query(
+    `UPDATE chart_of_accounts SET children_count = (
+       SELECT COUNT(*) FROM chart_of_accounts WHERE parent_id = $1 AND is_active = true
+     ) WHERE id = $1`,
+    [parentId]
+  );
+
+  console.log(`[SUPPLIERS] Created sub-account ${code} — ${supplierName}`);
+  return code;
+}
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
@@ -16,18 +66,97 @@ module.exports = function(broadcastTable) {
   });
 
   router.post('/', async (req, res) => {
+    const client = await db.pool.connect();
     try {
+      await client.query('BEGIN');
+
       const { name, nif, email, phone, address, city, country, contactPerson, paymentTerms, notes } = req.body;
-      const result = await db.query(
+      const result = await client.query(
         `INSERT INTO suppliers (name, nif, email, phone, address, city, country, contact_person, payment_terms, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
         [name, nif, email, phone, address, city, country || 'Angola', contactPerson, paymentTerms || '30_days', notes]
       );
+
+      // Auto-create 3.2.XXX sub-account
+      const accountCode = await ensureSupplierSubAccount(client, name, nif);
+
+      await client.query('COMMIT');
       await broadcastTable('suppliers');
-      res.status(201).json(result.rows[0]);
+      await broadcastTable('chart_of_accounts');
+
+      const supplier = result.rows[0];
+      supplier._accountCode = accountCode; // Return so frontend knows the code
+      res.status(201).json(supplier);
     } catch (error) {
+      await client.query('ROLLBACK');
       console.error('[SUPPLIERS ERROR]', error);
       res.status(500).json({ error: 'Failed to create supplier' });
+    } finally {
+      client.release();
+    }
+  });
+
+  // Batch import — auto-creates sub-accounts for each supplier
+  router.post('/batch', async (req, res) => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const { suppliers: supplierList } = req.body;
+      if (!Array.isArray(supplierList)) {
+        return res.status(400).json({ error: 'suppliers array is required' });
+      }
+
+      let imported = 0, failed = 0;
+      const errors = [];
+
+      for (const s of supplierList) {
+        try {
+          // Upsert by NIF
+          const upsertResult = await client.query(
+            `INSERT INTO suppliers (name, nif, email, phone, address, city, country, contact_person, payment_terms, notes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             ON CONFLICT (nif) DO UPDATE SET
+               name = EXCLUDED.name,
+               email = COALESCE(EXCLUDED.email, suppliers.email),
+               phone = COALESCE(EXCLUDED.phone, suppliers.phone),
+               address = COALESCE(EXCLUDED.address, suppliers.address),
+               city = COALESCE(EXCLUDED.city, suppliers.city),
+               country = COALESCE(EXCLUDED.country, suppliers.country),
+               contact_person = COALESCE(EXCLUDED.contact_person, suppliers.contact_person),
+               payment_terms = COALESCE(EXCLUDED.payment_terms, suppliers.payment_terms),
+               notes = COALESCE(EXCLUDED.notes, suppliers.notes),
+               updated_at = CURRENT_TIMESTAMP
+             RETURNING *`,
+            [
+              s.name, s.nif || '', s.email || '', s.phone || '',
+              s.address || '', s.city || '', s.country || 'Angola',
+              s.contactPerson || s.contact_person || '', s.paymentTerms || s.payment_terms || '30_days',
+              s.notes || ''
+            ]
+          );
+
+          // Auto-create sub-account
+          await ensureSupplierSubAccount(client, s.name, s.nif);
+          imported++;
+        } catch (err) {
+          failed++;
+          errors.push({ supplier: s.name, error: err.message });
+        }
+      }
+
+      await client.query('COMMIT');
+      await broadcastTable('suppliers');
+      await broadcastTable('chart_of_accounts');
+
+      console.log(`[SUPPLIERS] Batch import: ${imported} imported, ${failed} failed`);
+      res.json({ imported, failed, errors });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('[SUPPLIERS BATCH ERROR]', error);
+      res.status(500).json({ error: 'Batch import failed' });
+    } finally {
+      client.release();
     }
   });
 

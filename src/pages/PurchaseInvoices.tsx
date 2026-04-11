@@ -575,6 +575,7 @@ export default function PurchaseInvoices() {
     setForm(prev => ({
       ...prev,
       supplierAccountCode: accountCode,
+      supplierId: s.id, // Real supplier DB ID for open items & balance updates
       supplierName: s.name,
       supplierNif: s.nif,
       supplierPhone: s.phone,
@@ -815,10 +816,10 @@ export default function PurchaseInvoices() {
           })),
         ],
 
-        // Phase 4: Open item (payable to supplier)
+        // Phase 4: Open item (payable to supplier) — use REAL supplier ID
         openItem: {
           entityType: 'supplier',
-          entityId: invoice.supplierAccountCode || invoice.supplierName,
+          entityId: (form as any).supplierId || invoice.supplierName,
           entityName: invoice.supplierName,
           documentType: 'invoice',
           originalAmount: invoice.total,
@@ -827,10 +828,10 @@ export default function PurchaseInvoices() {
           currency: invoice.currency === 'KZ' ? 'AOA' : invoice.currency,
         },
 
-        // Phase 6: Update supplier balance
+        // Phase 6: Update supplier balance — use REAL supplier ID
         entityBalanceUpdate: {
           entityType: 'supplier',
-          entityId: invoice.supplierAccountCode || invoice.supplierName,
+          entityId: (form as any).supplierId || invoice.supplierName,
           entityName: invoice.supplierName,
           entityNif: invoice.supplierNif,
           amount: invoice.total,
