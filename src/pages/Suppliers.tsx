@@ -196,15 +196,7 @@ export default function Suppliers() {
 
     // API returned an error — do NOT silently fall back to localStorage
     throw new Error(result.error || 'Falha ao importar fornecedores. Verifique a conexão ao servidor.');
-
-    // This code is unreachable but keeps the toast call below happy
-    const messages: string[] = [];
-    
-    toast({
-      title: 'Importação concluída',
-      description: messages.join(', ') || 'Nenhum registo importado',
-    });
-  }, [suppliers, saveSupplier, createSupplier, refreshSuppliers, toast]);
+  }, [refreshSuppliers, toast]);
 
   // Get existing NIFs for duplicate detection
   const existingNifs = suppliers.map(s => s.nif);
