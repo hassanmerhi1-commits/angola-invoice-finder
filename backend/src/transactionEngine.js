@@ -247,7 +247,22 @@ async function processSale(client, saleData) {
   }
 
   // 4. Journal entries
-  const cashAccountCode = paymentMethod === 'cash' ? '4.1.1' : '4.2.1';
+  // Lookup branch-specific Caixa account (4.1.X) instead of hardcoding 4.1.1
+  let cashAccountCode = '4.1.1'; // default fallback
+  if (paymentMethod === 'cash') {
+    const branchCaixaResult = await client.query(
+      `SELECT code FROM chart_of_accounts WHERE code LIKE '4.1.%' AND level = 3 AND is_header = false AND branch_id = $1 AND is_active = true LIMIT 1`,
+      [branchId]
+    );
+    if (branchCaixaResult.rows.length > 0) {
+      cashAccountCode = branchCaixaResult.rows[0].code;
+    } else {
+      // Try the generic 4.1.1 if no branch-specific account
+      console.warn(`[TX ENGINE] No branch-specific Caixa (4.1.X) found for branch ${branchId}, using 4.1.1`);
+    }
+  } else {
+    cashAccountCode = '4.2.1';
+  }
 
   // Revenue entry
   const revenueLines = [

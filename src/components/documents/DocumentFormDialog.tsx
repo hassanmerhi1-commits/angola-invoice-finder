@@ -16,6 +16,7 @@ import { DocumentType, DocumentLine, ERPDocument, DOCUMENT_TYPE_CONFIG } from '@
 import { calculateLineTotals, calculateDocumentTotals, createDocument, saveDocument } from '@/lib/documentStorage';
 import { useProducts, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
+import { api } from '@/lib/api/client';
 
 interface DocumentFormDialogProps {
   open: boolean;
