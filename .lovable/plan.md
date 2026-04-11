@@ -1,99 +1,37 @@
 
 
-# Kwanza ERP — Production Checklist Plan
+## Plan: Suppress Connection Error Toasts and Stop Unnecessary Polling in Preview
 
-## Current State Assessment
+### Problem
+The app constantly polls `http://localhost:3000/api/health` every 15 seconds (ServerConnectionIndicator) and every 30 seconds (useDatabaseStatus), even when running in the Lovable web preview where no backend exists. This causes annoying "connect ECONNREFUSED 127.0.0.1:3000" toast notifications.
 
-After inspecting the codebase, here's the reality:
+### Changes
 
-- **Backend PostgreSQL connection**: Fixed. `.env`, `db.js`, `docker-compose.yml` all use correct credentials (`yel3an7azi`).
-- **Transaction Engine**: Well-architected (SAP-inspired 4-layer model) BUT still writes to `localStorage` and `window.electronAPI.db` (old SQLite path) instead of going through the API.
-- **Direct storage calls**: **15 files** import from `@/lib/storage` directly, bypassing the API client. This is the biggest integrity risk.
+**1. Guard health polling against web preview mode**
 
----
+In `src/components/layout/ServerConnectionIndicator.tsx`:
+- Only start the 15-second health check interval if running in Electron mode OR if the user has explicitly configured a server URL (setup complete). In the Lovable preview (no Electron, no setup), skip polling entirely.
 
-## PHASE 1 — CORE STABILITY (Current Priority)
+In `src/hooks/useDatabaseStatus.ts`:
+- Same guard: skip the 30-second polling if no setup is configured and not in Electron.
 
-### Step 1: Backend connection ✅ DONE
-PostgreSQL `.env`, `db.js`, Docker credentials all aligned.
+**2. Suppress raw error toasts from connection failures**
 
-### Step 2: Route all writes through the API client
-The transaction engine (`src/lib/transactionEngine.ts`) currently calls `saveStockMovement`, `createLocalJournalEntry`, `updateProductStock` etc. from `@/lib/storage` — which writes to localStorage or Electron SQLite. This must be replaced with `api.*` calls from `src/lib/api/client.ts`.
+In `src/components/settings/HotUpdateSettingsCard.tsx`:
+- Change `toast.error(result?.error || 'Server is offline')` to only show when the user explicitly clicks the check button (already the case), but make the error message user-friendly instead of showing raw ECONNREFUSED strings.
 
-**Files to migrate** (15 files with direct storage imports):
-- `src/lib/transactionEngine.ts` — the most critical one
-- `src/hooks/useERP.ts`
-- `src/hooks/useUsers.ts`
-- `src/hooks/useChartOfAccounts.ts`
-- `src/hooks/useFiscalDocuments.ts`
-- `src/hooks/useProForma.ts`
-- `src/hooks/useSupplierReturns.ts`
-- `src/contexts/BranchContext.tsx`
-- `src/pages/Inventory.tsx`
-- `src/pages/Journals.tsx`
-- `src/pages/Branches.tsx`
-- `src/components/inventory/BranchStockDetail.tsx`
-- `src/components/reports/StockMovementReport.tsx`
-- `src/lib/purchaseInvoiceStorage.ts`
-- `src/lib/api/invoices.ts`
+**3. Add a web preview detection utility**
 
-**Approach**: For each file, replace `storage.*` calls with corresponding `api.*` methods. Add any missing API endpoints to the backend.
+In `src/lib/api/config.ts`:
+- Add a `isWebPreview()` function that returns `true` when the app is not in Electron mode and no server has been configured. Use this to disable background network polling.
 
-### Step 3: Add missing backend API routes
-Audit `src/lib/api/client.ts` methods vs backend `routes/` folder. Add any endpoints the frontend needs but the backend doesn't serve yet (e.g., stock movements CRUD, journal entries, open items).
+### Technical Details
+- `ServerConnectionIndicator`: wrap the `setInterval` in a condition — only poll if `isElectron` or `localStorage.getItem('kwanza_setup_complete') === 'true'`
+- `useDatabaseStatus`: same guard before starting the interval
+- `HotUpdateSettingsCard`: sanitize error messages — replace raw network errors with "Servidor não acessível"
 
-### Step 4: Error handling standardization
-- Backend: ensure all routes return `{ status, data, message }` format
-- Frontend: show toast errors from API failures, no silent swallows
-
----
-
-## PHASE 2 — DATA INTEGRITY
-
-### Step 5: PostgreSQL constraints
-Review all migration files. Add missing `NOT NULL`, `FOREIGN KEY`, `UNIQUE`, and indexes where absent.
-
-### Step 6: Accounting correctness
-- Add a database-level CHECK constraint ensuring journal entries balance (total debits = total credits per entry)
-- Add period locking enforcement in the transaction engine backend route
-
-### Step 7: Stock integrity
-- Add CHECK constraint preventing negative stock (configurable)
-- Ensure stock transfers are atomic (debit source + credit destination in one transaction)
-
----
-
-## PHASE 3 — MULTI-USER / NETWORK
-
-### Step 8: Concurrency testing
-- Add optimistic locking (version column) to critical tables
-- Test Socket.io real-time sync with multiple clients
-
-### Step 9: Network access
-- CORS already allows `*` — tighten to local network range
-- Verify `http://192.168.x.x:3000` access works from client machines
-
-### Step 10: Backup system
-- Add `pg_dump` script to backend (scheduled + manual trigger)
-- Verify `portable-export.sh` / `portable-import.sh` work end-to-end
-
----
-
-## PHASES 4–6 — Already strong, refine after core is locked
-
-- POS, Inventory, Accounting, Reports: optimize performance
-- AGT compliance: validate hash chain + SAF-T export against spec
-- Electron installer + auto-update: already working
-
----
-
-## Recommended Execution Order
-
-1. **Migrate transaction engine to API** (~biggest impact, ~1 session)
-2. **Migrate remaining 14 files** from storage to API (~2 sessions)
-3. **Add missing backend routes** as discovered during migration
-4. **Add PostgreSQL constraints** (1 migration file)
-5. **Test end-to-end**: Sale → Stock → Journal → Balance
-
-This is the "define → build → lock → move on" approach. Each step is self-contained and testable before moving to the next.
+### Result
+- No more ECONNREFUSED toasts in the preview or when server is not running
+- Health checks only run when the app is actually configured to connect to a server
+- Hot Update settings show clean error messages
 
