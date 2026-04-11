@@ -45,6 +45,7 @@ function isAllowedOrigin(origin) {
 
     // Lovable preview URLs (for development)
     if (host.endsWith('.lovable.app')) return true;
+    if (host.endsWith('.lovableproject.com')) return true;
 
     return false;
   } catch {
