@@ -1324,6 +1324,99 @@ ipcMain.handle('agt:calculate-hash', (_, { data }) => ({
   hash: crypto.createHash('sha256').update(data).digest('hex')
 }));
 
-console.log('🏢 Kwanza ERP - Main process loaded (PostgreSQL mode)');
+// ============= TRANSACTION ENGINE IPC HANDLERS =============
+const txEngine = require('./transactionEngine.cjs');
+
+// Generic transaction wrapper: acquires client, BEGIN/COMMIT/ROLLBACK
+async function withTransaction(fn) {
+  if (!pool) return { success: false, error: 'Database not connected' };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return { success: true, data: result };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    return { success: false, error: error.message };
+  } finally {
+    client.release();
+  }
+}
+
+// Process Sale (atomic: sale + items + stock + journal + open items + tax)
+ipcMain.handle('tx:processSale', async (_, saleData) => {
+  const result = await withTransaction(client => txEngine.processSale(client, pool, saleData));
+  if (result.success) {
+    broadcastUpdate('sales', 'insert', result.data?.id);
+    broadcastUpdate('products', 'update', null);
+  }
+  return result;
+});
+
+// Process Purchase Receive (atomic: stock IN + WAC + journal + open items)
+ipcMain.handle('tx:processPurchaseReceive', async (_, orderId, receivedQuantities, receivedBy) => {
+  const result = await withTransaction(client => txEngine.processPurchaseReceive(client, pool, orderId, receivedQuantities, receivedBy));
+  if (result.success) {
+    broadcastUpdate('purchase_orders', 'update', orderId);
+    broadcastUpdate('products', 'update', null);
+  }
+  return result;
+});
+
+// Process Transfer Approve (stock OUT from source)
+ipcMain.handle('tx:processTransferApprove', async (_, transferId, approvedBy) => {
+  const result = await withTransaction(client => txEngine.processTransferApprove(client, pool, transferId, approvedBy));
+  if (result.success) {
+    broadcastUpdate('stock_transfers', 'update', transferId);
+    broadcastUpdate('products', 'update', null);
+  }
+  return result;
+});
+
+// Process Transfer Receive (stock IN at destination + journal)
+ipcMain.handle('tx:processTransferReceive', async (_, transferId, receivedQuantities, receivedBy) => {
+  const result = await withTransaction(client => txEngine.processTransferReceive(client, pool, transferId, receivedQuantities, receivedBy));
+  if (result.success) {
+    broadcastUpdate('stock_transfers', 'update', transferId);
+    broadcastUpdate('products', 'update', null);
+  }
+  return result;
+});
+
+// Process Payment (payment + journal + open item clearing)
+ipcMain.handle('tx:processPayment', async (_, paymentData) => {
+  const result = await withTransaction(client => txEngine.processPayment(client, pool, paymentData));
+  if (result.success) broadcastUpdate('payments', 'insert', result.data?.id);
+  return result;
+});
+
+// Record Stock Movement (standalone)
+ipcMain.handle('tx:recordStockMovement', async (_, movementData) => {
+  const result = await withTransaction(client => txEngine.recordStockMovement(client, movementData));
+  if (result.success) {
+    broadcastUpdate('products', 'update', null);
+  }
+  return result;
+});
+
+// Generate invoice number
+ipcMain.handle('tx:generateInvoiceNumber', async (_, branchCode) => {
+  if (!pool) return { success: false, error: 'Database not connected' };
+  try {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const prefix = `FT${branchCode || ''}${today}`;
+    const result = await pool.query(
+      `SELECT COUNT(*) as count FROM sales WHERE invoice_number LIKE $1`,
+      [`${prefix}%`]
+    );
+    const seq = (parseInt(result.rows[0].count) + 1).toString().padStart(4, '0');
+    return { success: true, data: { invoiceNumber: `${prefix}${seq}` } };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+console.log('🏢 Kwanza ERP - Main process loaded (Direct PostgreSQL mode)');
 console.log(`📁 Install directory: ${INSTALL_DIR}`);
 console.log(`📄 IP file: ${IP_FILE_PATH}`);
