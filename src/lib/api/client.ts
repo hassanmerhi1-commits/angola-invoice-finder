@@ -121,6 +121,90 @@ async function ipcTransaction(method: string, ...args: any[]): Promise<ApiRespon
   }
 }
 
+function mapSupplierPayloadForElectron(data: any) {
+  const now = new Date().toISOString();
+
+  return {
+    id: data.id || crypto.randomUUID(),
+    name: data.name || '',
+    nif: data.nif || '',
+    email: data.email || '',
+    phone: data.phone || '',
+    address: data.address || '',
+    city: data.city || '',
+    country: data.country || 'Angola',
+    contact_person: data.contactPerson ?? data.contact_person ?? '',
+    payment_terms: data.paymentTerms ?? data.payment_terms ?? '30_days',
+    is_active: data.isActive ?? data.is_active ?? true,
+    notes: data.notes || '',
+    balance: Number(data.balance || 0),
+    created_at: data.createdAt ?? data.created_at ?? now,
+    updated_at: data.updatedAt ?? data.updated_at ?? now,
+  };
+}
+
+async function ensureSupplierSubAccountElectron(supplierName: string, supplierNif?: string): Promise<string | null> {
+  if (!isElectronMode() || !supplierName) return null;
+
+  try {
+    const existing = await ipcQuery<any>(
+      `SELECT code FROM chart_of_accounts
+       WHERE code LIKE '3.2.%' AND level = 3 AND is_header = false
+         AND (name = $1 OR ($2 IS NOT NULL AND $2 != '' AND description LIKE '%' || $2 || '%'))
+       ORDER BY code
+       LIMIT 1`,
+      [supplierName, supplierNif || null]
+    );
+
+    if (existing.data?.[0]?.code) {
+      return existing.data[0].code;
+    }
+
+    const parent = await ipcQuery<any>(
+      `SELECT id FROM chart_of_accounts WHERE code = '3.2' AND is_active = true LIMIT 1`
+    );
+
+    const parentId = parent.data?.[0]?.id;
+    if (!parentId) return null;
+
+    const seqResult = await ipcQuery<any>(
+      `SELECT COUNT(*)::int AS count
+       FROM chart_of_accounts
+       WHERE code LIKE '3.2.%' AND level = 3 AND is_header = false`
+    );
+
+    const nextSeq = Number(seqResult.data?.[0]?.count || 0) + 1;
+    const code = `3.2.${String(nextSeq).padStart(3, '0')}`;
+
+    const insertResult = await ipcInsert('chart_of_accounts', {
+      id: crypto.randomUUID(),
+      code,
+      name: supplierName,
+      description: supplierNif ? `NIF: ${supplierNif}` : '',
+      account_type: 'liability',
+      account_nature: 'credit',
+      parent_id: parentId,
+      level: 3,
+      is_header: false,
+      is_active: true,
+      opening_balance: 0,
+      current_balance: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    if (insertResult.error) {
+      console.warn('[API] Failed to create supplier sub-account in Electron:', insertResult.error);
+      return null;
+    }
+
+    return code;
+  } catch (error) {
+    console.warn('[API] Supplier sub-account sync skipped in Electron:', error);
+    return null;
+  }
+}
+
 // ==================== UNIFIED API ====================
 export const api = {
   // Health check
@@ -205,9 +289,12 @@ export const api = {
     list: (branchId?: string) => {
       if (isElectronMode()) {
         if (branchId) {
-          return ipcQuery<any>('SELECT * FROM products WHERE branch_id = $1 ORDER BY name', [branchId]);
+          return ipcQuery<any>(
+            'SELECT * FROM products WHERE is_active = true AND (branch_id = $1 OR branch_id IS NULL) ORDER BY name',
+            [branchId]
+          );
         }
-        return ipcQuery<any>('SELECT * FROM products ORDER BY name');
+        return ipcQuery<any>('SELECT * FROM products WHERE is_active = true ORDER BY name');
       }
       return apiFetch<any[]>(`/products${branchId ? `?branchId=${branchId}` : ''}`);
     },
@@ -325,29 +412,75 @@ export const api = {
   // Suppliers
   suppliers: {
     list: () => {
-      if (isElectronMode()) return ipcGetAll('suppliers');
+      if (isElectronMode()) return ipcQuery<any>('SELECT * FROM suppliers ORDER BY name');
       return apiFetch<any[]>('/suppliers');
     },
-    create: (data: any) => {
-      if (isElectronMode()) return ipcInsert('suppliers', { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() });
+    create: async (data: any) => {
+      if (isElectronMode()) {
+        const payload = mapSupplierPayloadForElectron(data);
+        const result = await ipcInsert('suppliers', payload);
+        if (result.data) {
+          await ensureSupplierSubAccountElectron(payload.name, payload.nif);
+        }
+        return result;
+      }
       return apiFetch<any>('/suppliers', { method: 'POST', body: JSON.stringify(data) });
     },
-    batchImport: (suppliers: any[]) => {
+    batchImport: async (suppliers: any[]) => {
       if (isElectronMode()) {
-        return (async () => {
-          let imported = 0, failed = 0;
-          const errors: any[] = [];
-          for (const s of suppliers) {
-            const result = await ipcInsert('suppliers', { id: crypto.randomUUID(), ...s, created_at: new Date().toISOString() });
-            if (result.data) imported++; else { failed++; errors.push({ supplier: s.name, error: result.error }); }
+        let imported = 0, failed = 0;
+        const errors: any[] = [];
+
+        for (const supplier of suppliers) {
+          const payload = mapSupplierPayloadForElectron(supplier);
+
+          try {
+            const existing = await ipcQuery<any>(
+              `SELECT id FROM suppliers
+               WHERE (NULLIF($1, '') IS NOT NULL AND nif = $1)
+                  OR name = $2
+               ORDER BY created_at ASC
+               LIMIT 1`,
+              [payload.nif || '', payload.name]
+            );
+
+            const existingId = existing.data?.[0]?.id;
+            const result = existingId
+              ? await ipcUpdate('suppliers', existingId, {
+                  ...payload,
+                  id: undefined,
+                  created_at: undefined,
+                  updated_at: new Date().toISOString(),
+                })
+              : await ipcInsert('suppliers', payload);
+
+            if (result.data) {
+              await ensureSupplierSubAccountElectron(payload.name, payload.nif);
+              imported++;
+            } else {
+              failed++;
+              errors.push({ supplier: payload.name, error: result.error || 'Import failed' });
+            }
+          } catch (error: any) {
+            failed++;
+            errors.push({ supplier: payload.name, error: error.message || 'Import failed' });
           }
-          return { data: { imported, failed, errors } } as ApiResponse<any>;
-        })();
+        }
+
+        return { data: { imported, failed, errors } } as ApiResponse<any>;
       }
       return apiFetch<any>('/suppliers/batch', { method: 'POST', body: JSON.stringify({ suppliers }) });
     },
-    update: (id: string, data: any) => {
-      if (isElectronMode()) return ipcUpdate('suppliers', id, data);
+    update: async (id: string, data: any) => {
+      if (isElectronMode()) {
+        const payload = mapSupplierPayloadForElectron({ ...data, id, updated_at: new Date().toISOString() });
+        delete payload.id;
+        const result = await ipcUpdate('suppliers', id, payload);
+        if (result.data) {
+          await ensureSupplierSubAccountElectron(data.name || payload.name, data.nif || payload.nif);
+        }
+        return result;
+      }
       return apiFetch<any>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
     },
     delete: (id: string) => {
