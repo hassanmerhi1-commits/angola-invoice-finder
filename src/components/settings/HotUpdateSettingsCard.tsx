@@ -87,11 +87,11 @@ export function HotUpdateSettingsCard() {
       } else {
         setServerStatus('offline');
         setWebappVersion('');
-        toast.error(result?.error || 'Server is offline');
+        toast.error('Servidor não acessível');
       }
     } catch (error) {
       setServerStatus('offline');
-      toast.error('Failed to check server');
+      toast.error('Servidor não acessível');
     } finally {
       setIsChecking(false);
     }

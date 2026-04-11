@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getApiUrl } from '@/lib/api/config';
+import { getApiUrl, isWebPreview } from '@/lib/api/config';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Database, Server, RefreshCw, CheckCircle2, XCircle, Container, Monitor } from 'lucide-react';
@@ -99,6 +99,9 @@ export function ServerConnectionIndicator() {
   }, []);
 
   useEffect(() => {
+    // Skip polling in web preview mode (no backend available)
+    if (!isElectron && isWebPreview()) return;
+    
     checkHealth();
     const interval = setInterval(checkHealth, 15000);
     return () => clearInterval(interval);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getApiUrl } from '@/lib/api/config';
+import { getApiUrl, isWebPreview } from '@/lib/api/config';
 
 export interface DatabaseStatus {
   isConnected: boolean;
@@ -125,9 +125,12 @@ export function useDatabaseStatus() {
 
   // Check status on mount and periodically
   useEffect(() => {
+    // Skip polling in web preview mode (no backend available)
+    if (isWebPreview()) return;
+    
     checkStatus();
     
-    const interval = setInterval(checkStatus, 30000); // Check every 30 seconds
+    const interval = setInterval(checkStatus, 30000);
     
     return () => clearInterval(interval);
   }, [checkStatus]);
