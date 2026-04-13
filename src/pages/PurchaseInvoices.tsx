@@ -1462,6 +1462,7 @@ export default function PurchaseInvoices() {
         onClose={() => setSupplierPickerOpen(false)}
         suppliers={activeSuppliers}
         onSelect={handleSelectSupplier}
+        onRefresh={refreshSuppliers}
         onCreateNew={() => {
           setSupplierPickerOpen(false);
           // Navigate to suppliers page to create
