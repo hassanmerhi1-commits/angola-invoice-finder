@@ -26,6 +26,10 @@ function isUuid(value) {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function normalizeUuid(value) {
+  return isUuid(value) ? value : null;
+}
+
 function requireParam(value, name) {
   if (value === undefined || value === null || value === '') {
     throw new Error(`Parâmetro obrigatório em falta: ${name}`);
@@ -109,6 +113,27 @@ async function validatePeriod(client, date) {
   return true;
 }
 
+async function resolveStockProductId(client, productIdOrCode, warehouseId) {
+  if (isUuid(productIdOrCode)) return productIdOrCode;
+
+  const lookup = await client.query(
+    `SELECT id
+     FROM products
+     WHERE is_active = true
+       AND (sku = $1 OR barcode = $1)
+       AND (branch_id = $2 OR branch_id IS NULL)
+     ORDER BY CASE WHEN branch_id = $2 THEN 0 WHEN branch_id IS NULL THEN 1 ELSE 2 END, created_at ASC
+     LIMIT 1`,
+    [productIdOrCode, warehouseId]
+  );
+
+  if (lookup.rows.length > 0) {
+    return lookup.rows[0].id;
+  }
+
+  throw new Error(`Produto não encontrado para movimento de stock: ${productIdOrCode}`);
+}
+
 // ==================== STOCK MOVEMENTS ====================
 
 /**
@@ -125,13 +150,19 @@ async function recordStockMovement(client, params) {
   requireParam(warehouseId, 'warehouseId');
   requireParam(movementType, 'movementType');
   const qty = requirePositive(quantity, 'quantity');
+  const warehouseUuid = normalizeUuid(warehouseId);
 
   if (qty === 0) throw new Error('Quantidade deve ser maior que zero');
+  if (!warehouseUuid) throw new Error(`warehouseId inválido: ${warehouseId}`);
+
+  const resolvedProductId = await resolveStockProductId(client, productId, warehouseUuid);
+  const referenceUuid = normalizeUuid(referenceId);
+  const createdByUuid = normalizeUuid(createdBy);
 
   // Lock product row
   const productResult = await client.query(
     `SELECT id, name, stock FROM products WHERE id = $1 FOR UPDATE`,
-    [productId]
+    [resolvedProductId]
   );
   if (productResult.rows.length === 0) {
     throw new Error(`Produto não encontrado: ${productId}`);
@@ -144,7 +175,7 @@ async function recordStockMovement(client, params) {
     const stockResult = await client.query(
       `SELECT COALESCE(SUM(CASE WHEN movement_type = 'IN' THEN quantity ELSE -quantity END), 0) AS movement_stock
        FROM stock_movements WHERE product_id = $1 AND warehouse_id = $2`,
-      [productId, warehouseId]
+      [resolvedProductId, warehouseUuid]
     );
     const movementStock = parseFloat(stockResult.rows[0].movement_stock);
     const available = Math.max(movementStock, parseFloat(product.stock || 0));
@@ -160,18 +191,18 @@ async function recordStockMovement(client, params) {
      (id, product_id, warehouse_id, movement_type, quantity, unit_cost,
       reference_type, reference_id, reference_number, notes, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-    [movementId, productId, warehouseId, movementType, qty, unitCost || 0,
-     referenceType, referenceId, referenceNumber || '', notes || '', createdBy]
+    [movementId, resolvedProductId, warehouseUuid, movementType, qty, unitCost || 0,
+     referenceType, referenceUuid, referenceNumber || '', notes || '', createdByUuid]
   );
 
   // Update denormalized products.stock
   const stockChange = movementType === 'IN' ? qty : -qty;
   await client.query(
     'UPDATE products SET stock = stock + $1 WHERE id = $2',
-    [stockChange, productId]
+    [stockChange, resolvedProductId]
   );
 
-  return { id: movementId, product_id: productId, movement_type: movementType, quantity: qty };
+  return { id: movementId, product_id: resolvedProductId, movement_type: movementType, quantity: qty };
 }
 
 /**
@@ -769,7 +800,7 @@ async function processTransferReceive(client, transferId, receivedQuantities, re
   }
 
   await auditLog(client, {
-    tableName: 'stock_transfers', recordId: transferId, action: 'receive',
+    tableName: 'stock_transfers', recordId: transferId, action: 'status_change',
     userId: receivedBy, branchId: transfer.to_branch_id,
     description: `Recepção transferência ${transfer.transfer_number}`,
   });

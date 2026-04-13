@@ -618,6 +618,11 @@ export default function PurchaseInvoices() {
     setMode("list");
   }, []);
 
+  const openSupplierPicker = useCallback(async () => {
+    await refreshSuppliers();
+    setSupplierPickerOpen(true);
+  }, [refreshSuppliers]);
+
   // Update line field
   const updateLineField = useCallback((idx: number, field: keyof PurchaseInvoiceLine, value: number | string) => {
     setLines(prev => {
@@ -679,11 +684,22 @@ export default function PurchaseInvoices() {
 
   // ─────── SAVE (all phases) ───────
   const handleSave = useCallback(async () => {
+    const formWithSupplier = form as Partial<PurchaseInvoice> & { supplierId?: string; supplierInvoiceNo?: string };
+    const matchedSupplier = activeSuppliers.find(s =>
+      s.id === formWithSupplier.supplierId ||
+      (!!form.supplierNif && s.nif === form.supplierNif) ||
+      (!!form.supplierName && s.name.trim().toLowerCase() === form.supplierName.trim().toLowerCase())
+    );
+    const resolvedSupplierId = matchedSupplier?.id || formWithSupplier.supplierId;
+    const resolvedSupplierAccountCode = form.supplierAccountCode || (
+      matchedSupplier ? await ensureSupplierAccount(matchedSupplier.id, matchedSupplier.name, matchedSupplier.nif) : ''
+    );
+
     if (!form.supplierName) {
       toast({ title: 'Erro', description: 'Selecione um fornecedor', variant: 'destructive' });
       return;
     }
-    if (!(form as any).supplierId) {
+    if (!resolvedSupplierId) {
       toast({
         title: 'Erro',
         description: 'Selecione o fornecedor a partir da lista de fornecedores para ligar stock e contabilidade.',
@@ -691,7 +707,7 @@ export default function PurchaseInvoices() {
       });
       return;
     }
-    if (!form.supplierAccountCode) {
+    if (!resolvedSupplierAccountCode) {
       toast({
         title: 'Erro',
         description: 'O fornecedor seleccionado ainda não tem subconta contabilística válida.',
@@ -711,15 +727,15 @@ export default function PurchaseInvoices() {
     let finalJournalLines = journalLines.length > 0 ? journalLines : [];
 
     const invoice: PurchaseInvoice = {
-      id: `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: crypto.randomUUID(),
       invoiceNumber: generatePurchaseInvoiceNumber(branchCode),
-      supplierAccountCode: form.supplierAccountCode || '',
-      supplierName: form.supplierName || '',
-      supplierNif: form.supplierNif,
-      supplierPhone: form.supplierPhone,
+      supplierAccountCode: resolvedSupplierAccountCode,
+      supplierName: matchedSupplier?.name || form.supplierName || '',
+      supplierNif: matchedSupplier?.nif || form.supplierNif,
+      supplierPhone: matchedSupplier?.phone || form.supplierPhone,
       supplierBalance: form.supplierBalance || 0,
       ref: form.ref,
-      supplierInvoiceNo: (form as any).supplierInvoiceNo,
+      supplierInvoiceNo: formWithSupplier.supplierInvoiceNo,
       contact: form.contact,
       department: form.department,
       ref2: form.ref2,
@@ -838,7 +854,7 @@ export default function PurchaseInvoices() {
         // Phase 4: Open item (payable to supplier) — use REAL supplier ID
         openItem: {
           entityType: 'supplier',
-          entityId: (form as any).supplierId,
+          entityId: resolvedSupplierId,
           entityName: invoice.supplierName,
           documentType: 'invoice',
           originalAmount: invoice.total,
@@ -850,7 +866,7 @@ export default function PurchaseInvoices() {
         // Phase 6: Update supplier balance — use REAL supplier ID
         entityBalanceUpdate: {
           entityType: 'supplier',
-          entityId: (form as any).supplierId,
+          entityId: resolvedSupplierId,
           entityName: invoice.supplierName,
           entityNif: invoice.supplierNif,
           amount: invoice.total,
@@ -891,7 +907,7 @@ export default function PurchaseInvoices() {
         variant: 'destructive',
       });
     }
-  }, [form, lines, journalLines, totals, currentBranch, user, toast, refreshProducts, refreshSuppliers]);
+  }, [activeSuppliers, form, lines, journalLines, totals, currentBranch, user, toast, refreshProducts, refreshSuppliers]);
 
   // ═══════════════ RENDER ═══════════════
 
@@ -1016,7 +1032,7 @@ export default function PurchaseInvoices() {
       {!form.supplierName && (
         <Card className="border-orange-300 bg-orange-50 dark:bg-orange-950/30">
           <CardContent className="py-4">
-            <Button variant="outline" onClick={() => setSupplierPickerOpen(true)} className="gap-2 w-full justify-start">
+            <Button variant="outline" onClick={() => void openSupplierPicker()} className="gap-2 w-full justify-start">
               <Search className="h-4 w-4" /> Selecionar Fornecedor...
             </Button>
           </CardContent>
@@ -1110,7 +1126,7 @@ export default function PurchaseInvoices() {
                   </Select>
                 </div>
                 {form.supplierName && (
-                  <Button variant="ghost" size="sm" className="text-xs w-full" onClick={() => setSupplierPickerOpen(true)}>
+                  <Button variant="ghost" size="sm" className="text-xs w-full" onClick={() => void openSupplierPicker()}>
                     Alterar Fornecedor
                   </Button>
                 )}

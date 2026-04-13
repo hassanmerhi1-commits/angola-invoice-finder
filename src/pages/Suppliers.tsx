@@ -110,7 +110,7 @@ export default function Suppliers() {
     setDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name.trim() || !formData.nif.trim()) {
@@ -122,25 +122,33 @@ export default function Suppliers() {
       return;
     }
 
-    if (selectedSupplier) {
-      saveSupplier({
-        ...selectedSupplier,
-        ...formData,
-        updatedAt: new Date().toISOString(),
-      });
+    try {
+      if (selectedSupplier) {
+        await saveSupplier({
+          ...selectedSupplier,
+          ...formData,
+          updatedAt: new Date().toISOString(),
+        });
+        toast({
+          title: 'Fornecedor actualizado',
+          description: `${formData.name} foi actualizado com sucesso`,
+        });
+      } else {
+        await createSupplier({ ...formData, balance: 0 });
+        toast({
+          title: 'Fornecedor criado',
+          description: `${formData.name} foi criado com sucesso`,
+        });
+      }
+
+      setDialogOpen(false);
+    } catch (error: any) {
       toast({
-        title: 'Fornecedor actualizado',
-        description: `${formData.name} foi actualizado com sucesso`,
-      });
-    } else {
-      createSupplier({ ...formData, balance: 0 });
-      toast({
-        title: 'Fornecedor criado',
-        description: `${formData.name} foi criado com sucesso`,
+        title: 'Erro',
+        description: error?.message || 'Falha ao guardar fornecedor',
+        variant: 'destructive',
       });
     }
-
-    setDialogOpen(false);
   };
 
   const handleDelete = () => {
