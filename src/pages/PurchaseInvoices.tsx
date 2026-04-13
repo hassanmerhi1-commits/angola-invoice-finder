@@ -840,16 +840,23 @@ export default function PurchaseInvoices() {
 
       if (!txResult.success) {
         console.error('[PurchaseInvoices] Transaction engine errors:', txResult.errors);
+        toast({
+          title: 'Aviso: Falha no motor de transação',
+          description: txResult.errors.join('; ') || 'Stock e contabilidade podem não ter sido atualizados.',
+          variant: 'destructive',
+        });
       }
 
-      // Sync to document storage for unified views
-      await syncPurchaseInvoiceDocument(invoice);
-      await Promise.all([refreshProducts(), refreshSuppliers()]);
+      if (txResult.success) {
+        // Sync to document storage for unified views
+        await syncPurchaseInvoiceDocument(invoice);
+        await Promise.all([refreshProducts(), refreshSuppliers()]);
 
-      toast({
-        title: 'Fatura de Compra Guardada',
-        description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
-      });
+        toast({
+          title: 'Fatura de Compra Guardada',
+          description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
+        });
+      }
 
       getPurchaseInvoices(currentBranch?.id).then(setInvoices);
       setMode('list');
