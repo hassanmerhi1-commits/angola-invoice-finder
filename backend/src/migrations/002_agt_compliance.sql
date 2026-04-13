@@ -120,21 +120,4 @@ CREATE TABLE IF NOT EXISTS debit_notes (
 );
 
 -- ==================== DOCUMENT SEQUENCE CONTROL ====================
-CREATE TABLE IF NOT EXISTS document_sequences (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    branch_id UUID REFERENCES branches(id),
-    document_type VARCHAR(50) NOT NULL CHECK (document_type IN ('FT', 'FR', 'NC', 'ND', 'GT')),
-    series_code VARCHAR(50) NOT NULL,
-    current_sequence INTEGER DEFAULT 0,
-    year INTEGER NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(branch_id, document_type, year)
-);
-
--- Initialize sequences for existing branches
-INSERT INTO document_sequences (branch_id, document_type, series_code, year)
-SELECT b.id, dt.type, b.code || '-' || dt.type, EXTRACT(YEAR FROM CURRENT_DATE)
-FROM branches b
-CROSS JOIN (VALUES ('FT'), ('FR'), ('NC'), ('ND'), ('GT')) AS dt(type)
-ON CONFLICT DO NOTHING;
+-- Document sequences moved to migration 013 — skip here to avoid ordering issues.
