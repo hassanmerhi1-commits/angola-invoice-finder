@@ -201,7 +201,9 @@ function AppRoutes() {
 
 const App = () => {
   const isElectron = typeof window !== "undefined" && !!window.electronAPI?.isElectron;
-  const Router = isElectron ? HashRouter : BrowserRouter;
+  const browserBasename = !isElectron && typeof window !== 'undefined' && window.location.pathname.startsWith('/app')
+    ? '/app'
+    : undefined;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -210,9 +212,15 @@ const App = () => {
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <Router>
-              <AppRoutes />
-            </Router>
+            {isElectron ? (
+              <HashRouter>
+                <AppRoutes />
+              </HashRouter>
+            ) : (
+              <BrowserRouter basename={browserBasename}>
+                <AppRoutes />
+              </BrowserRouter>
+            )}
           </TooltipProvider>
         </BranchProvider>
       </LanguageProvider>

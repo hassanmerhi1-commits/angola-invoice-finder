@@ -136,6 +136,39 @@ function mapSupplier(s: any): Supplier {
   };
 }
 
+function mapStockTransferItem(item: any) {
+  return {
+    id: item.id,
+    productId: item.productId ?? item.product_id ?? '',
+    productName: item.productName ?? item.product_name ?? '',
+    sku: item.sku || '',
+    quantity: Number(item.quantity || 0),
+    receivedQuantity: item.receivedQuantity ?? item.received_quantity != null
+      ? Number(item.receivedQuantity ?? item.received_quantity)
+      : undefined,
+  };
+}
+
+function mapStockTransfer(transfer: any): StockTransfer {
+  return {
+    id: transfer.id,
+    transferNumber: transfer.transferNumber ?? transfer.transfer_number ?? '',
+    fromBranchId: transfer.fromBranchId ?? transfer.from_branch_id ?? '',
+    fromBranchName: transfer.fromBranchName ?? transfer.from_branch_name ?? '',
+    toBranchId: transfer.toBranchId ?? transfer.to_branch_id ?? '',
+    toBranchName: transfer.toBranchName ?? transfer.to_branch_name ?? '',
+    items: Array.isArray(transfer.items) ? transfer.items.map(mapStockTransferItem) : [],
+    status: transfer.status || 'pending',
+    requestedBy: transfer.requestedBy ?? transfer.requested_by ?? '',
+    requestedAt: transfer.requestedAt ?? transfer.requested_at ?? transfer.created_at ?? '',
+    approvedBy: transfer.approvedBy ?? transfer.approved_by,
+    approvedAt: transfer.approvedAt ?? transfer.approved_at,
+    receivedBy: transfer.receivedBy ?? transfer.received_by,
+    receivedAt: transfer.receivedAt ?? transfer.received_at,
+    notes: transfer.notes || '',
+  };
+}
+
 export function useProducts(branchId?: string) {
   const [products, setProducts] = useState<Product[]>([]);
 
@@ -724,7 +757,7 @@ export function useStockTransfers(branchId?: string) {
       () => api.stockTransfers.list(branchId),
       () => storage.getStockTransfers(branchId)
     );
-    setTransfers(data);
+    setTransfers(Array.isArray(data) ? data.map(mapStockTransfer) : []);
   }, [branchId]);
 
   useEffect(() => { refreshTransfers(); }, [refreshTransfers]);
@@ -739,7 +772,7 @@ export function useStockTransfers(branchId?: string) {
     });
     if (result.data) {
       await refreshTransfers();
-      return result.data;
+      return mapStockTransfer(result.data);
     }
     // Fallback
     const branches = await storage.getBranches();

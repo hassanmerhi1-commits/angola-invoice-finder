@@ -546,8 +546,8 @@ export default function PurchaseInvoices() {
       warehouseId: currentBranch?.id || '',
       warehouseName: currentBranch?.name || '',
       priceType: 'last_price',
-      purchaseAccountCode: '2121001',
-      ivaAccountCode: '3456001',
+      purchaseAccountCode: '2.1.1',
+      ivaAccountCode: '3.3.1',
       transactionType: 'ALL',
       currencyRate: 1,
       taxRate2: 1000,
@@ -677,6 +677,22 @@ export default function PurchaseInvoices() {
       toast({ title: 'Erro', description: 'Selecione um fornecedor', variant: 'destructive' });
       return;
     }
+    if (!(form as any).supplierId) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione o fornecedor a partir da lista de fornecedores para ligar stock e contabilidade.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!form.supplierAccountCode) {
+      toast({
+        title: 'Erro',
+        description: 'O fornecedor seleccionado ainda não tem subconta contabilística válida.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (lines.length === 0) {
       toast({ title: 'Erro', description: 'Adicione pelo menos um produto', variant: 'destructive' });
       return;
@@ -738,9 +754,6 @@ export default function PurchaseInvoices() {
     invoice.journalLines = [...autoJournal, ...finalJournalLines];
 
     try {
-      // Save the invoice document
-      await savePurchaseInvoice(invoice);
-
       // Use central transaction engine for atomic processing
       const txResult = await processTransaction({
         transactionType: 'purchase_invoice',
@@ -819,7 +832,7 @@ export default function PurchaseInvoices() {
         // Phase 4: Open item (payable to supplier) — use REAL supplier ID
         openItem: {
           entityType: 'supplier',
-          entityId: (form as any).supplierId || invoice.supplierName,
+          entityId: (form as any).supplierId,
           entityName: invoice.supplierName,
           documentType: 'invoice',
           originalAmount: invoice.total,
@@ -831,7 +844,7 @@ export default function PurchaseInvoices() {
         // Phase 6: Update supplier balance — use REAL supplier ID
         entityBalanceUpdate: {
           entityType: 'supplier',
-          entityId: (form as any).supplierId || invoice.supplierName,
+          entityId: (form as any).supplierId,
           entityName: invoice.supplierName,
           entityNif: invoice.supplierNif,
           amount: invoice.total,
@@ -839,32 +852,36 @@ export default function PurchaseInvoices() {
       });
 
       if (!txResult.success) {
+        const txError = txResult.errors.join('; ') || 'Stock e contabilidade não foram actualizados.';
+        const description = txError.includes('invalid input syntax for type uuid')
+          ? 'Seleccione o fornecedor a partir da lista para criar a dívida e actualizar a conta.'
+          : txError;
+
         console.error('[PurchaseInvoices] Transaction engine errors:', txResult.errors);
         toast({
           title: 'Aviso: Falha no motor de transação',
-          description: txResult.errors.join('; ') || 'Stock e contabilidade podem não ter sido atualizados.',
+          description,
           variant: 'destructive',
         });
+        return;
       }
 
-      if (txResult.success) {
-        // Sync to document storage for unified views
-        await syncPurchaseInvoiceDocument(invoice);
-        await Promise.all([refreshProducts(), refreshSuppliers()]);
+      await savePurchaseInvoice(invoice);
+      await syncPurchaseInvoiceDocument(invoice);
+      await Promise.all([refreshProducts(), refreshSuppliers()]);
 
-        toast({
-          title: 'Fatura de Compra Guardada',
-          description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
-        });
-      }
+      toast({
+        title: 'Fatura de Compra Guardada',
+        description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
+      });
 
       getPurchaseInvoices(currentBranch?.id).then(setInvoices);
       setMode('list');
-    } catch (error) {
+    } catch (error: any) {
       console.error('[PurchaseInvoices] Failed to save purchase invoice:', error);
       toast({
         title: 'Erro ao guardar a fatura de compra',
-        description: 'A compra não foi sincronizada corretamente com stock e fornecedor.',
+        description: error?.message || 'A compra não foi sincronizada corretamente com stock e fornecedor.',
         variant: 'destructive',
       });
     }

@@ -178,9 +178,10 @@ module.exports = function(broadcastTable) {
             const p = prodResult.rows[0];
             const currentStock = parseInt(p.stock) || 0;
             const currentCost = parseFloat(p.cost) || 0;
-            const prevTotal = currentStock * currentCost;
+            const previousStock = Math.max(currentStock - pu.quantityReceived, 0);
+            const prevTotal = previousStock * currentCost;
             const newTotal = pu.quantityReceived * pu.newUnitCost;
-            const totalStock = currentStock + pu.quantityReceived;
+            const totalStock = previousStock + pu.quantityReceived;
             const newAvg = totalStock > 0 ? (prevTotal + newTotal) / totalStock : pu.newUnitCost;
 
             await client.query(
@@ -261,7 +262,7 @@ module.exports = function(broadcastTable) {
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('[TX API ERROR]', error);
-      res.status(500).json({ success: false, errors: [error.message], stockMovementIds: [], documentLinkIds: [] });
+      res.status(500).json({ success: false, error: error.message || 'Transaction failed', errors: [error.message], stockMovementIds: [], documentLinkIds: [] });
     } finally {
       client.release();
     }

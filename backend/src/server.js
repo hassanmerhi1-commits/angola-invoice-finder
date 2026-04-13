@@ -68,6 +68,15 @@ app.get('/app/*', (req, res) => {
   }
 });
 
+// Redirect root-level SPA routes to the deployed webapp base path.
+app.get(/^\/(?!api(?:\/|$)|app(?:\/|$)).*/, (req, res, next) => {
+  const acceptsHtml = req.accepts(['html', 'json']) === 'html';
+  if (!acceptsHtml) return next();
+
+  const target = `/app${req.originalUrl === '/' ? '' : req.originalUrl}`;
+  return res.redirect(302, target);
+});
+
 // Webapp version endpoint
 app.get('/api/webapp-version', (req, res) => {
   const versionPath = path.join(webappPath, 'version.json');

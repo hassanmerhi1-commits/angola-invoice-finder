@@ -82,8 +82,7 @@ async function createJournalEntry(client, params) {
     // Resolve account by code
     const account = await findAccountByCode(client, line.accountCode);
     if (!account) {
-      console.warn(`[ACCOUNTING] Account not found for code: ${line.accountCode}, skipping line`);
-      continue;
+      throw new Error(`Conta contabilística não encontrada: ${line.accountCode}`);
     }
 
     await client.query(
