@@ -35,6 +35,46 @@ async function auditLog(client, params) {
   }
 }
 
+/**
+ * Look up entity-specific sub-account (e.g. 3.2.003 for a supplier, 3.1.002 for a customer)
+ * Falls back to the parent account (3.2.1 or 3.1.1) if no specific sub-account exists
+ */
+async function getEntityAccountCode(client, entityType, entityId, entityName) {
+  const prefix = entityType === 'supplier' ? '3.2.' : '3.1.';
+  const fallback = entityType === 'supplier' ? '3.2.1' : '3.1.1';
+
+  if (!entityId && !entityName) return fallback;
+
+  try {
+    // Try to find by name match first (sub-accounts are named after the entity)
+    if (entityName) {
+      const byName = await client.query(
+        `SELECT code FROM chart_of_accounts 
+         WHERE code LIKE $1 AND level = 3 AND is_header = false AND is_active = true AND name = $2
+         LIMIT 1`,
+        [prefix + '%', entityName]
+      );
+      if (byName.rows.length > 0) return byName.rows[0].code;
+    }
+
+    // Try by NIF in description
+    if (entityId) {
+      const byNif = await client.query(
+        `SELECT code FROM chart_of_accounts 
+         WHERE code LIKE $1 AND level = 3 AND is_header = false AND is_active = true 
+           AND description LIKE '%' || $2 || '%'
+         LIMIT 1`,
+        [prefix + '%', entityId]
+      );
+      if (byNif.rows.length > 0) return byNif.rows[0].code;
+    }
+  } catch (e) {
+    console.warn(`[TX ENGINE] Entity account lookup failed for ${entityType}/${entityName}:`, e.message);
+  }
+
+  return fallback;
+}
+
 // ==================== STOCK MOVEMENTS ====================
 
 /**
