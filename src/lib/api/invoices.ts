@@ -145,13 +145,11 @@ export async function createInvoice(
     agtStatus: 'pending'
   };
   
-  // Save via API — no localStorage fallback
-  try {
-    await api.sales.create(sale);
-  } catch (err: any) {
+  const saleResult = await api.sales.create(sale);
+  if (!saleResult.data) {
     return {
       status: 'error', invoice_id: '', invoice_number: '', subtotal: 0, vat: 0, total: 0,
-      error: err?.message || 'Falha ao guardar venda no servidor'
+      error: saleResult.error || 'Falha ao guardar venda no servidor'
     };
   }
   

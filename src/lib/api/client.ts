@@ -1,6 +1,6 @@
-// Kwanza ERP API Client — IPC-First Architecture
-// In Electron: routes directly through PostgreSQL via IPC (no Express needed)
-// In Web browser: falls back to HTTP fetch (demo/preview mode)
+// Kwanza ERP API Client — API-first transaction routing
+// Transactional writes always use the backend HTTP API so browser and desktop share the same execution path
+// Electron IPC stays available only for desktop-only utilities and non-transactional reads
 
 import { getApiUrl } from './config';
 
@@ -114,22 +114,6 @@ async function apiFetch<T>(
   } catch (error) {
     console.error(`[API ERROR] ${endpoint}:`, error);
     return { error: error instanceof Error ? error.message : 'Network error' };
-  }
-}
-
-// ==================== TRANSACTION ENGINE (IPC only) ====================
-async function ipcTransaction(method: string, ...args: any[]): Promise<ApiResponse<any>> {
-  if (!isElectronMode() || !window.electronAPI?.tx) {
-    return { error: 'Transaction engine requires Electron desktop mode' };
-  }
-  try {
-    const fn = (window.electronAPI.tx as any)[method];
-    if (!fn) return { error: `Unknown transaction method: ${method}` };
-    const result = await fn(...args);
-    if (result.success) return { data: result.data };
-    return { error: result.error || 'Transaction failed' };
-  } catch (e: any) {
-    return { error: e.message || 'Transaction error' };
   }
 }
 
@@ -372,11 +356,9 @@ export const api = {
       return apiFetch<any[]>(`/sales${branchId ? `?branchId=${branchId}` : ''}`);
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcTransaction('processSale', data);
       return apiFetch<any>('/sales', { method: 'POST', body: JSON.stringify(data) });
     },
     generateInvoiceNumber: (branchCode: string) => {
-      if (isElectronMode()) return ipcTransaction('generateInvoiceNumber', branchCode);
       return apiFetch<{ invoiceNumber: string }>(`/sales/generate-invoice-number/${branchCode}`);
     },
   },
@@ -565,69 +547,12 @@ export const api = {
       return apiFetch<any[]>(`/stock-transfers${branchId ? `?branchId=${branchId}` : ''}`);
     },
     create: (data: any) => {
-      if (isElectronMode()) {
-        return (async () => {
-          const fromBranch = await ipcQuery<any>('SELECT name FROM branches WHERE id = $1', [data.fromBranchId]);
-          const toBranch = await ipcQuery<any>('SELECT name FROM branches WHERE id = $1', [data.toBranchId]);
-          const countResult = await ipcQuery<any>('SELECT COUNT(*)::int AS count FROM stock_transfers');
-
-          const count = Number(countResult.data?.[0]?.count || 0) + 1;
-          const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-          const transferNumber = `TRF${today}${count.toString().padStart(4, '0')}`;
-
-          const transferResult = await ipcQuery<any>(
-            `INSERT INTO stock_transfers
-             (transfer_number, from_branch_id, from_branch_name, to_branch_id, to_branch_name, requested_by, notes, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
-             RETURNING *`,
-            [
-              transferNumber,
-              data.fromBranchId,
-              fromBranch.data?.[0]?.name || '',
-              data.toBranchId,
-              toBranch.data?.[0]?.name || '',
-              data.requestedBy,
-              data.notes || '',
-            ],
-          );
-
-          const transfer = transferResult.data?.[0];
-          if (!transfer) {
-            return { error: transferResult.error || 'Failed to create stock transfer' } as ApiResponse<any>;
-          }
-
-          const insertedItems = [];
-          for (const item of data.items || []) {
-            const itemResult = await ipcQuery<any>(
-              `INSERT INTO stock_transfer_items (transfer_id, product_id, product_name, sku, quantity)
-               VALUES ($1, $2, $3, $4, $5)
-               RETURNING *`,
-              [transfer.id, item.productId, item.productName, item.sku, item.quantity],
-            );
-
-            if (!itemResult.data?.[0]) {
-              return { error: itemResult.error || 'Failed to save stock transfer items' } as ApiResponse<any>;
-            }
-
-            insertedItems.push(itemResult.data[0]);
-          }
-
-          return {
-            data: {
-              ...transfer,
-              items: insertedItems,
-            },
-          } as ApiResponse<any>;
-        })();
-      }
       return apiFetch<any>('/stock-transfers', { method: 'POST', body: JSON.stringify(data) });
     },
     approve: (id: string, approvedBy: string) => {
-      if (isElectronMode()) return ipcTransaction('processTransferApprove', id, approvedBy);
       return apiFetch<any>(`/stock-transfers/${id}/approve`, { method: 'POST', body: JSON.stringify({ approvedBy }) });
     },
     receive: (id: string, receivedBy: string, receivedQuantities?: Record<string, number>) => {
-      if (isElectronMode()) return ipcTransaction('processTransferReceive', id, receivedQuantities || {}, receivedBy);
       return apiFetch<any>(`/stock-transfers/${id}/receive`, { method: 'POST', body: JSON.stringify({ receivedBy, receivedQuantities }) });
     },
   },
@@ -650,7 +575,6 @@ export const api = {
       return apiFetch<any>(`/purchase-orders/${id}/approve`, { method: 'POST', body: JSON.stringify({ approvedBy }) });
     },
     receive: (id: string, receivedBy: string, receivedQuantities: Record<string, number>) => {
-      if (isElectronMode()) return ipcTransaction('processPurchaseReceive', id, receivedQuantities, receivedBy);
       return apiFetch<any>(`/purchase-orders/${id}/receive`, { method: 'POST', body: JSON.stringify({ receivedBy, receivedQuantities }) });
     },
   },
@@ -781,7 +705,6 @@ export const api = {
       return apiFetch<any[]>(`/payments?${sp}`);
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcTransaction('processPayment', data);
       return apiFetch<any>('/payments', { method: 'POST', body: JSON.stringify(data) });
     },
     openItems: (entityType: string, entityId: string) => {
@@ -1155,7 +1078,6 @@ export const api = {
   // Transactions (Central Transaction Engine)
   transactions: {
     process: (data: any) => {
-      if (isElectronMode()) return ipcTransaction('processTransaction', data);
       return apiFetch<any>('/transactions/process', { method: 'POST', body: JSON.stringify(data) });
     },
     stockMovements: (params?: { productId?: string; warehouseId?: string; referenceType?: string; limit?: number }) => {
@@ -1178,7 +1100,6 @@ export const api = {
       return apiFetch<any[]>(`/transactions/stock-movements?${sp}`);
     },
     createStockMovement: (data: any) => {
-      if (isElectronMode()) return ipcTransaction('recordStockMovement', data);
       return apiFetch<any>('/transactions/stock-movements', { method: 'POST', body: JSON.stringify(data) });
     },
     openItems: (params?: { entityType?: string; entityId?: string; branchId?: string; status?: string }) => {
