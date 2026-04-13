@@ -23,11 +23,18 @@ const { randomUUID } = require('crypto');
 // ==================== HELPERS ====================
 
 function isUuid(value) {
-  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 function normalizeUuid(value) {
-  return isUuid(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return isUuid(trimmed) ? trimmed : null;
+}
+
+function sanitizeBranchId(value) {
+  const uuid = normalizeUuid(value);
+  return uuid || null;
 }
 
 function requireParam(value, name) {
@@ -150,7 +157,7 @@ async function recordStockMovement(client, params) {
   requireParam(warehouseId, 'warehouseId');
   requireParam(movementType, 'movementType');
   const qty = requirePositive(quantity, 'quantity');
-  const warehouseUuid = normalizeUuid(warehouseId);
+  const warehouseUuid = sanitizeBranchId(warehouseId);
 
   if (qty === 0) throw new Error('Quantidade deve ser maior que zero');
   if (!warehouseUuid) throw new Error(`warehouseId inválido: ${warehouseId}`);
