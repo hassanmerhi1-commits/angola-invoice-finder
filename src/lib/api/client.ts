@@ -149,6 +149,35 @@ function mapSupplierPayloadForElectron(data: any) {
   };
 }
 
+function mapProductPayloadForElectron(data: any) {
+  const now = new Date().toISOString();
+  const cost = Number(data.cost ?? 0);
+
+  return {
+    id: data.id || crypto.randomUUID(),
+    name: data.name || '',
+    sku: data.sku || '',
+    barcode: data.barcode || '',
+    category: data.category || 'GERAL',
+    price: Number(data.price ?? 0),
+    price_2: Number(data.price2 ?? data.price_2 ?? 0),
+    price_3: Number(data.price3 ?? data.price_3 ?? 0),
+    price_4: Number(data.price4 ?? data.price_4 ?? 0),
+    cost,
+    first_cost: Number(data.firstCost ?? data.first_cost ?? cost),
+    last_cost: Number(data.lastCost ?? data.last_cost ?? cost),
+    weighted_avg_cost: Number(data.avgCost ?? data.avg_cost ?? cost),
+    stock: Number(data.stock ?? 0),
+    unit: data.unit || 'UN',
+    tax_rate: Number(data.taxRate ?? data.tax_rate ?? 14),
+    branch_id: data.branchId ?? data.branch_id ?? null,
+    supplier_id: data.supplierId ?? data.supplier_id ?? null,
+    is_active: data.isActive ?? data.is_active ?? true,
+    created_at: data.createdAt ?? data.created_at ?? now,
+    updated_at: data.updatedAt ?? data.updated_at ?? now,
+  };
+}
+
 async function ensureSupplierSubAccountElectron(supplierName: string, supplierNif?: string): Promise<string | null> {
   if (!isElectronMode() || !supplierName) return null;
 
@@ -292,8 +321,11 @@ export const api = {
 
   // Products
   products: {
-    list: (branchId?: string) => {
+    list: async (branchId?: string) => {
+      const endpoint = `/products${branchId ? `?branchId=${branchId}` : ''}`;
       if (isElectronMode()) {
+        const apiResult = await apiFetch<any[]>(endpoint);
+        if (apiResult.data !== undefined) return apiResult;
         if (branchId) {
           return ipcQuery<any>(
             'SELECT * FROM products WHERE is_active = true AND (branch_id = $1 OR branch_id IS NULL) ORDER BY name',
@@ -302,22 +334,25 @@ export const api = {
         }
         return ipcQuery<any>('SELECT * FROM products WHERE is_active = true ORDER BY name');
       }
-      return apiFetch<any[]>(`/products${branchId ? `?branchId=${branchId}` : ''}`);
+      return apiFetch<any[]>(endpoint);
     },
-    create: (data: any) => {
+    create: async (data: any) => {
       if (isElectronMode()) {
-        const product = { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() };
-        return ipcInsert('products', product);
+        const apiResult = await apiFetch<any>('/products', { method: 'POST', body: JSON.stringify(data) });
+        if (apiResult.data) return apiResult;
+        return ipcInsert('products', mapProductPayloadForElectron(data));
       }
       return apiFetch<any>('/products', { method: 'POST', body: JSON.stringify(data) });
     },
-    batchImport: (products: any[]) => {
+    batchImport: async (products: any[]) => {
       if (isElectronMode()) {
+        const apiResult = await apiFetch<any>('/products/batch', { method: 'POST', body: JSON.stringify({ products }) });
+        if (apiResult.data) return apiResult;
         return (async () => {
           let imported = 0, failed = 0;
           const errors: any[] = [];
           for (const p of products) {
-            const result = await ipcInsert('products', { id: crypto.randomUUID(), ...p, created_at: new Date().toISOString() });
+            const result = await ipcInsert('products', mapProductPayloadForElectron(p));
             if (result.data) imported++; else { failed++; errors.push({ product: p.name, error: result.error }); }
           }
           return { data: { imported, failed, errors } } as ApiResponse<any>;
@@ -325,8 +360,15 @@ export const api = {
       }
       return apiFetch<any>('/products/batch', { method: 'POST', body: JSON.stringify({ products }) });
     },
-    update: (id: string, data: any) => {
-      if (isElectronMode()) return ipcUpdate('products', id, data);
+    update: async (id: string, data: any) => {
+      if (isElectronMode()) {
+        const apiResult = await apiFetch<any>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+        if (apiResult.data) return apiResult;
+        const payload = mapProductPayloadForElectron({ ...data, id, updated_at: new Date().toISOString() });
+        delete payload.id;
+        delete payload.created_at;
+        return ipcUpdate('products', id, payload);
+      }
       return apiFetch<any>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) });
     },
     updateStock: (id: string, quantityChange: number) => {
@@ -338,16 +380,23 @@ export const api = {
       }
       return apiFetch<any>(`/products/${id}/stock`, { method: 'PATCH', body: JSON.stringify({ quantityChange }) });
     },
-    delete: (id: string) => {
-      if (isElectronMode()) return ipcDelete('products', id);
+    delete: async (id: string) => {
+      if (isElectronMode()) {
+        const apiResult = await apiFetch<any>(`/products/${id}`, { method: 'DELETE' });
+        if (apiResult.data) return apiResult;
+        return ipcDelete('products', id);
+      }
       return apiFetch<any>(`/products/${id}`, { method: 'DELETE' });
     },
   },
 
   // Sales
   sales: {
-    list: (branchId?: string) => {
+    list: async (branchId?: string) => {
+      const endpoint = `/sales${branchId ? `?branchId=${branchId}` : ''}`;
       if (isElectronMode()) {
+        const apiResult = await apiFetch<any[]>(endpoint);
+        if (apiResult.data !== undefined) return apiResult;
         const sql = branchId
           ? 'SELECT * FROM sales WHERE branch_id = $1 ORDER BY created_at DESC'
           : 'SELECT * FROM sales ORDER BY created_at DESC';
@@ -363,7 +412,7 @@ export const api = {
           return salesResult;
         })();
       }
-      return apiFetch<any[]>(`/sales${branchId ? `?branchId=${branchId}` : ''}`);
+      return apiFetch<any[]>(endpoint);
     },
     create: (data: any) => {
       return apiFetch<any>('/sales', { method: 'POST', body: JSON.stringify(data) });
@@ -415,12 +464,18 @@ export const api = {
 
   // Suppliers
   suppliers: {
-    list: () => {
-      if (isElectronMode()) return ipcQuery<any>('SELECT * FROM suppliers ORDER BY name');
+    list: async () => {
+      if (isElectronMode()) {
+        const apiResult = await apiFetch<any[]>('/suppliers');
+        if (apiResult.data !== undefined) return apiResult;
+        return ipcQuery<any>('SELECT * FROM suppliers ORDER BY name');
+      }
       return apiFetch<any[]>('/suppliers');
     },
     create: async (data: any) => {
       if (isElectronMode()) {
+        const apiResult = await apiFetch<any>('/suppliers', { method: 'POST', body: JSON.stringify(data) });
+        if (apiResult.data) return apiResult;
         const payload = mapSupplierPayloadForElectron(data);
         const result = await ipcInsert('suppliers', payload);
         if (result.data) {
@@ -432,6 +487,8 @@ export const api = {
     },
     batchImport: async (suppliers: any[]) => {
       if (isElectronMode()) {
+        const apiResult = await apiFetch<any>('/suppliers/batch', { method: 'POST', body: JSON.stringify({ suppliers }) });
+        if (apiResult.data) return apiResult;
         let imported = 0, failed = 0;
         const errors: any[] = [];
 
@@ -477,6 +534,8 @@ export const api = {
     },
     update: async (id: string, data: any) => {
       if (isElectronMode()) {
+        const apiResult = await apiFetch<any>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+        if (apiResult.data) return apiResult;
         const payload = mapSupplierPayloadForElectron({ ...data, id, updated_at: new Date().toISOString() });
         delete payload.id;
         const result = await ipcUpdate('suppliers', id, payload);
@@ -487,8 +546,12 @@ export const api = {
       }
       return apiFetch<any>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
     },
-    delete: (id: string) => {
-      if (isElectronMode()) return ipcDelete('suppliers', id);
+    delete: async (id: string) => {
+      if (isElectronMode()) {
+        const apiResult = await apiFetch<any>(`/suppliers/${id}`, { method: 'DELETE' });
+        if (apiResult.data) return apiResult;
+        return ipcDelete('suppliers', id);
+      }
       return apiFetch<any>(`/suppliers/${id}`, { method: 'DELETE' });
     },
   },
@@ -525,8 +588,11 @@ export const api = {
 
   // Stock Transfers
   stockTransfers: {
-    list: (branchId?: string) => {
+    list: async (branchId?: string) => {
+      const endpoint = `/stock-transfers${branchId ? `?branchId=${branchId}` : ''}`;
       if (isElectronMode()) {
+        const apiResult = await apiFetch<any[]>(endpoint);
+        if (apiResult.data !== undefined) return apiResult;
         return (async () => {
           const transfersResult = branchId
             ? await ipcQuery<any>(
@@ -554,7 +620,7 @@ export const api = {
           return { data: transfersWithItems } as ApiResponse<any[]>;
         })();
       }
-      return apiFetch<any[]>(`/stock-transfers${branchId ? `?branchId=${branchId}` : ''}`);
+      return apiFetch<any[]>(endpoint);
     },
     create: (data: any) => {
       return apiFetch<any>('/stock-transfers', { method: 'POST', body: JSON.stringify(data) });
@@ -1091,22 +1157,26 @@ export const api = {
       return apiFetch<any>('/transactions/process', { method: 'POST', body: JSON.stringify(data) });
     },
     stockMovements: (params?: { productId?: string; warehouseId?: string; referenceType?: string; limit?: number }) => {
-      if (isElectronMode()) {
-        let sql = 'SELECT sm.*, p.name as product_name, p.sku FROM stock_movements sm LEFT JOIN products p ON p.id = sm.product_id WHERE 1=1';
-        const sqlParams: any[] = [];
-        let idx = 1;
-        if (params?.productId) { sql += ` AND sm.product_id = $${idx++}`; sqlParams.push(params.productId); }
-        if (params?.warehouseId) { sql += ` AND sm.warehouse_id = $${idx++}`; sqlParams.push(params.warehouseId); }
-        if (params?.referenceType) { sql += ` AND sm.reference_type = $${idx++}`; sqlParams.push(params.referenceType); }
-        sql += ` ORDER BY sm.created_at DESC LIMIT $${idx}`;
-        sqlParams.push(params?.limit || 500);
-        return ipcQuery<any>(sql, sqlParams);
-      }
       const sp = new URLSearchParams();
       if (params?.productId) sp.append('productId', params.productId);
       if (params?.warehouseId) sp.append('warehouseId', params.warehouseId);
       if (params?.referenceType) sp.append('referenceType', params.referenceType);
       if (params?.limit) sp.append('limit', params.limit.toString());
+
+      if (isElectronMode()) {
+        return apiFetch<any[]>(`/transactions/stock-movements?${sp}`).then(result => {
+          if (result.data !== undefined) return result;
+          let sql = 'SELECT sm.*, p.name as product_name, p.sku FROM stock_movements sm LEFT JOIN products p ON p.id = sm.product_id WHERE 1=1';
+          const sqlParams: any[] = [];
+          let idx = 1;
+          if (params?.productId) { sql += ` AND sm.product_id = $${idx++}`; sqlParams.push(params.productId); }
+          if (params?.warehouseId) { sql += ` AND sm.warehouse_id = $${idx++}`; sqlParams.push(params.warehouseId); }
+          if (params?.referenceType) { sql += ` AND sm.reference_type = $${idx++}`; sqlParams.push(params.referenceType); }
+          sql += ` ORDER BY sm.created_at DESC LIMIT $${idx}`;
+          sqlParams.push(params?.limit || 500);
+          return ipcQuery<any>(sql, sqlParams);
+        });
+      }
       return apiFetch<any[]>(`/transactions/stock-movements?${sp}`);
     },
     createStockMovement: (data: any) => {

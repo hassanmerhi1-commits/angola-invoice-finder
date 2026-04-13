@@ -99,7 +99,7 @@ export default function StockTransfer() {
     setTransferItems(items => items.filter(item => item.productId !== productId));
   };
 
-  const handleCreateTransfer = () => {
+  const handleCreateTransfer = async () => {
     if (!fromBranchId || !toBranchId || transferItems.length === 0 || !user) {
       toast({
         title: 'Erro',
@@ -109,35 +109,51 @@ export default function StockTransfer() {
       return;
     }
 
-    createTransfer(
-      fromBranchId,
-      toBranchId,
-      transferItems.map(item => ({
-        productId: item.productId,
-        productName: item.productName,
-        sku: item.sku,
-        quantity: item.quantity,
-      })),
-      user.id,
-      notes
-    );
+    try {
+      await createTransfer(
+        fromBranchId,
+        toBranchId,
+        transferItems.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          quantity: item.quantity,
+        })),
+        user.id,
+        notes
+      );
 
-    toast({
-      title: 'Transferência criada',
-      description: 'A requisição de transferência foi criada com sucesso',
-    });
+      toast({
+        title: 'Transferência criada',
+        description: 'A requisição de transferência foi criada com sucesso',
+      });
 
-    setDialogOpen(false);
-    resetForm();
+      setDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error?.message || 'Falha ao criar transferência',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleApprove = (transfer: StockTransferType) => {
+  const handleApprove = async (transfer: StockTransferType) => {
     if (!user) return;
-    approveTransfer(transfer.id, user.id);
-    toast({
-      title: 'Transferência aprovada',
-      description: 'Os produtos foram deduzidos do stock de origem',
-    });
+    try {
+      await approveTransfer(transfer.id, user.id);
+      toast({
+        title: 'Transferência aprovada',
+        description: 'Os produtos foram deduzidos do stock de origem',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error?.message || 'Falha ao aprovar transferência',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleOpenReceiveDialog = (transfer: StockTransferType) => {
@@ -150,24 +166,40 @@ export default function StockTransfer() {
     setReceiveDialogOpen(true);
   };
 
-  const handleReceive = () => {
+  const handleReceive = async () => {
     if (!selectedTransfer || !user) return;
-    receiveTransfer(selectedTransfer.id, user.id, receivedQuantities);
-    toast({
-      title: 'Transferência recebida',
-      description: 'Os produtos foram adicionados ao stock de destino',
-    });
-    setReceiveDialogOpen(false);
-    setSelectedTransfer(null);
+    try {
+      await receiveTransfer(selectedTransfer.id, user.id, receivedQuantities);
+      toast({
+        title: 'Transferência recebida',
+        description: 'Os produtos foram adicionados ao stock de destino',
+      });
+      setReceiveDialogOpen(false);
+      setSelectedTransfer(null);
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error?.message || 'Falha ao receber transferência',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleCancel = (transfer: StockTransferType) => {
+  const handleCancel = async (transfer: StockTransferType) => {
     if (!user) return;
-    cancelTransfer(transfer.id, user.id);
-    toast({
-      title: 'Transferência cancelada',
-      description: 'A requisição foi cancelada',
-    });
+    try {
+      await cancelTransfer(transfer.id, user.id);
+      toast({
+        title: 'Transferência cancelada',
+        description: 'A requisição foi cancelada',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error?.message || 'Falha ao cancelar transferência',
+        variant: 'destructive',
+      });
+    }
   };
 
   const getStatusBadge = (status: StockTransferType['status']) => {
