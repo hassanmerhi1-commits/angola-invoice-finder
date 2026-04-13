@@ -47,14 +47,19 @@ import type { ERPDocument } from '@/types/documents';
 
 // ─────────── Supplier Picker Dialog ───────────
 function SupplierPickerDialog({
-  open, onClose, suppliers, onSelect, onCreateNew,
+  open, onClose, suppliers, onSelect, onCreateNew, onRefresh,
 }: {
   open: boolean;
   onClose: () => void;
   suppliers: Supplier[];
   onSelect: (s: Supplier) => void;
   onCreateNew?: () => void;
+  onRefresh?: () => void;
 }) {
+  // Auto-refresh when dialog opens
+  useEffect(() => {
+    if (open && onRefresh) onRefresh();
+  }, [open, onRefresh]);
   const [search, setSearch] = useState('');
   const filtered = useMemo(() => {
     if (!search) return suppliers;
@@ -1457,6 +1462,7 @@ export default function PurchaseInvoices() {
         onClose={() => setSupplierPickerOpen(false)}
         suppliers={activeSuppliers}
         onSelect={handleSelectSupplier}
+        onRefresh={refreshSuppliers}
         onCreateNew={() => {
           setSupplierPickerOpen(false);
           // Navigate to suppliers page to create

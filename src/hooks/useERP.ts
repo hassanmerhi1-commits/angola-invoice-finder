@@ -743,12 +743,16 @@ export function useStockTransfers(branchId?: string) {
     const result = await api.stockTransfers.approve(transferId, userId);
     if (!result.data) throw new Error(result.error || 'Falha ao aprovar transferência');
     await refreshTransfers();
+    // Notify product listeners to refresh (source branch stock changed)
+    window.dispatchEvent(new CustomEvent(storage.PRODUCTS_CHANGED_EVENT, { detail: {} }));
   }, [refreshTransfers]);
 
   const receiveTransfer = useCallback(async (transferId: string, userId: string, receivedQuantities?: Record<string, number>) => {
     const result = await api.stockTransfers.receive(transferId, userId, receivedQuantities);
     if (!result.data) throw new Error(result.error || 'Falha ao receber transferência');
     await refreshTransfers();
+    // Notify product listeners to refresh (destination branch now has new/updated products)
+    window.dispatchEvent(new CustomEvent(storage.PRODUCTS_CHANGED_EVENT, { detail: {} }));
   }, [refreshTransfers]);
 
   const cancelTransfer = useCallback(async (transferId: string, _userId: string) => {
