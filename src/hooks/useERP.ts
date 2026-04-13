@@ -111,6 +111,11 @@ function mapProduct(p: any): Product {
 }
 
 function mapSupplier(s: any): Supplier {
+  // Normalize is_active: handle boolean, string, integer from PostgreSQL
+  const rawActive = s.isActive ?? s.is_active;
+  const isActive = rawActive === undefined || rawActive === null ? true
+    : rawActive === true || rawActive === 1 || rawActive === 'true' || rawActive === '1' || rawActive === 't';
+
   return {
     id: s.id,
     name: s.name || '',
@@ -123,7 +128,7 @@ function mapSupplier(s: any): Supplier {
     contactPerson: s.contactPerson ?? s.contact_person ?? '',
     paymentTerms: s.paymentTerms ?? s.payment_terms ?? '30_days',
     balance: Number(s.balance ?? s.current_balance ?? 0),
-    isActive: s.isActive ?? s.is_active ?? true,
+    isActive,
     notes: s.notes || '',
     createdAt: s.createdAt ?? s.created_at ?? '',
     updatedAt: s.updatedAt ?? s.updated_at ?? s.createdAt ?? s.created_at ?? '',
@@ -820,7 +825,9 @@ export function useSuppliers() {
       () => api.suppliers.list(),
       () => storage.getSuppliers()
     );
-    setSuppliers(Array.isArray(data) ? data.map(mapSupplier) : []);
+    const mapped = Array.isArray(data) ? data.map(mapSupplier) : [];
+    console.log(`[ERP] Suppliers loaded: ${mapped.length} total, ${mapped.filter(s => s.isActive).length} active`);
+    setSuppliers(mapped);
   }, []);
 
   useEffect(() => { refreshSuppliers(); }, [refreshSuppliers]);

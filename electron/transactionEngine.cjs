@@ -27,6 +27,40 @@ async function auditLog(client, params) {
   }
 }
 
+async function getEntityAccountCode(client, entityType, entityId, entityName) {
+  const prefix = entityType === 'supplier' ? '3.2.' : '3.1.';
+  const fallback = entityType === 'supplier' ? '3.2.1' : '3.1.1';
+
+  if (!entityId && !entityName) return fallback;
+
+  try {
+    if (entityName) {
+      const byName = await client.query(
+        `SELECT code FROM chart_of_accounts 
+         WHERE code LIKE $1 AND level = 3 AND is_header = false AND is_active = true AND name = $2
+         LIMIT 1`,
+        [prefix + '%', entityName]
+      );
+      if (byName.rows.length > 0) return byName.rows[0].code;
+    }
+
+    if (entityId) {
+      const byNif = await client.query(
+        `SELECT code FROM chart_of_accounts 
+         WHERE code LIKE $1 AND level = 3 AND is_header = false AND is_active = true 
+           AND description LIKE '%' || $2 || '%'
+         LIMIT 1`,
+        [prefix + '%', entityId]
+      );
+      if (byNif.rows.length > 0) return byNif.rows[0].code;
+    }
+  } catch (e) {
+    console.warn(`[TX ENGINE] Entity account lookup failed for ${entityType}/${entityName}:`, e.message);
+  }
+
+  return fallback;
+}
+
 // ==================== STOCK MOVEMENTS ====================
 async function recordStockMovement(client, params) {
   const {
@@ -338,7 +372,8 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
   if (taxAmount > 0) {
     journalLines.push({ accountCode: '3.3.1', description: `IVA compra ${order.order_number}`, debit: taxAmount, credit: 0 });
   }
-  journalLines.push({ accountCode: '3.2.1', description: `Fornecedor ${order.supplier_name}`, debit: 0, credit: subtotal + freightCost + taxAmount });
+  const supplierAccountCode = await getEntityAccountCode(client, 'supplier', order.supplier_id, order.supplier_name);
+  journalLines.push({ accountCode: supplierAccountCode, description: `Fornecedor ${order.supplier_name}`, debit: 0, credit: subtotal + freightCost + taxAmount });
 
   await createJournalEntry(client, pool, {
     description: `Compra ${order.order_number} - ${order.supplier_name}`,
@@ -505,7 +540,7 @@ async function processPayment(client, pool, paymentData) {
   }
 
   const cashAccountCode = paymentMethod === 'cash' ? '4.1.1' : '4.2.1';
-  const entityAccountCode = entityType === 'customer' ? '3.1.1' : '3.2.1';
+  const entityAccountCode = await getEntityAccountCode(client, entityType, entityId, entityName);
 
   const lines = paymentType === 'receipt'
     ? [
