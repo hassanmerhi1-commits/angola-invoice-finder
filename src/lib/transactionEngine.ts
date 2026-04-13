@@ -11,7 +11,7 @@
  * Falls back to localStorage for web preview/demo mode when API is unavailable.
  */
 
-import { api } from '@/lib/api/client';
+import { api, isElectronMode } from '@/lib/api/client';
 import { OpenItem, DocumentLink } from '@/types/erp';
 import { logTransaction, TransactionCategory, TransactionAction } from '@/lib/transactionHistory';
 
@@ -110,6 +110,9 @@ export async function processTransaction(request: TransactionRequest): Promise<T
     return result;
   }
 
+  // In Electron mode, IPC goes directly to PostgreSQL — NEVER fall back to localStorage
+  const electronMode = typeof window !== 'undefined' && isElectronMode();
+
   try {
     // Try API first (backend transaction engine — atomic PostgreSQL transaction)
     const apiResult = await api.transactions.process(request);
@@ -127,15 +130,25 @@ export async function processTransaction(request: TransactionRequest): Promise<T
       console.error(`[TransactionEngine] ❌ API error for ${request.transactionType} ${request.documentNumber}:`, apiResult.error);
       result.errors.push(apiResult.error);
       // Only fall back to local if API is truly unreachable (network error), not on business errors
-      if (apiResult.error.includes('Network error') || apiResult.error.includes('Failed to fetch')) {
+      if (!electronMode && (apiResult.error.includes('Network error') || apiResult.error.includes('Failed to fetch'))) {
         console.warn('[TransactionEngine] Network unreachable, using local demo mode');
         return await processTransactionLocal(request);
+      }
+      if (electronMode) {
+        // In Electron, propagate all errors — do NOT fall back to localStorage
+        console.error(`[TransactionEngine] ❌ Electron DB error — NOT falling back to localStorage`);
       }
       // For business errors (missing accounts, unbalanced entries), propagate the error
       return result;
     }
   } catch (error) {
-    console.warn('[TransactionEngine] API error, falling back to local:', error);
+    if (electronMode) {
+      // In Electron, propagate the error — do NOT fall back to localStorage
+      console.error('[TransactionEngine] ❌ Electron transaction failed:', error);
+      result.errors.push(error instanceof Error ? error.message : 'Transaction failed');
+      return result;
+    }
+    console.warn('[TransactionEngine] API error, falling back to local demo:', error);
     return await processTransactionLocal(request);
   }
 
