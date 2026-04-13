@@ -69,6 +69,35 @@ export default function Inventory() {
     if (!isHeadOffice) return;
     const branchProducts: Record<string, Product[]> = {};
     for (const branch of branches) {
+      // Use API first (source of truth), fallback to localStorage
+      try {
+        const result = await api.products.list(branch.id);
+        if (result.data && Array.isArray(result.data)) {
+          branchProducts[branch.id] = result.data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            barcode: p.barcode || '',
+            category: p.category || 'GERAL',
+            price: Number(p.price || 0),
+            cost: Number(p.cost || 0),
+            firstCost: Number(p.first_cost || p.firstCost || 0),
+            lastCost: Number(p.last_cost || p.lastCost || 0),
+            avgCost: Number(p.weighted_avg_cost || p.avgCost || 0),
+            stock: Number(p.stock || 0),
+            unit: p.unit || 'UN',
+            taxRate: Number(p.tax_rate || p.taxRate || 14),
+            branchId: p.branch_id || p.branchId || null,
+            supplierId: p.supplier_id || p.supplierId || null,
+            supplierName: p.supplier_name || p.supplierName || '',
+            isActive: p.is_active ?? p.isActive ?? true,
+            createdAt: p.created_at || p.createdAt || '',
+          })) as Product[];
+          continue;
+        }
+      } catch (e) {
+        // API failed, fall back to localStorage
+      }
       const prods = await storageGetProducts(branch.id);
       branchProducts[branch.id] = prods;
     }

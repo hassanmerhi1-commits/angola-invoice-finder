@@ -226,47 +226,99 @@ export async function ensureBranchCaixaAccounts(branches: { id: string; name: st
  * Now async — tries API first, then localStorage.
  */
 export async function ensureSupplierAccount(supplierId: string, supplierName: string, supplierNif?: string): Promise<string> {
-  // Try to load from API first
-  let accounts = await tryLoadAccountsFromApi();
-  const usingApi = accounts !== null;
-  
-  if (!accounts) {
-    accounts = loadAccountsLocal();
+  // ALWAYS try to load from the backend API first — it's the source of truth
+  // The backend supplier route auto-creates 3.2.XXX accounts when suppliers are created
+  try {
+    const accounts = await tryLoadAccountsFromApi();
+    if (accounts && accounts.length > 0) {
+      // Search with flexible matching (case-insensitive, trimmed)
+      const normalizedName = supplierName.trim().toLowerCase();
+      const existing = accounts.find(a =>
+        a.code.startsWith('3.2.') &&
+        !a.is_header &&
+        a.is_active !== false &&
+        (
+          a.name?.trim().toLowerCase() === normalizedName ||
+          (supplierNif && supplierNif.trim() && a.description?.includes(supplierNif.trim()))
+        )
+      );
+
+      if (existing) {
+        console.log(`[CoA Engine] Found existing supplier account ${existing.code} — ${supplierName}`);
+        return existing.code;
+      }
+
+      // Not found — create via API (with proper UUID id)
+      const parent = accounts.find(a => a.code === '3.2');
+      if (parent) {
+        const children = accounts.filter(a => a.code.startsWith('3.2.') && a.level === 3 && !a.is_header);
+        const nextSeq = children.length + 1;
+        const code = `3.2.${nextSeq.toString().padStart(3, '0')}`;
+
+        const newAccount: Account = {
+          id: crypto.randomUUID(), // MUST be a valid UUID for the backend
+          code,
+          name: supplierName.trim(),
+          description: supplierNif ? `NIF: ${supplierNif}` : undefined,
+          account_type: 'liability',
+          account_nature: 'credit',
+          parent_id: parent.id,
+          parent_name: parent.name,
+          parent_code: '3.2',
+          level: 3,
+          is_header: false,
+          is_active: true,
+          opening_balance: 0,
+          current_balance: 0,
+          branch_id: null,
+          children_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Account;
+
+        const created = await tryApiCreateAccount(newAccount);
+        if (created) {
+          console.log(`[CoA Engine] Created supplier account ${code} — ${supplierName} (via API)`);
+        }
+        // Also cache locally
+        accounts.push(newAccount);
+        saveAccountsLocal(accounts);
+        return code;
+      }
+    }
+  } catch (e) {
+    console.warn('[CoA Engine] API lookup failed, falling back to localStorage:', e);
   }
-  
-  // Check if supplier already has an account
-  const existing = accounts.find(a => 
-    a.code.startsWith('3.2.') && 
-    a.level >= 3 && 
+
+  // Fallback: localStorage
+  const localAccounts = loadAccountsLocal();
+  const normalizedName = supplierName.trim().toLowerCase();
+  const localExisting = localAccounts.find(a =>
+    a.code.startsWith('3.2.') &&
     !a.is_header &&
-    (a.name === supplierName || (supplierNif && a.description?.includes(supplierNif)))
+    (
+      a.name?.trim().toLowerCase() === normalizedName ||
+      (supplierNif && supplierNif.trim() && a.description?.includes(supplierNif.trim()))
+    )
   );
-  
-  if (existing) return existing.code;
-  
-  // Find parent "3.2" (Fornecedores)
-  const parent = accounts.find(a => a.code === '3.2');
-  if (!parent) {
-    console.warn('[CoA Engine] Parent account 3.2 (Fornecedores) not found');
-    return '3.2.001';
-  }
-  
-  // Find next sequence under 3.2.XXX
-  const children = accounts.filter(a => a.code.startsWith('3.2.') && a.level === 3 && !a.is_header);
+  if (localExisting) return localExisting.code;
+
+  // Create locally as last resort
+  const parent = localAccounts.find(a => a.code === '3.2');
+  const children = localAccounts.filter(a => a.code.startsWith('3.2.') && a.level === 3 && !a.is_header);
   const nextSeq = children.length + 1;
   const code = `3.2.${nextSeq.toString().padStart(3, '0')}`;
-  
-  // Create the account
+
   const now = new Date().toISOString();
-  const newAccount: Account = {
-    id: `local-coa-supplier-${supplierId}`,
+  localAccounts.push({
+    id: crypto.randomUUID(),
     code,
-    name: supplierName,
+    name: supplierName.trim(),
     description: supplierNif ? `NIF: ${supplierNif}` : undefined,
     account_type: 'liability',
     account_nature: 'credit',
-    parent_id: parent.id,
-    parent_name: parent.name,
+    parent_id: parent?.id || null,
+    parent_name: parent?.name || null,
     parent_code: '3.2',
     level: 3,
     is_header: false,
@@ -277,25 +329,9 @@ export async function ensureSupplierAccount(supplierId: string, supplierName: st
     children_count: 0,
     created_at: now,
     updated_at: now,
-  };
-  
-  // Save to API if available
-  if (usingApi) {
-    const apiCreated = await tryApiCreateAccount(newAccount);
-    if (apiCreated) {
-      console.log(`[CoA Engine] Created supplier account ${code} — ${supplierName} (via API)`);
-    }
-  }
-  
-  // Always also save to localStorage (for offline fallback and immediate reads)
-  const parentIdx = accounts.findIndex(a => a.id === parent.id);
-  if (parentIdx >= 0) {
-    accounts[parentIdx] = { ...accounts[parentIdx], children_count: (accounts[parentIdx].children_count || 0) + 1 };
-  }
-  accounts.push(newAccount);
-  saveAccountsLocal(accounts);
-  console.log(`[CoA Engine] Created supplier account ${code} — ${supplierName}`);
-  
+  } as Account);
+  saveAccountsLocal(localAccounts);
+  console.log(`[CoA Engine] Created supplier account ${code} — ${supplierName} (localStorage fallback)`);
   return code;
 }
 
