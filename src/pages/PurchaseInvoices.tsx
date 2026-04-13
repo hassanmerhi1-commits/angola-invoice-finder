@@ -922,6 +922,8 @@ export default function PurchaseInvoices() {
         },
       });
 
+      console.log('[PurchaseInvoices] Transaction result:', JSON.stringify(txResult));
+
       if (!txResult.success) {
         const txError = txResult.errors.join('; ') || 'Stock e contabilidade não foram actualizados.';
         const description = txError.includes('invalid input syntax for type uuid')
