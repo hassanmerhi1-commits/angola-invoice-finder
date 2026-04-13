@@ -47,12 +47,13 @@ import type { ERPDocument } from '@/types/documents';
 
 // ─────────── Supplier Picker Dialog ───────────
 function SupplierPickerDialog({
-  open, onClose, suppliers, onSelect,
+  open, onClose, suppliers, onSelect, onCreateNew,
 }: {
   open: boolean;
   onClose: () => void;
   suppliers: Supplier[];
   onSelect: (s: Supplier) => void;
+  onCreateNew?: () => void;
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(() => {
@@ -77,6 +78,11 @@ function SupplierPickerDialog({
           onChange={e => setSearch(e.target.value)}
           autoFocus
         />
+        {onCreateNew && (
+          <Button variant="outline" size="sm" className="w-full gap-1" onClick={onCreateNew}>
+            <Plus className="h-4 w-4" /> Criar Novo Fornecedor
+          </Button>
+        )}
         <ScrollArea className="h-[400px]">
           <Table>
             <TableHeader>
@@ -1435,6 +1441,11 @@ export default function PurchaseInvoices() {
         onClose={() => setSupplierPickerOpen(false)}
         suppliers={activeSuppliers}
         onSelect={handleSelectSupplier}
+        onCreateNew={() => {
+          setSupplierPickerOpen(false);
+          // Navigate to suppliers page to create
+          navigate('/suppliers');
+        }}
       />
       <ProductPickerDialog
         open={productPickerOpen}

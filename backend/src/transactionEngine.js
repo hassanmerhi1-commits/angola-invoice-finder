@@ -704,12 +704,44 @@ async function processTransferReceive(client, transferId, receivedQuantities, re
     await client.query('UPDATE stock_transfer_items SET received_quantity = $1 WHERE id = $2', [receivedQty, item.id]);
 
     if (receivedQty > 0) {
-      const costResult = await client.query('SELECT cost FROM products WHERE id = $1', [item.product_id]);
-      const unitCost = costResult.rows.length > 0 ? parseFloat(costResult.rows[0].cost) : 0;
+      // Resolve or create destination branch product by SKU
+      const sourceProduct = await client.query(
+        'SELECT id, name, sku, barcode, category, price, cost, unit, tax_rate, branch_id FROM products WHERE id = $1',
+        [item.product_id]
+      );
+      if (sourceProduct.rows.length === 0) throw new Error(`Produto de origem não encontrado: ${item.product_id}`);
+      const src = sourceProduct.rows[0];
+      const unitCost = parseFloat(src.cost) || 0;
+
+      // Check if destination branch already has this product (by SKU + branch_id)
+      let destProductId = item.product_id; // default: same product row (global products)
+      if (src.branch_id && src.branch_id !== transfer.to_branch_id) {
+        // Branch-specific product — find or create clone at destination
+        const destCheck = await client.query(
+          'SELECT id FROM products WHERE sku = $1 AND branch_id = $2 AND is_active = true LIMIT 1',
+          [src.sku, transfer.to_branch_id]
+        );
+        if (destCheck.rows.length > 0) {
+          destProductId = destCheck.rows[0].id;
+        } else {
+          // Clone product for destination branch
+          const cloneId = randomUUID();
+          await client.query(
+            `INSERT INTO products (id, name, sku, barcode, category, price, cost, stock, unit, tax_rate, branch_id, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9, $10, true)`,
+            [cloneId, src.name, src.sku, src.barcode || '', src.category || 'GERAL',
+             parseFloat(src.price) || 0, unitCost, src.unit || 'UN', parseFloat(src.tax_rate) || 14,
+             transfer.to_branch_id]
+          );
+          destProductId = cloneId;
+          console.log(`[TX ENGINE] Cloned product ${src.sku} → branch ${transfer.to_branch_id} (${cloneId})`);
+        }
+      }
+
       totalTransferValue += unitCost * receivedQty;
 
       await recordStockMovement(client, {
-        productId: item.product_id, warehouseId: transfer.to_branch_id,
+        productId: destProductId, warehouseId: transfer.to_branch_id,
         movementType: 'IN', quantity: receivedQty, unitCost,
         referenceType: 'transfer', referenceId: transferId,
         referenceNumber: transfer.transfer_number,
