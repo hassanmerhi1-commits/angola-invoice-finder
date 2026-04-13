@@ -7,12 +7,34 @@ const db = require('../db');
  * Idempotent — skips if an account with the same name already exists.
  */
 async function ensureSupplierSubAccount(client, supplierName, supplierNif) {
+  const normalizedName = cleanText(supplierName);
+  const normalizedNif = normalizeSupplierNif(supplierNif);
+
   // Check if already exists
-  const existing = await client.query(
-    `SELECT code FROM chart_of_accounts WHERE code LIKE '3.2.%' AND level = 3 AND is_header = false
-     AND (name = $1 OR ($2 IS NOT NULL AND $2 != '' AND description LIKE '%' || $2 || '%'))`,
-    [supplierName, supplierNif || null]
-  );
+  const existing = normalizedNif
+    ? await client.query(
+        `SELECT code
+         FROM chart_of_accounts
+         WHERE code LIKE '3.2.%'
+           AND level = 3
+           AND is_header = false
+           AND (
+             lower(name) = lower($1)
+             OR description ILIKE '%' || $2::text || '%'
+           )
+         LIMIT 1`,
+        [normalizedName, normalizedNif]
+      )
+    : await client.query(
+        `SELECT code
+         FROM chart_of_accounts
+         WHERE code LIKE '3.2.%'
+           AND level = 3
+           AND is_header = false
+           AND lower(name) = lower($1)
+         LIMIT 1`,
+        [normalizedName]
+      );
   if (existing.rows.length > 0) return existing.rows[0].code;
 
   // Find parent 3.2
@@ -37,7 +59,7 @@ async function ensureSupplierSubAccount(client, supplierName, supplierNif) {
      (code, name, description, account_type, account_nature, parent_id, level, is_header, opening_balance, current_balance)
      VALUES ($1, $2, $3, 'liability', 'credit', $4, 3, false, 0, 0)
      ON CONFLICT (code) DO NOTHING`,
-    [code, supplierName, supplierNif ? `NIF: ${supplierNif}` : '', parentId]
+    [code, normalizedName, normalizedNif ? `NIF: ${normalizedNif}` : '', parentId]
   );
 
   // Update parent children_count
@@ -48,7 +70,7 @@ async function ensureSupplierSubAccount(client, supplierName, supplierNif) {
     [parentId]
   );
 
-  console.log(`[SUPPLIERS] Created sub-account ${code} — ${supplierName}`);
+  console.log(`[SUPPLIERS] Created sub-account ${code} — ${normalizedName}`);
   return code;
 }
 
