@@ -372,7 +372,8 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
   if (taxAmount > 0) {
     journalLines.push({ accountCode: '3.3.1', description: `IVA compra ${order.order_number}`, debit: taxAmount, credit: 0 });
   }
-  journalLines.push({ accountCode: '3.2.1', description: `Fornecedor ${order.supplier_name}`, debit: 0, credit: subtotal + freightCost + taxAmount });
+  const supplierAccountCode = await getEntityAccountCode(client, 'supplier', order.supplier_id, order.supplier_name);
+  journalLines.push({ accountCode: supplierAccountCode, description: `Fornecedor ${order.supplier_name}`, debit: 0, credit: subtotal + freightCost + taxAmount });
 
   await createJournalEntry(client, pool, {
     description: `Compra ${order.order_number} - ${order.supplier_name}`,
@@ -539,7 +540,7 @@ async function processPayment(client, pool, paymentData) {
   }
 
   const cashAccountCode = paymentMethod === 'cash' ? '4.1.1' : '4.2.1';
-  const entityAccountCode = entityType === 'customer' ? '3.1.1' : '3.2.1';
+  const entityAccountCode = await getEntityAccountCode(client, entityType, entityId, entityName);
 
   const lines = paymentType === 'receipt'
     ? [
