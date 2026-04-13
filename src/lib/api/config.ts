@@ -1,9 +1,26 @@
 // API Configuration
 // Change this to your server's local IP address
 
-// Default to localhost for development
-// In production, change to your server IP like: http://192.168.1.50:3000
+// Default to localhost for local development
 const DEFAULT_API_URL = 'http://localhost:3000';
+
+// Detect if running in a cloud preview (Lovable, Vercel, etc.)
+// where localhost:3000 is unreachable — the backend runs on the user's local PC
+let _isDemoMode: boolean | null = null;
+export function isDemoMode(): boolean {
+  if (_isDemoMode !== null) return _isDemoMode;
+  if (typeof window === 'undefined') { _isDemoMode = true; return true; }
+  const host = window.location.hostname;
+  // Cloud preview hosts — backend is unreachable
+  const isCloudPreview = host.includes('lovableproject.com')
+    || host.includes('lovable.app')
+    || host.includes('vercel.app')
+    || host.includes('netlify.app');
+  // User explicitly set a custom API URL → they have a backend
+  const hasCustomUrl = !!localStorage.getItem('kwanza_api_url');
+  _isDemoMode = isCloudPreview && !hasCustomUrl;
+  return _isDemoMode;
+}
 
 // Get API URL from localStorage or use default
 export function getApiUrl(): string {
@@ -42,6 +59,7 @@ export function setForceApiMode(enabled: boolean): void {
 // Detect if running in web preview (no Electron, no setup configured)
 // Used to disable background polling that would spam ECONNREFUSED errors
 export function isWebPreview(): boolean {
+  if (isDemoMode()) return true;
   const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI?.isElectron;
   if (isElectron) return false;
   const setupComplete = typeof window !== 'undefined' && localStorage.getItem('kwanza_setup_complete') === 'true';

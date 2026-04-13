@@ -16,8 +16,7 @@ async function apiFallback<T>(apiFn: () => Promise<{ data?: T; error?: string }>
   try {
     const result = await apiFn();
     if (result.data !== undefined) return result.data;
-    // API reachable but returned error — still fall back for reads
-    console.warn('[ERP] API returned error, falling back to local:', result.error);
+    // API returned error — silently fall back for reads (no spam in demo mode)
   } catch (e) {
     // API unreachable
   }
