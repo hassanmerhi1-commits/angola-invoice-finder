@@ -34,7 +34,10 @@ export async function getNextSequence(type: DocumentType, branchId: string): Pro
 
 export async function saveDocument(doc: ERPDocument): Promise<ERPDocument> {
   if (isElectronMode()) {
-    await dbInsert('erp_documents', mapDocToDb(doc));
+    const saved = await dbInsert('erp_documents', mapDocToDb(doc));
+    if (!saved) {
+      throw new Error('Não foi possível gravar o documento ERP na base de dados local.');
+    }
     return doc;
   }
   const docs = lsGet<ERPDocument[]>(STORAGE_KEY, []);
@@ -272,5 +275,7 @@ function mapDocToDb(doc: ERPDocument): any {
     created_by: doc.createdBy || '',
     created_by_name: doc.createdByName || '',
     child_documents_json: doc.childDocuments ? JSON.stringify(doc.childDocuments) : '',
+    created_at: doc.createdAt || new Date().toISOString(),
+    updated_at: doc.updatedAt || new Date().toISOString(),
   };
 }

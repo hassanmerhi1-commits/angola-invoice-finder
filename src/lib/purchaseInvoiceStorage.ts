@@ -113,7 +113,10 @@ export function generatePurchaseInvoiceNumber(branchCode: string): string {
 
 export async function savePurchaseInvoice(invoice: PurchaseInvoice): Promise<PurchaseInvoice> {
   if (isElectronMode()) {
-    await dbInsert('purchase_invoices', mapPIToDb(invoice));
+    const saved = await dbInsert('purchase_invoices', mapPIToDb(invoice));
+    if (!saved) {
+      throw new Error('Não foi possível gravar a fatura de compra na base de dados local.');
+    }
     return invoice;
   }
   const all = lsGet<PurchaseInvoice[]>(STORAGE_KEY, []);
@@ -373,10 +376,10 @@ function mapPIToDb(invoice: PurchaseInvoice): any {
     supplier_balance: invoice.supplierBalance,
     ref: invoice.ref || '',
     supplier_invoice_no: invoice.supplierInvoiceNo || '',
-    date: invoice.date,
-    payment_date: invoice.paymentDate,
+    date: invoice.date || '',
+    payment_date: invoice.paymentDate || '',
     currency: invoice.currency,
-    warehouse_id: invoice.warehouseId,
+    warehouse_id: invoice.warehouseId || '',
     warehouse_name: invoice.warehouseName,
     price_type: invoice.priceType,
     purchase_account_code: invoice.purchaseAccountCode,
@@ -394,9 +397,11 @@ function mapPIToDb(invoice: PurchaseInvoice): any {
     iva_total: invoice.ivaTotal,
     total: invoice.total,
     status: invoice.status,
-    branch_id: invoice.branchId,
+    branch_id: invoice.branchId || '',
     branch_name: invoice.branchName,
     created_by: invoice.createdBy,
     created_by_name: invoice.createdByName,
+    created_at: invoice.createdAt,
+    updated_at: invoice.updatedAt,
   };
 }
