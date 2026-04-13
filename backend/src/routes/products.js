@@ -3,6 +3,13 @@ const express = require('express');
 const db = require('../db');
 const { checkOptimisticLock } = require('../middleware/security');
 
+function sanitizeUuid(value) {
+  if (typeof value !== 'string') return value ?? null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed) ? trimmed : null;
+}
+
 module.exports = function(broadcastTable) {
   const router = express.Router();
 
@@ -36,7 +43,7 @@ module.exports = function(broadcastTable) {
         `INSERT INTO products (name, sku, barcode, category, price, cost, stock, unit, tax_rate, branch_id, is_active)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
-        [name, sku, barcode, category, price, cost, stock || 0, unit || 'un', taxRate || 14, branchId, isActive !== false]
+        [name, sku, barcode, category, price, cost, stock || 0, unit || 'un', taxRate || 14, sanitizeUuid(branchId), isActive !== false]
       );
       
       // Broadcast to ALL clients
@@ -64,7 +71,7 @@ module.exports = function(broadcastTable) {
                version = version + 1
            WHERE id = $12 AND version = $13
            RETURNING *`,
-          [name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, id, version]
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id, version]
         );
         if (!checkOptimisticLock(result, res, 'Product')) return;
       } else {
@@ -74,7 +81,7 @@ module.exports = function(broadcastTable) {
                stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11
            WHERE id = $12
            RETURNING *`,
-          [name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, id]
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id]
         );
         if (result.rowCount === 0) {
           return res.status(404).json({ error: 'Product not found' });
@@ -140,7 +147,7 @@ module.exports = function(broadcastTable) {
             [
               p.name, p.sku, p.barcode || '', p.category || 'GERAL',
               Number(p.price) || 0, Number(p.cost) || 0, Number(p.stock) || 0, p.unit || 'UN',
-              Number(p.taxRate) || 14, p.branchId || null, p.isActive !== false
+              Number(p.taxRate) || 14, sanitizeUuid(p.branchId), p.isActive !== false
             ]
           );
           imported++;

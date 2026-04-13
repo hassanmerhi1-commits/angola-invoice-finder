@@ -707,7 +707,7 @@ export default function PurchaseInvoices() {
     if (!resolvedSupplierId) {
       toast({
         title: 'Erro',
-        description: 'Selecione o fornecedor a partir da lista de fornecedores para ligar stock e contabilidade.',
+        description: 'Fornecedor sem ligação válida. Crie ou selecione novamente o fornecedor na lista antes de guardar a compra.',
         variant: 'destructive',
       });
       return;
@@ -881,7 +881,7 @@ export default function PurchaseInvoices() {
       if (!txResult.success) {
         const txError = txResult.errors.join('; ') || 'Stock e contabilidade não foram actualizados.';
         const description = txError.includes('invalid input syntax for type uuid')
-          ? 'Seleccione o fornecedor a partir da lista para criar a dívida e actualizar a conta.'
+          ? 'Existe um ID inválido na compra. Reabra o fornecedor e o armazém, depois grave novamente.'
           : txError;
 
         console.error('[PurchaseInvoices] Transaction engine errors:', txResult.errors);

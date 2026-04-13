@@ -800,8 +800,10 @@ export function useSuppliers() {
 
   const createSupplier = useCallback(async (data: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier> => {
     const result = await api.suppliers.create(data);
+    if (result.error && !result.data) {
+      throw new Error(result.error);
+    }
     if (result.data) {
-      // Backend auto-creates sub-account now, but also ensure local CoA cache is synced
       await ensureSupplierAccount(result.data.id, data.name, data.nif);
       await refreshSuppliers();
       return result.data;
