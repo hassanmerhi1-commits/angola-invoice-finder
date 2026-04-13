@@ -2,7 +2,8 @@
 // Exposes stock movements, open items, document links, and the generic transaction processor
 const express = require('express');
 const db = require('../db');
-const { recordStockMovement, createOpenItem, linkDocuments, validatePeriod } = require('../transactionEngine');
+const { randomUUID } = require('crypto');
+const { recordStockMovement, createOpenItem, linkDocuments, validatePeriod, auditLog } = require('../transactionEngine');
 const { createJournalEntry } = require('../accounting');
 
 module.exports = function(broadcastTable) {
@@ -15,14 +16,11 @@ module.exports = function(broadcastTable) {
       let query = 'SELECT sm.*, p.name as product_name, p.sku FROM stock_movements sm LEFT JOIN products p ON p.id = sm.product_id WHERE 1=1';
       const params = [];
       let idx = 1;
-
       if (productId) { query += ` AND sm.product_id = $${idx++}`; params.push(productId); }
       if (warehouseId) { query += ` AND sm.warehouse_id = $${idx++}`; params.push(warehouseId); }
       if (referenceType) { query += ` AND sm.reference_type = $${idx++}`; params.push(referenceType); }
-
       query += ` ORDER BY sm.created_at DESC LIMIT $${idx++}`;
       params.push(parseInt(limit) || 500);
-
       const result = await db.query(query, params);
       res.json(result.rows);
     } catch (error) {
@@ -53,12 +51,10 @@ module.exports = function(broadcastTable) {
       let query = 'SELECT * FROM open_items WHERE 1=1';
       const params = [];
       let idx = 1;
-
       if (entityType) { query += ` AND entity_type = $${idx++}`; params.push(entityType); }
       if (entityId) { query += ` AND entity_id = $${idx++}`; params.push(entityId); }
       if (status) { query += ` AND status = $${idx++}`; params.push(status); }
       else { query += ` AND status != 'cleared'`; }
-
       query += ' ORDER BY document_date ASC';
       const result = await db.query(query, params);
       res.json(result.rows);
@@ -89,16 +85,15 @@ module.exports = function(broadcastTable) {
       let query = 'SELECT * FROM document_links WHERE 1=1';
       const params = [];
       let idx = 1;
-
       if (sourceType && sourceId) {
-        query += ` AND ((source_type = $${idx++} AND source_id = $${idx++}) OR (target_type = $${idx - 2} AND target_id = $${idx - 1}))`;
+        query += ` AND ((source_type = $${idx} AND source_id = $${idx + 1}) OR (target_type = $${idx} AND target_id = $${idx + 1}))`;
         params.push(sourceType, sourceId);
+        idx += 2;
       }
       if (targetType && targetId) {
         query += ` AND target_type = $${idx++} AND target_id = $${idx++}`;
         params.push(targetType, targetId);
       }
-
       query += ' ORDER BY created_at ASC';
       const result = await db.query(query, params);
       res.json(result.rows);
@@ -112,9 +107,9 @@ module.exports = function(broadcastTable) {
     try {
       await client.query('BEGIN');
       const { sourceType, sourceId, sourceNumber, targetType, targetId, targetNumber } = req.body;
-      await linkDocuments(client, sourceType, sourceId, sourceNumber, targetType, targetId, targetNumber);
+      const linkId = await linkDocuments(client, sourceType, sourceId, sourceNumber, targetType, targetId, targetNumber);
       await client.query('COMMIT');
-      res.status(201).json({ success: true });
+      res.status(201).json({ success: true, id: linkId });
     } catch (error) {
       await client.query('ROLLBACK');
       res.status(500).json({ error: error.message || 'Failed to link documents' });
@@ -124,7 +119,6 @@ module.exports = function(broadcastTable) {
   });
 
   // ==================== GENERIC TRANSACTION PROCESSOR ====================
-  // This endpoint handles the full 4-layer atomic transaction from the frontend
   router.post('/process', async (req, res) => {
     const client = await db.pool.connect();
     try {
@@ -136,6 +130,10 @@ module.exports = function(broadcastTable) {
         stockEntries, journalLines, openItem, documentLinks,
         priceUpdates, entityBalanceUpdate
       } = req.body;
+
+      // Input validation
+      if (!branchId) throw new Error('branchId é obrigatório');
+      if (!transactionType) throw new Error('transactionType é obrigatório');
 
       const result = {
         success: false,
@@ -149,7 +147,7 @@ module.exports = function(broadcastTable) {
       // Validate period
       await validatePeriod(client, date || new Date().toISOString());
 
-      // Phase 1: Stock Movements
+      // Phase 1: Stock Movements (through engine)
       if (stockEntries && stockEntries.length > 0) {
         for (const entry of stockEntries) {
           const movement = await recordStockMovement(client, {
@@ -171,8 +169,8 @@ module.exports = function(broadcastTable) {
       if (priceUpdates && priceUpdates.length > 0) {
         for (const pu of priceUpdates) {
           const prodResult = await client.query(
-              'SELECT stock, cost FROM products WHERE id = $1',
-              [pu.productId]
+            'SELECT stock, cost FROM products WHERE id = $1 FOR UPDATE',
+            [pu.productId]
           );
           if (prodResult.rows.length > 0) {
             const p = prodResult.rows[0];
@@ -183,16 +181,12 @@ module.exports = function(broadcastTable) {
             const newTotal = pu.quantityReceived * pu.newUnitCost;
             const totalStock = previousStock + pu.quantityReceived;
             const newAvg = totalStock > 0 ? (prevTotal + newTotal) / totalStock : pu.newUnitCost;
-
-            await client.query(
-                'UPDATE products SET cost = $1 WHERE id = $2',
-                [newAvg.toFixed(2), pu.productId]
-            );
+            await client.query('UPDATE products SET cost = $1 WHERE id = $2', [newAvg.toFixed(2), pu.productId]);
           }
         }
       }
 
-      // Phase 3: Journal Entry
+      // Phase 3: Journal Entry (through accounting engine — validates balance)
       if (journalLines && journalLines.length > 0) {
         const entry = await createJournalEntry(client, {
           description,
@@ -210,7 +204,7 @@ module.exports = function(broadcastTable) {
         result.journalEntryId = entry.id;
       }
 
-      // Phase 4: Open Item
+      // Phase 4: Open Item (through engine)
       if (openItem) {
         const oi = await createOpenItem(client, {
           entityType: openItem.entityType,
@@ -228,11 +222,11 @@ module.exports = function(broadcastTable) {
         result.openItemId = oi.id;
       }
 
-      // Phase 5: Document Links
+      // Phase 5: Document Links (through engine)
       if (documentLinks && documentLinks.length > 0) {
         for (const dl of documentLinks) {
-          await linkDocuments(client, dl.sourceType, dl.sourceId, dl.sourceNumber, dl.targetType, dl.targetId, dl.targetNumber);
-          result.documentLinkIds.push(`dl_${Date.now()}`);
+          const linkId = await linkDocuments(client, dl.sourceType, dl.sourceId, dl.sourceNumber, dl.targetType, dl.targetId, dl.targetNumber);
+          result.documentLinkIds.push(linkId);
         }
       }
 
@@ -240,29 +234,29 @@ module.exports = function(broadcastTable) {
       if (entityBalanceUpdate) {
         const ebu = entityBalanceUpdate;
         if (ebu.entityType === 'supplier') {
-          await client.query(
-            'UPDATE suppliers SET balance = COALESCE(balance, 0) + $1 WHERE id = $2',
-            [ebu.amount, ebu.entityId]
-          );
+          await client.query('UPDATE suppliers SET balance = COALESCE(balance, 0) + $1 WHERE id = $2', [ebu.amount, ebu.entityId]);
         } else if (ebu.entityType === 'customer') {
-          await client.query(
-            'UPDATE clients SET current_balance = COALESCE(current_balance, 0) + $1 WHERE id = $2',
-            [ebu.amount, ebu.entityId]
-          );
+          await client.query('UPDATE clients SET current_balance = COALESCE(current_balance, 0) + $1 WHERE id = $2', [ebu.amount, ebu.entityId]);
         }
       }
 
       await client.query('COMMIT');
 
       result.success = true;
-      console.log(`[TX API] ${transactionType} ${documentNumber}: ${result.stockMovementIds.length} stock, journal=${!!result.journalEntryId}, openItem=${!!result.openItemId} ✓`);
+      console.log(`[TX API] ${transactionType} ${documentNumber}: stock=${result.stockMovementIds.length}, journal=${!!result.journalEntryId}, openItem=${!!result.openItemId} ✓`);
 
       await broadcastTable('products');
       res.status(201).json(result);
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('[TX API ERROR]', error);
-      res.status(500).json({ success: false, error: error.message || 'Transaction failed', errors: [error.message], stockMovementIds: [], documentLinkIds: [] });
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Transaction failed',
+        errors: [error.message],
+        stockMovementIds: [],
+        documentLinkIds: [],
+      });
     } finally {
       client.release();
     }
