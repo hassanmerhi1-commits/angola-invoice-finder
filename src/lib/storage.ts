@@ -645,7 +645,7 @@ export async function getPurchaseOrders(branchId?: string): Promise<PurchaseOrde
     const items = await dbGetAll<any>('purchase_order_items');
     let orders = rows.map(r => ({
       ...mapPurchaseOrderFromDb(r),
-      items: items.filter((i: any) => i.po_id === r.id).map(mapPOItemFromDb),
+      items: items.filter((i: any) => (i.order_id || i.po_id) === r.id).map(mapPOItemFromDb),
     }));
     if (branchId) orders = orders.filter(o => o.branchId === branchId);
     return orders;
