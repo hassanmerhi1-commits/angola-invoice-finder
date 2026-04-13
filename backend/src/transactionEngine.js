@@ -641,7 +641,7 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
 
   // Audit
   await auditLog(client, {
-    tableName: 'purchase_orders', recordId: orderId, action: 'receive',
+    tableName: 'purchase_orders', recordId: orderId, action: 'status_change',
     userId: receivedBy, branchId: order.branch_id,
     newValues: { orderNumber: order.order_number, total: subtotal + freightCost + taxAmount },
     description: `Recepção ${order.order_number} - ${order.supplier_name}`,
