@@ -815,6 +815,16 @@ export default function PurchaseInvoices() {
     invoice.journalLines = [...autoJournal, ...finalJournalLines];
 
     try {
+      console.log('[PurchaseInvoices] Calling processTransaction...', {
+        type: 'purchase_invoice',
+        docId: invoice.id,
+        docNumber: invoice.invoiceNumber,
+        branchId: invoice.branchId,
+        supplierId: resolvedSupplierId,
+        supplierAccountCode: resolvedSupplierAccountCode,
+        linesCount: invoice.lines.length,
+        total: invoice.total,
+      });
       // Use central transaction engine for atomic processing
       const txResult = await processTransaction({
         transactionType: 'purchase_invoice',
