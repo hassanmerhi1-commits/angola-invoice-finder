@@ -825,7 +825,9 @@ export function useSuppliers() {
       () => api.suppliers.list(),
       () => storage.getSuppliers()
     );
-    setSuppliers(Array.isArray(data) ? data.map(mapSupplier) : []);
+    const mapped = Array.isArray(data) ? data.map(mapSupplier) : [];
+    console.log(`[ERP] Suppliers loaded: ${mapped.length} total, ${mapped.filter(s => s.isActive).length} active`);
+    setSuppliers(mapped);
   }, []);
 
   useEffect(() => { refreshSuppliers(); }, [refreshSuppliers]);
