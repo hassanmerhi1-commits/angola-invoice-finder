@@ -390,7 +390,7 @@ export async function saveSale(sale: Sale): Promise<void> {
     }
 
     const { processTransaction } = await import('@/lib/transactionEngine');
-    await processTransaction({
+    const txResult = await processTransaction({
       transactionType: 'sale',
       documentId: sale.id,
       documentNumber: sale.invoiceNumber,
@@ -433,6 +433,10 @@ export async function saveSale(sale: Sale): Promise<void> {
         },
       } : {}),
     });
+
+    if (!txResult.success) {
+      console.error(`[Storage] Sale ${sale.invoiceNumber} transaction engine failed:`, txResult.errors);
+    }
 
     auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
     return;
