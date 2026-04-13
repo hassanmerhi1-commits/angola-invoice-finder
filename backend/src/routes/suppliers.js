@@ -52,6 +52,15 @@ async function ensureSupplierSubAccount(client, supplierName, supplierNif) {
   return code;
 }
 
+function cleanText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeSupplierNif(value) {
+  const nif = cleanText(value);
+  return nif || null;
+}
+
 module.exports = function(broadcastTable) {
   const router = express.Router();
 
@@ -71,14 +80,19 @@ module.exports = function(broadcastTable) {
       await client.query('BEGIN');
 
       const { name, nif, email, phone, address, city, country, contactPerson, paymentTerms, notes } = req.body;
+      const normalizedName = cleanText(name);
+      const normalizedNif = normalizeSupplierNif(nif);
+      if (!normalizedName) {
+        throw new Error('Nome do fornecedor é obrigatório');
+      }
       const result = await client.query(
         `INSERT INTO suppliers (name, nif, email, phone, address, city, country, contact_person, payment_terms, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [name, nif, email, phone, address, city, country || 'Angola', contactPerson, paymentTerms || '30_days', notes]
+        [normalizedName, normalizedNif, cleanText(email), cleanText(phone), cleanText(address), cleanText(city), cleanText(country) || 'Angola', cleanText(contactPerson), paymentTerms || '30_days', cleanText(notes)]
       );
 
       // Auto-create 3.2.XXX sub-account
-      const accountCode = await ensureSupplierSubAccount(client, name, nif);
+      const accountCode = await ensureSupplierSubAccount(client, normalizedName, normalizedNif);
 
       await client.query('COMMIT');
       await broadcastTable('suppliers');
@@ -113,31 +127,64 @@ module.exports = function(broadcastTable) {
       for (const s of supplierList) {
         try {
           // Upsert by NIF
-          const upsertResult = await client.query(
-            `INSERT INTO suppliers (name, nif, email, phone, address, city, country, contact_person, payment_terms, notes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             ON CONFLICT (nif) DO UPDATE SET
-               name = EXCLUDED.name,
-               email = COALESCE(EXCLUDED.email, suppliers.email),
-               phone = COALESCE(EXCLUDED.phone, suppliers.phone),
-               address = COALESCE(EXCLUDED.address, suppliers.address),
-               city = COALESCE(EXCLUDED.city, suppliers.city),
-               country = COALESCE(EXCLUDED.country, suppliers.country),
-               contact_person = COALESCE(EXCLUDED.contact_person, suppliers.contact_person),
-               payment_terms = COALESCE(EXCLUDED.payment_terms, suppliers.payment_terms),
-               notes = COALESCE(EXCLUDED.notes, suppliers.notes),
-               updated_at = CURRENT_TIMESTAMP
-             RETURNING *`,
-            [
-              s.name, s.nif || '', s.email || '', s.phone || '',
-              s.address || '', s.city || '', s.country || 'Angola',
-              s.contactPerson || s.contact_person || '', s.paymentTerms || s.payment_terms || '30_days',
-              s.notes || ''
-            ]
-          );
+          const normalizedName = cleanText(s.name);
+          const normalizedNif = normalizeSupplierNif(s.nif);
+          if (!normalizedName) throw new Error('Missing supplier name');
+
+          let upsertResult;
+          if (normalizedNif) {
+            upsertResult = await client.query(
+              `INSERT INTO suppliers (name, nif, email, phone, address, city, country, contact_person, payment_terms, notes)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+               ON CONFLICT (nif) DO UPDATE SET
+                 name = EXCLUDED.name,
+                 email = COALESCE(NULLIF(EXCLUDED.email, ''), suppliers.email),
+                 phone = COALESCE(NULLIF(EXCLUDED.phone, ''), suppliers.phone),
+                 address = COALESCE(NULLIF(EXCLUDED.address, ''), suppliers.address),
+                 city = COALESCE(NULLIF(EXCLUDED.city, ''), suppliers.city),
+                 country = COALESCE(NULLIF(EXCLUDED.country, ''), suppliers.country),
+                 contact_person = COALESCE(NULLIF(EXCLUDED.contact_person, ''), suppliers.contact_person),
+                 payment_terms = COALESCE(NULLIF(EXCLUDED.payment_terms, ''), suppliers.payment_terms),
+                 notes = COALESCE(NULLIF(EXCLUDED.notes, ''), suppliers.notes),
+                 updated_at = CURRENT_TIMESTAMP
+               RETURNING *`,
+              [
+                normalizedName, normalizedNif, cleanText(s.email), cleanText(s.phone),
+                cleanText(s.address), cleanText(s.city), cleanText(s.country) || 'Angola',
+                cleanText(s.contactPerson || s.contact_person), s.paymentTerms || s.payment_terms || '30_days',
+                cleanText(s.notes)
+              ]
+            );
+          } else {
+            const existingByName = await client.query('SELECT id FROM suppliers WHERE lower(name) = lower($1) LIMIT 1', [normalizedName]);
+            if (existingByName.rows.length > 0) {
+              upsertResult = await client.query(
+                `UPDATE suppliers
+                 SET email = COALESCE(NULLIF($1, ''), email),
+                     phone = COALESCE(NULLIF($2, ''), phone),
+                     address = COALESCE(NULLIF($3, ''), address),
+                     city = COALESCE(NULLIF($4, ''), city),
+                     country = COALESCE(NULLIF($5, ''), country),
+                     contact_person = COALESCE(NULLIF($6, ''), contact_person),
+                     payment_terms = COALESCE(NULLIF($7, ''), payment_terms),
+                     notes = COALESCE(NULLIF($8, ''), notes),
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $9
+                 RETURNING *`,
+                [cleanText(s.email), cleanText(s.phone), cleanText(s.address), cleanText(s.city), cleanText(s.country) || 'Angola', cleanText(s.contactPerson || s.contact_person), s.paymentTerms || s.payment_terms || '30_days', cleanText(s.notes), existingByName.rows[0].id]
+              );
+            } else {
+              upsertResult = await client.query(
+                `INSERT INTO suppliers (name, nif, email, phone, address, city, country, contact_person, payment_terms, notes)
+                 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9)
+                 RETURNING *`,
+                [normalizedName, cleanText(s.email), cleanText(s.phone), cleanText(s.address), cleanText(s.city), cleanText(s.country) || 'Angola', cleanText(s.contactPerson || s.contact_person), s.paymentTerms || s.payment_terms || '30_days', cleanText(s.notes)]
+              );
+            }
+          }
 
           // Auto-create sub-account
-          await ensureSupplierSubAccount(client, s.name, s.nif);
+          await ensureSupplierSubAccount(client, normalizedName, normalizedNif);
           imported++;
         } catch (err) {
           failed++;
