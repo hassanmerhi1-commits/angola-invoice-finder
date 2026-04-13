@@ -253,83 +253,170 @@ async function validatePeriod(client, date) {
  */
 async function processSale(client, saleData) {
   const {
-    invoiceNumber, branchId, cashierId, cashierName, items,
+    branchId, cashierId, cashierName, items,
     subtotal, taxAmount, discount, total,
     paymentMethod, amountPaid, change,
     customerNif, customerName, clientId
   } = saleData;
 
-  // 1. Validate period
+  // Allow caller to pass invoiceNumber for backward compat, but prefer sequence
+  let invoiceNumber = saleData.invoiceNumber || null;
+
+  // ── Step 0: Validate accounting period ──
   const today = new Date().toISOString().split('T')[0];
   await validatePeriod(client, today);
 
-  // 2. Insert sale header
-  const saleResult = await client.query(
+  // ── Step 1: Generate invoice_number from document_sequences (locked) ──
+  if (!invoiceNumber) {
+    try {
+      const seqResult = await client.query(
+        `SELECT id, current_number, prefix, fiscal_year
+         FROM document_sequences
+         WHERE document_type = 'invoice' AND fiscal_year = $1
+         FOR UPDATE`,
+        [new Date().getFullYear()]
+      );
+
+      if (seqResult.rows.length > 0) {
+        const seq = seqResult.rows[0];
+        const nextNum = parseInt(seq.current_number) + 1;
+        const prefix = seq.prefix || 'INV';
+        invoiceNumber = `${prefix}-${seq.fiscal_year}-${String(nextNum).padStart(5, '0')}`;
+
+        await client.query(
+          `UPDATE document_sequences SET current_number = $1 WHERE id = $2`,
+          [nextNum, seq.id]
+        );
+      } else {
+        // Auto-create sequence row for this fiscal year
+        const yr = new Date().getFullYear();
+        invoiceNumber = `INV-${yr}-00001`;
+        await client.query(
+          `INSERT INTO document_sequences (id, document_type, prefix, fiscal_year, current_number)
+           VALUES ($1, 'invoice', 'INV', $2, 1)
+           ON CONFLICT DO NOTHING`,
+          [randomUUID(), yr]
+        );
+      }
+    } catch (seqErr) {
+      // Fallback if document_sequences table doesn't exist yet
+      console.warn('[TX ENGINE] document_sequences unavailable, generating fallback number:', seqErr.message);
+      const countResult = await client.query(
+        `SELECT COUNT(*) as cnt FROM sales WHERE invoice_number LIKE $1`,
+        [`INV-${new Date().getFullYear()}-%`]
+      );
+      const next = parseInt(countResult.rows[0].cnt) + 1;
+      invoiceNumber = `INV-${new Date().getFullYear()}-${String(next).padStart(5, '0')}`;
+    }
+  }
+
+  // ── Step 2: Validate stock BEFORE any writes (SELECT … FOR UPDATE) ──
+  for (const item of items) {
+    const normalizedProductId = isUuid(item.productId) ? item.productId : null;
+    if (!normalizedProductId) continue; // manual line items without product link
+
+    const stockCheck = await client.query(
+      `SELECT p.name, p.stock AS legacy_stock,
+              COALESCE(
+                (SELECT SUM(CASE WHEN movement_type = 'IN' THEN quantity ELSE -quantity END)
+                 FROM stock_movements WHERE product_id = p.id AND warehouse_id = $2), 0
+              ) AS movement_stock
+       FROM products p
+       WHERE p.id = $1
+       FOR UPDATE`,
+      [normalizedProductId, branchId]
+    );
+
+    if (stockCheck.rows.length === 0) {
+      throw new Error(`Produto não encontrado: ${item.productName || normalizedProductId}`);
+    }
+
+    const row = stockCheck.rows[0];
+    const available = Math.max(parseFloat(row.movement_stock), parseFloat(row.legacy_stock || 0));
+
+    if (available + 0.0001 < Number(item.quantity)) {
+      throw new Error(
+        `Insufficient stock for ${row.name}. Available: ${available}, Requested: ${item.quantity}`
+      );
+    }
+  }
+
+  // ── Step 3a: Insert sale header ──
+  const saleId = randomUUID();
+  await client.query(
     `INSERT INTO sales (
-      invoice_number, branch_id, cashier_id, cashier_name,
+      id, invoice_number, branch_id, cashier_id, cashier_name,
       subtotal, tax_amount, discount, total,
       payment_method, amount_paid, change,
       customer_nif, customer_name, status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'completed')
-    RETURNING *`,
-    [invoiceNumber, branchId, cashierId, cashierName, subtotal, taxAmount,
-     discount || 0, total, paymentMethod, amountPaid, change, customerNif, customerName]
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'completed')`,
+    [saleId, invoiceNumber, branchId, cashierId, cashierName,
+     subtotal, taxAmount, discount || 0, total,
+     paymentMethod, amountPaid, change, customerNif, customerName]
   );
-  const sale = saleResult.rows[0];
 
-  // 3. Insert items + stock movements
+  // ── Step 3b: Insert sale_items ──
   let totalCOGS = 0;
   for (const item of items) {
     const normalizedProductId = isUuid(item.productId) ? item.productId : null;
+    const saleItemId = randomUUID();
 
     await client.query(
       `INSERT INTO sale_items (
-        sale_id, product_id, product_name, sku, quantity,
+        id, sale_id, product_id, product_name, sku, quantity,
         unit_price, discount, tax_rate, tax_amount, subtotal
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [sale.id, normalizedProductId, item.productName, item.sku, item.quantity,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [saleItemId, saleId, normalizedProductId, item.productName, item.sku, item.quantity,
        item.unitPrice, item.discount || 0, item.taxRate, item.taxAmount, item.subtotal]
     );
 
+    // ── Step 3c: Stock deduction + movement (only for real products) ──
     if (normalizedProductId) {
-      await recordStockMovement(client, {
-        productId: normalizedProductId,
-        warehouseId: branchId,
-        movementType: 'OUT',
-        quantity: item.quantity,
-        unitCost: item.costAtSale || 0,
-        referenceType: 'sale',
-        referenceId: sale.id,
-        referenceNumber: invoiceNumber,
-        createdBy: cashierId,
-      });
+      // Update products.stock (denormalized field)
+      await client.query(
+        `UPDATE products SET stock = stock - $1 WHERE id = $2`,
+        [item.quantity, normalizedProductId]
+      );
 
-      const productResult = await client.query('SELECT cost, tax_code FROM products WHERE id = $1', [normalizedProductId]);
+      // Insert stock_movement
+      const movementId = randomUUID();
+      await client.query(
+        `INSERT INTO stock_movements (
+          id, product_id, warehouse_id, movement_type, quantity, unit_cost,
+          reference_type, reference_id, reference_number, created_by
+        ) VALUES ($1,$2,$3,'OUT',$4,$5,'sale',$6,$7,$8)`,
+        [movementId, normalizedProductId, branchId, item.quantity,
+         item.costAtSale || 0, saleId, invoiceNumber, cashierId]
+      );
+
+      // Accumulate COGS
+      const productResult = await client.query(
+        'SELECT cost FROM products WHERE id = $1', [normalizedProductId]
+      );
       if (productResult.rows.length > 0) {
         totalCOGS += parseFloat(productResult.rows[0].cost) * item.quantity;
       }
     }
   }
 
-  // 4. Journal entries
-  // Lookup branch-specific Caixa account (4.1.X) instead of hardcoding 4.1.1
-  let cashAccountCode = '4.1.1'; // default fallback
+  // ── Step 4: Journal entries (balanced double-entry) ──
+  // Resolve branch-specific Caixa account
+  let cashAccountCode = '4.1.1';
   if (paymentMethod === 'cash') {
     const branchCaixaResult = await client.query(
-      `SELECT code FROM chart_of_accounts WHERE code LIKE '4.1.%' AND level = 3 AND is_header = false AND branch_id = $1 AND is_active = true LIMIT 1`,
+      `SELECT code FROM chart_of_accounts
+       WHERE code LIKE '4.1.%' AND level = 3 AND is_header = false
+         AND branch_id = $1 AND is_active = true LIMIT 1`,
       [branchId]
     );
     if (branchCaixaResult.rows.length > 0) {
       cashAccountCode = branchCaixaResult.rows[0].code;
-    } else {
-      // Try the generic 4.1.1 if no branch-specific account
-      console.warn(`[TX ENGINE] No branch-specific Caixa (4.1.X) found for branch ${branchId}, using 4.1.1`);
     }
   } else {
     cashAccountCode = '4.2.1';
   }
 
-  // Revenue entry
+  // Revenue journal
   const revenueLines = [
     { accountCode: cashAccountCode, description: `Venda ${invoiceNumber}`, debit: parseFloat(total), credit: 0 },
     { accountCode: '7.1.1', description: `Receita ${invoiceNumber}`, debit: 0, credit: parseFloat(subtotal) },
@@ -341,18 +428,18 @@ async function processSale(client, saleData) {
   await createJournalEntry(client, {
     description: `Venda ${invoiceNumber}`,
     referenceType: 'sale',
-    referenceId: sale.id,
+    referenceId: saleId,
     branchId,
     createdBy: cashierId,
     lines: revenueLines,
   });
 
-  // COGS entry
+  // COGS journal
   if (totalCOGS > 0) {
     await createJournalEntry(client, {
       description: `CMV - ${invoiceNumber}`,
       referenceType: 'sale',
-      referenceId: sale.id,
+      referenceId: saleId,
       branchId,
       createdBy: cashierId,
       lines: [
@@ -362,45 +449,49 @@ async function processSale(client, saleData) {
     });
   }
 
-  // 5. Open item management (for credit sales to known clients)
+  // ── Step 5: Open item (receivable for credit sales) ──
   if (clientId && paymentMethod !== 'cash') {
-    await createOpenItem(client, {
-      entityType: 'customer',
-      entityId: clientId,
-      documentType: 'invoice',
-      documentId: sale.id,
-      documentNumber: invoiceNumber,
-      documentDate: today,
-      dueDate: today, // Could be calculated from payment terms
-      originalAmount: parseFloat(total),
-      isDebit: true,
-      branchId,
-    });
+    const oiId = randomUUID();
+    await client.query(
+      `INSERT INTO open_items (
+        id, entity_type, entity_id, document_type, document_id, document_number,
+        document_date, due_date, currency, original_amount, remaining_amount,
+        is_debit, branch_id
+      ) VALUES ($1,'customer',$2,'invoice',$3,$4,$5,$5,'AOA',$6,$6,true,$7)`,
+      [oiId, clientId, saleId, invoiceNumber, today, parseFloat(total), branchId]
+    );
   }
 
-  // 5b. Tax summary record
-  const saleDate = new Date(today);
+  // Tax summary (non-critical)
   try {
     await client.query(
-      `INSERT INTO tax_summaries (document_type, document_id, tax_code, tax_rate, total_base, total_tax, direction, period_year, period_month)
-       VALUES ('sale', $1, 'IVA14', 14.00, $2, $3, 'output', $4, $5)`,
-      [sale.id, parseFloat(subtotal), parseFloat(taxAmount), saleDate.getFullYear(), saleDate.getMonth() + 1]
+      `INSERT INTO tax_summaries (id, document_type, document_id, tax_code, tax_rate, total_base, total_tax, direction, period_year, period_month)
+       VALUES ($1, 'sale', $2, 'IVA14', 14.00, $3, $4, 'output', $5, $6)`,
+      [randomUUID(), saleId, parseFloat(subtotal), parseFloat(taxAmount),
+       new Date().getFullYear(), new Date().getMonth() + 1]
     );
   } catch (e) {
-    // tax_summaries table may not exist yet — non-critical
     console.warn('[TX ENGINE] Tax summary skipped:', e.message);
   }
 
-  // 6. Audit log
+  // ── Step 6: Audit log ──
   await auditLog(client, {
-    tableName: 'sales', recordId: sale.id, action: 'create',
+    tableName: 'sales', recordId: saleId, action: 'create',
     userId: cashierId, userName: cashierName, branchId,
     newValues: { invoiceNumber, total, paymentMethod, items: items.length },
     description: `Venda ${invoiceNumber} - ${parseFloat(total).toLocaleString()} AOA - ${items.length} itens`,
   });
 
   console.log(`[TX ENGINE] Sale ${invoiceNumber}: Stock OUT, Journal, Tax, Audit, ${clientId ? 'Open Item' : 'Cash'} ✓`);
-  return sale;
+
+  // Return sale object matching expected shape
+  return {
+    id: saleId,
+    invoice_number: invoiceNumber,
+    branch_id: branchId,
+    total: parseFloat(total),
+    status: 'completed',
+  };
 }
 
 /**
