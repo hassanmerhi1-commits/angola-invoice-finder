@@ -689,6 +689,12 @@ export default function PurchaseInvoices() {
 
   // ─────── SAVE (all phases) ───────
   const handleSave = useCallback(async () => {
+    // Validate supplier FIRST before any async work
+    if (!form.supplierName) {
+      toast({ title: 'Erro', description: 'Selecione um fornecedor', variant: 'destructive' });
+      return;
+    }
+
     const formWithSupplier = form as Partial<PurchaseInvoice> & { supplierId?: string; supplierInvoiceNo?: string };
     const matchedSupplier = activeSuppliers.find(s =>
       s.id === formWithSupplier.supplierId ||
@@ -696,14 +702,7 @@ export default function PurchaseInvoices() {
       (!!form.supplierName && s.name.trim().toLowerCase() === form.supplierName.trim().toLowerCase())
     );
     const resolvedSupplierId = matchedSupplier?.id || formWithSupplier.supplierId;
-    const resolvedSupplierAccountCode = form.supplierAccountCode || (
-      matchedSupplier ? await ensureSupplierAccount(matchedSupplier.id, matchedSupplier.name, matchedSupplier.nif) : ''
-    );
 
-    if (!form.supplierName) {
-      toast({ title: 'Erro', description: 'Selecione um fornecedor', variant: 'destructive' });
-      return;
-    }
     if (!resolvedSupplierId) {
       toast({
         title: 'Erro',
@@ -711,6 +710,23 @@ export default function PurchaseInvoices() {
         variant: 'destructive',
       });
       return;
+    }
+
+    // Resolve supplier account code — with explicit error handling
+    let resolvedSupplierAccountCode = form.supplierAccountCode || '';
+    if (!resolvedSupplierAccountCode && matchedSupplier) {
+      try {
+        resolvedSupplierAccountCode = await ensureSupplierAccount(matchedSupplier.id, matchedSupplier.name, matchedSupplier.nif);
+        console.log(`[PurchaseInvoices] Resolved supplier account: ${resolvedSupplierAccountCode} for ${matchedSupplier.name}`);
+      } catch (err: any) {
+        console.error('[PurchaseInvoices] Failed to resolve supplier account:', err);
+        toast({
+          title: 'Erro na conta do fornecedor',
+          description: `Não foi possível resolver a conta contabilística: ${err?.message || 'Erro desconhecido'}`,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
     if (!resolvedSupplierAccountCode) {
       toast({
