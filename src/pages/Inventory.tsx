@@ -166,6 +166,9 @@ export default function Inventory() {
 
   const handleImportProducts = async (data: ExcelProduct[], options?: { updateDuplicates?: boolean }) => {
     // Build product objects for batch import
+    // Head office imports as GLOBAL (null branch) so all branches see the products
+    const importBranchId = isHeadOffice ? null : (currentBranch?.id || null);
+    
     const productsToImport = data
       .filter((item) => {
         const exists = products.find(p => p.sku.toLowerCase().trim() === item.codigo.toLowerCase().trim());
@@ -182,7 +185,7 @@ export default function Inventory() {
         unit: item.unidade || 'UN',
         taxRate: item.iva || 14,
         isActive: true,
-        branchId: currentBranch?.id || '',
+        branchId: importBranchId,
       }));
 
     if (productsToImport.length === 0) {

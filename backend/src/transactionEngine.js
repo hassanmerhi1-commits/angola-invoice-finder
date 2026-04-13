@@ -312,9 +312,23 @@ async function processSale(client, saleData) {
     invoiceNumber = await generateSequenceNumber(client, 'invoice', 'INV');
   }
 
-  // ── Step 2: Validate stock BEFORE any writes (FOR UPDATE) ──
+  // ── Step 2: Resolve product IDs + Validate stock BEFORE any writes (FOR UPDATE) ──
+  const resolvedItems = [];
   for (const item of items) {
-    const pid = isUuid(item.productId) ? item.productId : null;
+    let pid = isUuid(item.productId) ? item.productId : null;
+
+    // Resolve non-UUID productIds (e.g. from imported products) by SKU/barcode
+    if (!pid && (item.productId || item.sku)) {
+      try {
+        pid = await resolveStockProductId(client, item.productId || item.sku, branchId);
+      } catch (e) {
+        // Product not found — skip stock check but still record sale line
+        pid = null;
+      }
+    }
+
+    resolvedItems.push({ ...item, resolvedPid: pid });
+
     if (!pid) continue;
 
     const stockCheck = await client.query(
@@ -347,8 +361,8 @@ async function processSale(client, saleData) {
 
   // ── Step 3b: Insert sale_items + stock ──
   let totalCOGS = 0;
-  for (const item of items) {
-    const pid = isUuid(item.productId) ? item.productId : null;
+  for (const item of resolvedItems) {
+    const pid = item.resolvedPid;
     const saleItemId = randomUUID();
 
     await client.query(
@@ -360,16 +374,13 @@ async function processSale(client, saleData) {
     );
 
     if (pid) {
-      // Stock deduction
-      await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, pid]);
-
-      const movId = randomUUID();
-      await client.query(
-        `INSERT INTO stock_movements (id, product_id, warehouse_id, movement_type, quantity, unit_cost,
-          reference_type, reference_id, reference_number, created_by)
-         VALUES ($1,$2,$3,'OUT',$4,$5,'sale',$6,$7,$8)`,
-        [movId, pid, branchId, item.quantity, item.costAtSale || 0, saleId, invoiceNumber, cashierId]
-      );
+      // Stock deduction via recordStockMovement (atomic, FOR UPDATE locked)
+      await recordStockMovement(client, {
+        productId: pid, warehouseId: branchId,
+        movementType: 'OUT', quantity: item.quantity, unitCost: item.costAtSale || 0,
+        referenceType: 'sale', referenceId: saleId,
+        referenceNumber: invoiceNumber, createdBy: cashierId,
+      });
 
       // COGS
       const costResult = await client.query('SELECT cost FROM products WHERE id = $1', [pid]);
