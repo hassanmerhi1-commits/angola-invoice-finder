@@ -104,7 +104,7 @@ module.exports = function(broadcastTable) {
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('[SUPPLIERS ERROR]', error);
-      res.status(500).json({ error: 'Failed to create supplier' });
+      res.status(500).json({ error: error.message || 'Failed to create supplier' });
     } finally {
       client.release();
     }
@@ -201,7 +201,7 @@ module.exports = function(broadcastTable) {
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('[SUPPLIERS BATCH ERROR]', error);
-      res.status(500).json({ error: 'Batch import failed' });
+      res.status(500).json({ error: error.message || 'Batch import failed' });
     } finally {
       client.release();
     }
