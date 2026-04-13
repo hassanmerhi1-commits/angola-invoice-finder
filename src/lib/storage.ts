@@ -348,7 +348,7 @@ export async function getAllSales(): Promise<Sale[]> {
 
 export async function saveSale(sale: Sale): Promise<void> {
   if (isElectronMode()) {
-    await dbExec('DELETE FROM sale_items WHERE sale_id = ?', [sale.id]);
+    await dbExec('DELETE FROM sale_items WHERE sale_id = $1', [sale.id]);
 
     // Save sale header
     await dbInsert('sales', {
@@ -390,7 +390,7 @@ export async function saveSale(sale: Sale): Promise<void> {
     }
 
     const { processTransaction } = await import('@/lib/transactionEngine');
-    await processTransaction({
+    const txResult = await processTransaction({
       transactionType: 'sale',
       documentId: sale.id,
       documentNumber: sale.invoiceNumber,
@@ -433,6 +433,10 @@ export async function saveSale(sale: Sale): Promise<void> {
         },
       } : {}),
     });
+
+    if (!txResult.success) {
+      console.error(`[Storage] Sale ${sale.invoiceNumber} transaction engine failed:`, txResult.errors);
+    }
 
     auditLog('create', 'sales', `Venda ${sale.invoiceNumber} - ${sale.total.toLocaleString()} Kz`, sale.cashierName || 'Sistema');
     return;
@@ -641,7 +645,7 @@ export async function getPurchaseOrders(branchId?: string): Promise<PurchaseOrde
     const items = await dbGetAll<any>('purchase_order_items');
     let orders = rows.map(r => ({
       ...mapPurchaseOrderFromDb(r),
-      items: items.filter((i: any) => i.po_id === r.id).map(mapPOItemFromDb),
+      items: items.filter((i: any) => (i.order_id || i.po_id) === r.id).map(mapPOItemFromDb),
     }));
     if (branchId) orders = orders.filter(o => o.branchId === branchId);
     return orders;
@@ -654,18 +658,18 @@ export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
   if (isElectronMode()) {
     await dbInsert('purchase_orders', {
       id: order.id,
-      po_number: order.orderNumber,
+      order_number: order.orderNumber,
       supplier_id: order.supplierId,
       supplier_name: order.supplierName,
       branch_id: order.branchId,
       subtotal: order.subtotal,
-      freight: order.freightCost || 0,
+      freight_cost: order.freightCost || 0,
       other_costs: order.otherCosts || 0,
       tax_amount: order.taxAmount,
       total: order.total,
       status: order.status,
-      expected_date: order.expectedDeliveryDate || '',
-      received_date: order.receivedAt || '',
+      expected_delivery_date: order.expectedDeliveryDate || '',
+      received_at: order.receivedAt || '',
       received_by: order.receivedBy || '',
       notes: order.notes || '',
       created_at: order.createdAt,
@@ -674,17 +678,17 @@ export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
     for (const item of order.items) {
       await dbInsert('purchase_order_items', {
         id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        po_id: order.id,
+        order_id: order.id,
         product_id: item.productId,
         product_name: item.productName,
         sku: item.sku,
-        quantity_ordered: item.quantity,
-        quantity_received: item.receivedQuantity || 0,
+        quantity: item.quantity,
+        received_quantity: item.receivedQuantity || 0,
         unit_cost: item.unitCost,
         freight_allocation: item.freightAllocation || 0,
         effective_cost: item.effectiveCost || item.unitCost,
         tax_rate: item.taxRate,
-        total: item.subtotal,
+        subtotal: item.subtotal,
       });
     }
     auditLog('create', 'purchase_orders', `OC ${order.orderNumber} - ${order.supplierName} - ${order.total.toLocaleString()} Kz`, 'Sistema');
@@ -848,7 +852,7 @@ export async function saveStockTransfer(transfer: StockTransfer): Promise<void> 
     if (existing?.data) await dbUpdate('stock_transfers', transfer.id, payload);
     else await dbInsert('stock_transfers', payload);
 
-    await dbExec('DELETE FROM stock_transfer_items WHERE transfer_id = ?', [transfer.id]);
+    await dbExec('DELETE FROM stock_transfer_items WHERE transfer_id = $1', [transfer.id]);
 
     for (const [index, item] of transfer.items.entries()) {
       await dbInsert('stock_transfer_items', {
@@ -1350,7 +1354,7 @@ function mapPurchaseOrderFromDb(row: any): PurchaseOrder {
     subtotal: Number(row.subtotal ?? 0),
     taxAmount: Number(row.tax_amount ?? row.taxAmount ?? 0),
     total: Number(row.total ?? 0),
-    freightCost: Number(row.freight ?? row.freightCost ?? 0),
+    freightCost: Number(row.freight_cost ?? row.freight ?? row.freightCost ?? 0),
     otherCosts: Number(row.other_costs ?? row.otherCosts ?? 0),
     status: row.status ?? 'draft',
     notes: row.notes,
@@ -1367,13 +1371,13 @@ function mapPurchaseOrderFromDb(row: any): PurchaseOrder {
 function mapPOItemFromDb(row: any): any {
   return {
     productId: row.product_id, productName: row.product_name, sku: row.sku || '',
-    quantity: Number(row.quantity_ordered || 0),
-    receivedQuantity: Number(row.quantity_received || 0),
+    quantity: Number(row.quantity || row.quantity_ordered || 0),
+    receivedQuantity: Number(row.received_quantity || row.quantity_received || 0),
     unitCost: Number(row.unit_cost || 0),
     freightAllocation: Number(row.freight_allocation || 0),
     effectiveCost: Number(row.effective_cost || row.unit_cost || 0),
     taxRate: Number(row.tax_rate || 14),
-    subtotal: Number(row.total || 0),
+    subtotal: Number(row.subtotal || row.total || 0),
   };
 }
 

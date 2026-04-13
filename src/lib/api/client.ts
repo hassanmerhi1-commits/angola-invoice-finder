@@ -10,7 +10,7 @@ export interface ApiResponse<T> {
 }
 
 // ==================== MODE DETECTION ====================
-function isElectronMode(): boolean {
+export function isElectronMode(): boolean {
   return !!window.electronAPI?.isElectron && !!window.electronAPI?.db;
 }
 
