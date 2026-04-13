@@ -38,9 +38,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Search, Plus, Save, X, Trash2, Eye, FileText, BookOpen,
-  Package, ArrowLeft, CheckCircle, Printer,
+  Package, ArrowLeft, CheckCircle, Printer, AlertCircle,
 } from 'lucide-react';
 import { saveDocument } from '@/lib/documentStorage';
 import type { ERPDocument } from '@/types/documents';
@@ -515,6 +516,7 @@ export default function PurchaseInvoices() {
   const [viewInvoice, setViewInvoice] = useState<PurchaseInvoice | null>(null);
   const [activeTab, setActiveTab] = useState('fatura');
   const [showCreateProduct, setShowCreateProduct] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Form state
   const [form, setForm] = useState<Partial<PurchaseInvoice>>({});
   const [lines, setLines] = useState<PurchaseInvoiceLine[]>([]);
@@ -550,6 +552,7 @@ export default function PurchaseInvoices() {
   // ─────── Create mode ───────
   const startCreate = useCallback(() => {
     const now = new Date().toISOString();
+    setSaveError(null);
     setForm({
       date: now.split('T')[0],
       paymentDate: now.split('T')[0],
@@ -620,6 +623,7 @@ export default function PurchaseInvoices() {
   }, []);
 
   const handleCloseCreate = useCallback(() => {
+    setSaveError(null);
     setMode("list");
   }, []);
 
@@ -689,6 +693,7 @@ export default function PurchaseInvoices() {
 
   // ─────── SAVE (all phases) ───────
   const handleSave = useCallback(async () => {
+    setSaveError(null);
     console.log('[PurchaseInvoices] === SAVE START ===');
     console.log('[PurchaseInvoices] form.supplierName:', form.supplierName);
     console.log('[PurchaseInvoices] form.supplierAccountCode:', form.supplierAccountCode);
@@ -697,6 +702,7 @@ export default function PurchaseInvoices() {
 
     // Validate supplier FIRST before any async work
     if (!form.supplierName) {
+      setSaveError('Selecione um fornecedor antes de guardar.');
       console.warn('[PurchaseInvoices] BLOCKED: No supplier name');
       toast({ title: 'Erro', description: 'Selecione um fornecedor', variant: 'destructive' });
       return;
@@ -715,6 +721,7 @@ export default function PurchaseInvoices() {
     const resolvedSupplierId = matchedSupplier?.id || formWithSupplier.supplierId;
 
     if (!resolvedSupplierId) {
+      setSaveError('Fornecedor sem ligação válida. Selecione novamente o fornecedor na lista.');
       console.warn('[PurchaseInvoices] BLOCKED: No resolved supplier ID');
       toast({
         title: 'Erro',
@@ -733,6 +740,7 @@ export default function PurchaseInvoices() {
         resolvedSupplierAccountCode = await ensureSupplierAccount(matchedSupplier.id, matchedSupplier.name, matchedSupplier.nif);
         console.log(`[PurchaseInvoices] Resolved supplier account: ${resolvedSupplierAccountCode} for ${matchedSupplier.name}`);
       } catch (err: any) {
+        setSaveError(`Não foi possível resolver a conta contabilística do fornecedor: ${err?.message || 'Erro desconhecido'}`);
         console.error('[PurchaseInvoices] Failed to resolve supplier account:', err);
         toast({
           title: 'Erro na conta do fornecedor',
@@ -743,6 +751,7 @@ export default function PurchaseInvoices() {
       }
     }
     if (!resolvedSupplierAccountCode) {
+      setSaveError('O fornecedor seleccionado ainda não tem subconta contabilística válida.');
       console.warn('[PurchaseInvoices] BLOCKED: No supplier account code resolved');
       toast({
         title: 'Erro',
@@ -752,8 +761,34 @@ export default function PurchaseInvoices() {
       return;
     }
     if (lines.length === 0) {
+      setSaveError('Adicione pelo menos um produto antes de guardar.');
       console.warn('[PurchaseInvoices] BLOCKED: No lines');
       toast({ title: 'Erro', description: 'Adicione pelo menos um produto', variant: 'destructive' });
+      return;
+    }
+
+    const resolvedBranchId = currentBranch?.id || form.warehouseId || '';
+    const resolvedBranchName = currentBranch?.name || form.warehouseName || '';
+    const resolvedWarehouseId = form.warehouseId || currentBranch?.id || '';
+    const resolvedWarehouseName = form.warehouseName || currentBranch?.name || '';
+
+    if (!resolvedBranchId) {
+      setSaveError('Nenhuma filial activa foi encontrada. Selecione o armazém/filial antes de guardar.');
+      toast({
+        title: 'Erro',
+        description: 'Nenhuma filial activa foi encontrada. Selecione o armazém/filial antes de guardar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!resolvedWarehouseId) {
+      setSaveError('Selecione um armazém antes de guardar a compra.');
+      toast({
+        title: 'Erro',
+        description: 'Selecione um armazém antes de guardar a compra.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -782,8 +817,8 @@ export default function PurchaseInvoices() {
       paymentDate: form.paymentDate || now,
       project: form.project,
       currency: form.currency || 'KZ',
-      warehouseId: form.warehouseId || currentBranch?.id || '',
-      warehouseName: form.warehouseName || currentBranch?.name || '',
+      warehouseId: resolvedWarehouseId,
+      warehouseName: resolvedWarehouseName,
       priceType: form.priceType || 'last_price',
       address: form.address,
       purchaseAccountCode: form.purchaseAccountCode || '2.1',
@@ -802,8 +837,8 @@ export default function PurchaseInvoices() {
       ivaTotal: totals.ivaTotal,
       total: totals.total,
       status: 'confirmed',
-      branchId: currentBranch?.id || '',
-      branchName: currentBranch?.name || '',
+      branchId: resolvedBranchId,
+      branchName: resolvedBranchName,
       createdBy: user?.id || '',
       createdByName: user?.name || '',
       createdAt: now,
@@ -931,6 +966,7 @@ export default function PurchaseInvoices() {
           : txError;
 
         console.error('[PurchaseInvoices] Transaction engine errors:', txResult.errors);
+          setSaveError(description);
         toast({
           title: 'Aviso: Falha no motor de transação',
           description,
@@ -952,6 +988,7 @@ export default function PurchaseInvoices() {
       setMode('list');
     } catch (error: any) {
       console.error('[PurchaseInvoices] Failed to save purchase invoice:', error);
+      setSaveError(error?.message || 'A compra não foi sincronizada corretamente com stock e fornecedor.');
       toast({
         title: 'Erro ao guardar a fatura de compra',
         description: error?.message || 'A compra não foi sincronizada corretamente com stock e fornecedor.',
@@ -1078,6 +1115,14 @@ export default function PurchaseInvoices() {
           </Button>
         </div>
       </div>
+
+      {saveError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Falha ao guardar</AlertTitle>
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Supplier bar */}
       {!form.supplierName && (
