@@ -18,6 +18,7 @@ const MIGRATIONS = [
   '010_data_integrity.sql',
   '011_optimistic_locking.sql',
   '012_products_updated_at.sql',
+  '013_document_sequences.sql',
 ];
 
 /**

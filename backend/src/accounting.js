@@ -8,7 +8,13 @@ const { randomUUID } = require('crypto');
  * Falls back to COUNT-based generation if the table doesn't exist yet.
  */
 async function generateSequenceNumber(client, documentType, prefix) {
+  const savepointName = 'document_sequence_generation';
+  let savepointCreated = false;
+
   try {
+    await client.query(`SAVEPOINT ${savepointName}`);
+    savepointCreated = true;
+
     const yr = new Date().getFullYear();
     const seqResult = await client.query(
       `SELECT id, current_number FROM document_sequences
@@ -27,13 +33,28 @@ async function generateSequenceNumber(client, documentType, prefix) {
     }
 
     // Auto-create row
-    await client.query(
+    const insertResult = await client.query(
       `INSERT INTO document_sequences (id, document_type, prefix, fiscal_year, current_number)
-       VALUES ($1, $2, $3, $4, 1) ON CONFLICT (document_type, fiscal_year) DO UPDATE SET current_number = document_sequences.current_number + 1`,
+       VALUES ($1, $2, $3, $4, 1)
+       ON CONFLICT (document_type, fiscal_year)
+       DO UPDATE SET current_number = document_sequences.current_number + 1
+       RETURNING current_number`,
       [randomUUID(), documentType, prefix, yr]
     );
-    return `${prefix}-${yr}-00001`;
+    await client.query(`RELEASE SAVEPOINT ${savepointName}`);
+
+    const nextNum = parseInt(insertResult.rows[0]?.current_number ?? 1, 10);
+    return `${prefix}-${yr}-${String(nextNum).padStart(5, '0')}`;
   } catch (e) {
+    if (savepointCreated) {
+      try {
+        await client.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
+        await client.query(`RELEASE SAVEPOINT ${savepointName}`);
+      } catch (rollbackError) {
+        console.error('[ACCOUNTING] Failed to recover sequence savepoint:', rollbackError.message);
+      }
+    }
+
     // Fallback if table doesn't exist
     console.warn(`[ACCOUNTING] document_sequences unavailable for ${documentType}:`, e.message);
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
