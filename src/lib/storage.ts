@@ -1354,7 +1354,7 @@ function mapPurchaseOrderFromDb(row: any): PurchaseOrder {
     subtotal: Number(row.subtotal ?? 0),
     taxAmount: Number(row.tax_amount ?? row.taxAmount ?? 0),
     total: Number(row.total ?? 0),
-    freightCost: Number(row.freight ?? row.freightCost ?? 0),
+    freightCost: Number(row.freight_cost ?? row.freight ?? row.freightCost ?? 0),
     otherCosts: Number(row.other_costs ?? row.otherCosts ?? 0),
     status: row.status ?? 'draft',
     notes: row.notes,
@@ -1371,13 +1371,13 @@ function mapPurchaseOrderFromDb(row: any): PurchaseOrder {
 function mapPOItemFromDb(row: any): any {
   return {
     productId: row.product_id, productName: row.product_name, sku: row.sku || '',
-    quantity: Number(row.quantity_ordered || 0),
-    receivedQuantity: Number(row.quantity_received || 0),
+    quantity: Number(row.quantity || row.quantity_ordered || 0),
+    receivedQuantity: Number(row.received_quantity || row.quantity_received || 0),
     unitCost: Number(row.unit_cost || 0),
     freightAllocation: Number(row.freight_allocation || 0),
     effectiveCost: Number(row.effective_cost || row.unit_cost || 0),
     taxRate: Number(row.tax_rate || 14),
-    subtotal: Number(row.total || 0),
+    subtotal: Number(row.subtotal || row.total || 0),
   };
 }
 
