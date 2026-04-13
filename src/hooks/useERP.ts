@@ -9,7 +9,6 @@ import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, Supplier, PurchaseOrder, PurchaseOrderItem, Category } from '@/types/erp';
 import { api, setAuthToken } from '@/lib/api/client';
 import * as storage from '@/lib/storage';
-import { processSalePayment } from '@/lib/accountingStorage';
 import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 
 // Helper: try API, fallback to storage only on network errors
@@ -346,11 +345,9 @@ export function useSales(branchId?: string) {
       } catch { return ''; }
     })();
 
-    let sale: Sale;
-
-    // Try API first (backend Transaction Engine — atomic PostgreSQL)
+    const invoicePreview = await api.sales.generateInvoiceNumber(branchCode);
     const apiResult = await api.sales.create({
-      invoiceNumber: storage.generateInvoiceNumber(branchCode),
+      invoiceNumber: invoicePreview.data?.invoiceNumber,
       branchId,
       cashierId,
       cashierName,
@@ -366,66 +363,32 @@ export function useSales(branchId?: string) {
       customerName,
     });
 
-    if (apiResult.data) {
-      sale = {
-        id: apiResult.data.id,
-        invoiceNumber: apiResult.data.invoice_number || apiResult.data.invoiceNumber,
-        branchId,
-        cashierId,
-        cashierName,
-        items: saleItems,
-        subtotal,
-        taxAmount,
-        discount: 0,
-        total,
-        paymentMethod,
-        amountPaid,
-        change: amountPaid - total,
-        customerNif,
-        customerName,
-        status: 'completed',
-        createdAt: apiResult.data.created_at || new Date().toISOString(),
-      };
-      console.log(`[POS] Sale ${sale.invoiceNumber} processed via API Transaction Engine ✓`);
-    } else {
-      // API failed — log the error. Only fallback for network errors.
-      const isNetworkError = apiResult.error?.includes('Network error') || apiResult.error?.includes('Failed to fetch');
-      if (!isNetworkError) {
-        console.error('[POS] API business error:', apiResult.error);
-        throw new Error(apiResult.error || 'Falha ao processar venda no servidor');
-      }
-      console.warn('[POS] API unreachable, falling back to local:', apiResult.error);
-      sale = {
-        id: crypto.randomUUID(),
-        invoiceNumber: storage.generateInvoiceNumber(branchCode),
-        branchId,
-        cashierId,
-        cashierName,
-        items: saleItems,
-        subtotal,
-        taxAmount,
-        discount: 0,
-        total,
-        paymentMethod,
-        amountPaid,
-        change: amountPaid - total,
-        customerNif,
-        customerName,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-      };
-      await storage.saveSale(sale);
+    if (!apiResult.data) {
+      console.error('[POS] API business error:', apiResult.error);
+      throw new Error(apiResult.error || 'Falha ao processar venda no servidor');
     }
 
-    // Update Caixa balance (local for real-time feedback)
-    const caixaResult = await processSalePayment(
-      branchId, sale.id, sale.invoiceNumber, sale.total,
-      sale.paymentMethod === 'mixed' ? 'cash' : sale.paymentMethod,
-      cashierId, customerName
-    );
-    if (caixaResult.caixaName) {
-      console.log(`[POS] Sale ${sale.invoiceNumber} → Caixa "${caixaResult.caixaName}" balance: ${caixaResult.newBalance?.toLocaleString('pt-AO')} Kz`);
-    }
+    const sale: Sale = {
+      id: apiResult.data.id,
+      invoiceNumber: apiResult.data.invoice_number || apiResult.data.invoiceNumber || invoicePreview.data?.invoiceNumber || '',
+      branchId,
+      cashierId,
+      cashierName,
+      items: saleItems,
+      subtotal,
+      taxAmount,
+      discount: 0,
+      total,
+      paymentMethod,
+      amountPaid,
+      change: amountPaid - total,
+      customerNif,
+      customerName,
+      status: 'completed',
+      createdAt: apiResult.data.created_at || new Date().toISOString(),
+    };
+
+    console.log(`[POS] Sale ${sale.invoiceNumber} processed via backend API ✓`);
 
     await refreshSales();
     return sale;
@@ -770,67 +733,22 @@ export function useStockTransfers(branchId?: string) {
     const result = await api.stockTransfers.create({
       fromBranchId, toBranchId, items, requestedBy, notes,
     });
-    if (result.data) {
-      await refreshTransfers();
-      return mapStockTransfer(result.data);
+    if (!result.data) {
+      throw new Error(result.error || 'Falha ao criar transferência');
     }
-    // Fallback
-    const branches = await storage.getBranches();
-    const fromBranch = branches.find(b => b.id === fromBranchId);
-    const toBranch = branches.find(b => b.id === toBranchId);
-    const transfer: StockTransfer = {
-      id: `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      transferNumber: storage.generateTransferNumber(),
-      fromBranchId, fromBranchName: fromBranch?.name || '',
-      toBranchId, toBranchName: toBranch?.name || '',
-      items, status: 'pending', requestedBy,
-      requestedAt: new Date().toISOString(), notes,
-    };
-    await storage.saveStockTransfer(transfer);
     await refreshTransfers();
-    return transfer;
+    return mapStockTransfer(result.data);
   }, [refreshTransfers]);
 
   const approveTransfer = useCallback(async (transferId: string, userId: string) => {
     const result = await api.stockTransfers.approve(transferId, userId);
-    if (!result.data) {
-      // Fallback to local
-      const allTransfers = await storage.getStockTransfers();
-      const transfer = allTransfers.find(t => t.id === transferId);
-      if (transfer) {
-        transfer.status = 'in_transit';
-        transfer.approvedBy = userId;
-        transfer.approvedAt = new Date().toISOString();
-        for (const item of transfer.items) {
-          await storage.updateProductStock(item.productId, -item.quantity, transfer.fromBranchId);
-        }
-        await storage.saveStockTransfer(transfer);
-      }
-    }
+    if (!result.data) throw new Error(result.error || 'Falha ao aprovar transferência');
     await refreshTransfers();
   }, [refreshTransfers]);
 
   const receiveTransfer = useCallback(async (transferId: string, userId: string, receivedQuantities?: Record<string, number>) => {
     const result = await api.stockTransfers.receive(transferId, userId, receivedQuantities);
-    if (!result.data) {
-      const allTransfers = await storage.getStockTransfers();
-      const transfer = allTransfers.find(t => t.id === transferId);
-      if (transfer) {
-        if (receivedQuantities) {
-          transfer.items.forEach(item => {
-            item.receivedQuantity = receivedQuantities[item.productId] ?? item.quantity;
-          });
-        }
-        transfer.status = 'received';
-        transfer.receivedBy = userId;
-        transfer.receivedAt = new Date().toISOString();
-        for (const item of transfer.items) {
-          const qty = item.receivedQuantity || item.quantity;
-          await storage.updateProductStock(item.productId, qty, transfer.toBranchId);
-        }
-        await storage.saveStockTransfer(transfer);
-      }
-    }
+    if (!result.data) throw new Error(result.error || 'Falha ao receber transferência');
     await refreshTransfers();
   }, [refreshTransfers]);
 
@@ -971,9 +889,7 @@ export function usePurchaseOrders(branchId?: string) {
 
   const receiveOrder = useCallback(async (orderId: string, userId: string, receivedQuantities: Record<string, number>) => {
     const result = await api.purchaseOrders.receive(orderId, userId, receivedQuantities);
-    if (!result.data) {
-      await storage.processPurchaseOrderReceive(orderId, receivedQuantities, userId);
-    }
+    if (!result.data) throw new Error(result.error || 'Falha ao receber encomenda');
     await refreshOrders();
   }, [refreshOrders]);
 

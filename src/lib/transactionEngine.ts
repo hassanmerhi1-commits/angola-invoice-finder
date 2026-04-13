@@ -8,10 +8,10 @@
  *   4. Document links (traceability chain)
  *   5. Entity balances (client/supplier)
  * 
- * Falls back to localStorage for web preview/demo mode when API is unavailable.
+ * Uses the backend API as the single execution layer for transactional writes.
  */
 
-import { api, isElectronMode } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { OpenItem, DocumentLink } from '@/types/erp';
 import { logTransaction, TransactionCategory, TransactionAction } from '@/lib/transactionHistory';
 
@@ -110,11 +110,7 @@ export async function processTransaction(request: TransactionRequest): Promise<T
     return result;
   }
 
-  // In Electron mode, IPC goes directly to PostgreSQL — NEVER fall back to localStorage
-  const electronMode = typeof window !== 'undefined' && isElectronMode();
-
   try {
-    // Try API first (backend transaction engine — atomic PostgreSQL transaction)
     const apiResult = await api.transactions.process(request);
 
     if (apiResult.data && apiResult.data.success) {
@@ -126,30 +122,14 @@ export async function processTransaction(request: TransactionRequest): Promise<T
 
       console.log(`[TransactionEngine] ✅ ${request.transactionType} ${request.documentNumber} processed via API`);
     } else if (apiResult.error) {
-      // API returned an error — log it but still try local fallback for demo/preview
       console.error(`[TransactionEngine] ❌ API error for ${request.transactionType} ${request.documentNumber}:`, apiResult.error);
       result.errors.push(apiResult.error);
-      // Only fall back to local if API is truly unreachable (network error), not on business errors
-      if (!electronMode && (apiResult.error.includes('Network error') || apiResult.error.includes('Failed to fetch'))) {
-        console.warn('[TransactionEngine] Network unreachable, using local demo mode');
-        return await processTransactionLocal(request);
-      }
-      if (electronMode) {
-        // In Electron, propagate all errors — do NOT fall back to localStorage
-        console.error(`[TransactionEngine] ❌ Electron DB error — NOT falling back to localStorage`);
-      }
-      // For business errors (missing accounts, unbalanced entries), propagate the error
       return result;
     }
   } catch (error) {
-    if (electronMode) {
-      // In Electron, propagate the error — do NOT fall back to localStorage
-      console.error('[TransactionEngine] ❌ Electron transaction failed:', error);
-      result.errors.push(error instanceof Error ? error.message : 'Transaction failed');
-      return result;
-    }
-    console.warn('[TransactionEngine] API error, falling back to local demo:', error);
-    return await processTransactionLocal(request);
+    console.error('[TransactionEngine] ❌ API transaction failed:', error);
+    result.errors.push(error instanceof Error ? error.message : 'Transaction failed');
+    return result;
   }
 
   // Audit trail (always local for real-time feedback)

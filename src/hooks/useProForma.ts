@@ -163,15 +163,9 @@ export function useProForma(branchId?: string) {
       createdAt: new Date().toISOString(),
     };
 
-    // Save sale via API
-    try {
-      await api.sales.create(sale);
-    } catch {
-      // Fallback: localStorage
-      const raw = localStorage.getItem('kwanzaerp_sales');
-      const all = raw ? JSON.parse(raw) : [];
-      all.push(sale);
-      localStorage.setItem('kwanzaerp_sales', JSON.stringify(all));
+    const saleResult = await api.sales.create(sale);
+    if (!saleResult.data) {
+      throw new Error(saleResult.error || 'Falha ao guardar venda no servidor');
     }
 
     proforma.status = 'converted';
