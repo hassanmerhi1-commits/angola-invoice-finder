@@ -701,7 +701,7 @@ async function processPayment(client, paymentData) {
   // Journal entry
   const cashAccountCode = paymentMethod === 'cash' ? '4.1.1' :
                            paymentMethod === 'transfer' ? '4.2.1' : '4.2.1';
-  const entityAccountCode = entityType === 'customer' ? '3.1.1' : '3.2.1';
+  const entityAccountCode = await getEntityAccountCode(client, entityType, entityId, entityName);
 
   const lines = paymentType === 'receipt'
     ? [
