@@ -15,7 +15,7 @@ VALUES (
 -- Default admin user (email: admin@kwanzaerp.ao)
 INSERT INTO users (id, email, password_hash, name, role, branch_id, is_active)
 VALUES (
-  'u0000000-0000-0000-0000-000000000001',
+  'a0000000-0000-0000-0000-000000000001',
   'admin@kwanzaerp.ao',
   'admin',
   'Administrador',
@@ -27,7 +27,7 @@ VALUES (
 -- Default cashier user (email: caixa1@kwanzaerp.ao)
 INSERT INTO users (id, email, password_hash, name, role, branch_id, is_active)
 VALUES (
-  'u0000000-0000-0000-0000-000000000002',
+  'a0000000-0000-0000-0000-000000000002',
   'caixa1@kwanzaerp.ao',
   'caixa1',
   'Caixa 1',
