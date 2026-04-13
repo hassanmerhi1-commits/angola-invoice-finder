@@ -348,7 +348,7 @@ export async function getAllSales(): Promise<Sale[]> {
 
 export async function saveSale(sale: Sale): Promise<void> {
   if (isElectronMode()) {
-    await dbExec('DELETE FROM sale_items WHERE sale_id = ?', [sale.id]);
+    await dbExec('DELETE FROM sale_items WHERE sale_id = $1', [sale.id]);
 
     // Save sale header
     await dbInsert('sales', {
@@ -674,7 +674,7 @@ export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
     for (const item of order.items) {
       await dbInsert('purchase_order_items', {
         id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        po_id: order.id,
+        order_id: order.id,
         product_id: item.productId,
         product_name: item.productName,
         sku: item.sku,
@@ -848,7 +848,7 @@ export async function saveStockTransfer(transfer: StockTransfer): Promise<void> 
     if (existing?.data) await dbUpdate('stock_transfers', transfer.id, payload);
     else await dbInsert('stock_transfers', payload);
 
-    await dbExec('DELETE FROM stock_transfer_items WHERE transfer_id = ?', [transfer.id]);
+    await dbExec('DELETE FROM stock_transfer_items WHERE transfer_id = $1', [transfer.id]);
 
     for (const [index, item] of transfer.items.entries()) {
       await dbInsert('stock_transfer_items', {
