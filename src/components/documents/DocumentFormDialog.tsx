@@ -167,6 +167,21 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
         // For confirmed fatura_venda, route through the backend transaction engine
         // so stock is decremented and journal entries (including branch Caixa) are created
         if (documentType === 'fatura_venda' && status === 'confirmed') {
+          const insufficientStock = lines
+            .map(line => {
+              if (!line.productId) return null;
+              const product = products.find(p => p.id === line.productId);
+              if (!product) return null;
+              return line.quantity > product.stock
+                ? `${line.description} (disp. ${product.stock}, solicitado ${line.quantity})`
+                : null;
+            })
+            .filter(Boolean);
+
+          if (insufficientStock.length > 0) {
+            throw new Error(`Stock insuficiente: ${insufficientStock.join('; ')}`);
+          }
+
           const saleItems = lines.map(l => ({
             productId: l.productId || `manual-${l.description}`,
             productName: l.description,
@@ -209,7 +224,11 @@ export function DocumentFormDialog({ open, onOpenChange, documentType, editDocum
           });
 
           if (!saleResult.data) {
-            throw new Error(saleResult.error || 'Falha ao processar venda no servidor');
+            const saleError = saleResult.error || 'Falha ao processar venda no servidor';
+            if (saleError.includes('chk_products_stock_nonneg') || saleError.toLowerCase().includes('stock insuficiente')) {
+              throw new Error('Stock insuficiente para concluir esta fatura de venda. Verifique as quantidades dos produtos.');
+            }
+            throw new Error(saleError);
           }
 
           // Also save as ERP document for the document list

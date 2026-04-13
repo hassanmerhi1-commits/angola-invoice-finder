@@ -68,6 +68,25 @@ async function recordStockMovement(client, params) {
     referenceType, referenceId, referenceNumber, notes, createdBy
   } = params;
 
+  if (movementType === 'OUT') {
+    const stockResult = await client.query(
+      `SELECT p.name,
+              GREATEST(COALESCE(v.current_stock, 0), COALESCE(p.stock, 0)) AS available_stock
+       FROM products p
+       LEFT JOIN v_current_stock v ON v.product_id = p.id AND v.warehouse_id = $2
+       WHERE p.id = $1
+       LIMIT 1`,
+      [productId, warehouseId]
+    );
+
+    const availableStock = parseFloat(stockResult.rows[0]?.available_stock || 0);
+    const productName = stockResult.rows[0]?.name || productId;
+
+    if (availableStock + 0.0001 < Number(quantity)) {
+      throw new Error(`Stock insuficiente para ${productName}. Disponível: ${availableStock}, solicitado: ${quantity}`);
+    }
+  }
+
   const result = await client.query(
     `INSERT INTO stock_movements 
      (product_id, warehouse_id, movement_type, quantity, unit_cost,
@@ -612,9 +631,10 @@ async function processTransaction(client, pool, txData) {
         const p = prodResult.rows[0];
         const currentStock = parseInt(p.stock) || 0;
         const currentCost = parseFloat(p.cost) || 0;
-        const prevTotal = currentStock * currentCost;
+        const previousStock = Math.max(currentStock - pu.quantityReceived, 0);
+        const prevTotal = previousStock * currentCost;
         const newTotal = pu.quantityReceived * pu.newUnitCost;
-        const totalStock = currentStock + pu.quantityReceived;
+        const totalStock = previousStock + pu.quantityReceived;
         const newAvg = totalStock > 0 ? (prevTotal + newTotal) / totalStock : pu.newUnitCost;
 
         await client.query('UPDATE products SET cost = $1 WHERE id = $2', [newAvg.toFixed(2), pu.productId]);

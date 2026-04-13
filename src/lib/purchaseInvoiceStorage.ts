@@ -257,7 +257,7 @@ export function generateAutoJournalLines(invoice: PurchaseInvoice): PurchaseInvo
   if (invoice.subtotal > 0) {
     lines.push({
       id: `jl_${Date.now()}_1`,
-      accountCode: invoice.purchaseAccountCode || '2.1',
+      accountCode: invoice.purchaseAccountCode || '2.1.1',
       accountName: 'Compra de Mercadorias',
       currency: invoice.currency,
       note: `FC ${invoice.invoiceNumber} - ${invoice.supplierName}`,
@@ -337,7 +337,7 @@ function mapPIFromDb(row: any): PurchaseInvoice {
     warehouseName: row.warehouse_name || '',
     priceType: row.price_type || 'last_price',
     address: row.address,
-    purchaseAccountCode: row.purchase_account_code || '2.1',
+    purchaseAccountCode: row.purchase_account_code || '2.1.1',
     ivaAccountCode: row.iva_account_code || '3.3.1',
     transactionType: row.transaction_type || 'ALL',
     currencyRate: Number(row.currency_rate || 1),
