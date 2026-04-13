@@ -3,7 +3,7 @@ import { useProducts } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Product, StockMovement } from '@/types/erp';
 import { api } from '@/lib/api/client';
-import { saveProduct, getProducts as storageGetProducts, getStockMovements } from '@/lib/storage';
+import { saveProduct, getProducts as storageGetProducts, getStockMovements as localGetStockMovements } from '@/lib/storage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -80,7 +80,36 @@ export default function Inventory() {
   }, [loadBranchProducts, products]);
 
   const loadStockMovements = useCallback(async () => {
-    const data = await getStockMovements(isHeadOffice ? undefined : currentBranch?.id);
+    // Try API first (live DB), fall back to localStorage
+    try {
+      const result = await api.transactions.stockMovements({
+        warehouseId: isHeadOffice ? undefined : currentBranch?.id,
+        limit: 2000,
+      });
+      if (result.data && Array.isArray(result.data)) {
+        const mapped: StockMovement[] = result.data.map((m: any) => ({
+          id: m.id,
+          productId: m.product_id || m.productId,
+          productName: m.product_name || m.productName || '',
+          sku: m.sku || '',
+          branchId: m.warehouse_id || m.warehouseId || m.branchId || '',
+          type: (m.movement_type || m.type || 'IN') as 'IN' | 'OUT',
+          quantity: Number(m.quantity) || 0,
+          reason: m.reference_type || m.reason || 'purchase',
+          referenceId: m.reference_id || m.referenceId || '',
+          referenceNumber: m.reference_number || m.referenceNumber || '',
+          costAtTime: Number(m.unit_cost || m.costAtTime || 0),
+          notes: m.notes || '',
+          createdBy: m.created_by || m.createdBy || '',
+          createdAt: m.created_at || m.createdAt || '',
+        }));
+        setStockMovements(mapped);
+        return;
+      }
+    } catch (e) {
+      // API unreachable — fall through to local
+    }
+    const data = await localGetStockMovements(isHeadOffice ? undefined : currentBranch?.id);
     setStockMovements(data);
   }, [currentBranch?.id, isHeadOffice]);
 
