@@ -689,21 +689,33 @@ export default function PurchaseInvoices() {
 
   // ─────── SAVE (all phases) ───────
   const handleSave = useCallback(async () => {
+    console.log('[PurchaseInvoices] === SAVE START ===');
+    console.log('[PurchaseInvoices] form.supplierName:', form.supplierName);
+    console.log('[PurchaseInvoices] form.supplierAccountCode:', form.supplierAccountCode);
+    console.log('[PurchaseInvoices] lines count:', lines.length);
+    console.log('[PurchaseInvoices] activeSuppliers count:', activeSuppliers.length);
+
     // Validate supplier FIRST before any async work
     if (!form.supplierName) {
+      console.warn('[PurchaseInvoices] BLOCKED: No supplier name');
       toast({ title: 'Erro', description: 'Selecione um fornecedor', variant: 'destructive' });
       return;
     }
 
     const formWithSupplier = form as Partial<PurchaseInvoice> & { supplierId?: string; supplierInvoiceNo?: string };
+    console.log('[PurchaseInvoices] formWithSupplier.supplierId:', formWithSupplier.supplierId);
+
     const matchedSupplier = activeSuppliers.find(s =>
       s.id === formWithSupplier.supplierId ||
       (!!form.supplierNif && s.nif === form.supplierNif) ||
       (!!form.supplierName && s.name.trim().toLowerCase() === form.supplierName.trim().toLowerCase())
     );
+    console.log('[PurchaseInvoices] matchedSupplier:', matchedSupplier ? `${matchedSupplier.id} — ${matchedSupplier.name}` : 'NOT FOUND');
+
     const resolvedSupplierId = matchedSupplier?.id || formWithSupplier.supplierId;
 
     if (!resolvedSupplierId) {
+      console.warn('[PurchaseInvoices] BLOCKED: No resolved supplier ID');
       toast({
         title: 'Erro',
         description: 'Fornecedor sem ligação válida. Crie ou selecione novamente o fornecedor na lista antes de guardar a compra.',
@@ -714,6 +726,8 @@ export default function PurchaseInvoices() {
 
     // Resolve supplier account code — with explicit error handling
     let resolvedSupplierAccountCode = form.supplierAccountCode || '';
+    console.log('[PurchaseInvoices] Initial supplierAccountCode:', resolvedSupplierAccountCode);
+
     if (!resolvedSupplierAccountCode && matchedSupplier) {
       try {
         resolvedSupplierAccountCode = await ensureSupplierAccount(matchedSupplier.id, matchedSupplier.name, matchedSupplier.nif);
@@ -729,6 +743,7 @@ export default function PurchaseInvoices() {
       }
     }
     if (!resolvedSupplierAccountCode) {
+      console.warn('[PurchaseInvoices] BLOCKED: No supplier account code resolved');
       toast({
         title: 'Erro',
         description: 'O fornecedor seleccionado ainda não tem subconta contabilística válida.',
@@ -737,9 +752,12 @@ export default function PurchaseInvoices() {
       return;
     }
     if (lines.length === 0) {
+      console.warn('[PurchaseInvoices] BLOCKED: No lines');
       toast({ title: 'Erro', description: 'Adicione pelo menos um produto', variant: 'destructive' });
       return;
     }
+
+    console.log('[PurchaseInvoices] All validations passed, building invoice...');
 
     const now = new Date().toISOString();
     const branchCode = currentBranch?.code || 'SEDE';
