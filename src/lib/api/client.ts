@@ -80,11 +80,18 @@ async function ipcDelete(table: string, id: string): Promise<ApiResponse<any>> {
   }
 }
 
+import { isDemoMode } from './config';
+
 // ==================== HTTP FALLBACK (web preview/demo) ====================
 async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
+  // In demo mode (cloud preview), skip network calls entirely — fall back to localStorage
+  if (isDemoMode()) {
+    return { error: 'Demo mode — backend not available' };
+  }
+
   const url = `${getApiUrl()}/api${endpoint}`;
   const token = getAuthToken();
   
@@ -112,7 +119,10 @@ async function apiFetch<T>(
 
     return { data: payload as T };
   } catch (error) {
-    console.error(`[API ERROR] ${endpoint}:`, error);
+    // Only log once, not spam
+    if (!(error instanceof TypeError && (error as any).message === 'Failed to fetch')) {
+      console.error(`[API ERROR] ${endpoint}:`, error);
+    }
     return { error: error instanceof Error ? error.message : 'Network error' };
   }
 }
