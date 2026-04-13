@@ -19,6 +19,7 @@ const MIGRATIONS = [
   '011_optimistic_locking.sql',
   '012_products_updated_at.sql',
   '013_document_sequences.sql',
+  '014_chart_of_accounts_children_count.sql',
 ];
 
 /**
