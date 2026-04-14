@@ -1290,8 +1290,12 @@ export default function PurchaseInvoices() {
           </div>
           <div className="flex gap-2">
             {listTab === 'encomendas' && (
-              <Button variant="outline" className="gap-2" onClick={() => navigate('/purchase-orders')}>
-                <ShoppingCart className="h-4 w-4" /> Gerir Encomendas
+              <Button variant="outline" className="gap-2" onClick={() => {
+                setPoForm({ supplierId: '', branchId: currentBranch?.id || '', notes: '', expectedDeliveryDate: '', items: [] });
+                setPoNewItem({ productId: '', quantity: 1, unitCost: 0 });
+                setPoCreateOpen(true);
+              }}>
+                <Plus className="h-4 w-4" /> Nova Encomenda
               </Button>
             )}
             <Button onClick={() => setSearchParams({ mode: "create" })} className="gap-2">
