@@ -1257,6 +1257,18 @@ export default function PurchaseInvoices() {
 
   // ─── LIST MODE ───
   if (mode === 'list') {
+    const filteredOrders = orders.filter(order =>
+      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.supplierName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const invoiceTotals = {
+      count: filtered.length,
+      subtotal: filtered.reduce((s, i) => s + (i.subtotal || 0), 0),
+      iva: filtered.reduce((s, i) => s + (i.ivaTotal || 0), 0),
+      total: filtered.reduce((s, i) => s + (i.total || 0), 0),
+    };
+
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -1265,77 +1277,207 @@ export default function PurchaseInvoices() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Fatura de Compra</h1>
-              <p className="text-sm text-muted-foreground">Gestão de facturas de compra / COMPRA</p>
+              <h1 className="text-2xl font-bold text-foreground">Compras</h1>
+              <p className="text-sm text-muted-foreground">Gestão de encomendas e facturas de compra</p>
             </div>
           </div>
-          <Button
-            onClick={() => setSearchParams({ mode: "create" })}
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" /> Nova Fatura de Compra
-          </Button>
-        </div>
-
-        <div className="flex gap-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
+          <div className="flex gap-2">
+            {listTab === 'encomendas' && (
+              <Button variant="outline" className="gap-2" onClick={() => navigate('/purchase-orders')}>
+                <ShoppingCart className="h-4 w-4" /> Gerir Encomendas
+              </Button>
+            )}
+            <Button onClick={() => setSearchParams({ mode: "create" })} className="gap-2">
+              <Plus className="h-4 w-4" /> Nova Fatura de Compra
+            </Button>
           </div>
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nº Fatura</TableHead>
-                  <TableHead>Nº Fatura Fornecedor</TableHead>
-                  <TableHead>Fornecedor</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Armazém</TableHead>
-                  <TableHead className="text-right">Sub Total</TableHead>
-                  <TableHead className="text-right">IVA</TableHead>
-                  <TableHead className="text-right">Líquido</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(inv => (
-                  <TableRow key={inv.id}>
-                    <TableCell className="font-mono text-xs font-medium">{inv.invoiceNumber}</TableCell>
-                    <TableCell className="text-xs">{inv.supplierInvoiceNo || '—'}</TableCell>
-                    <TableCell>{inv.supplierName}</TableCell>
-                    <TableCell className="text-sm">{format(new Date(inv.date), 'dd/MM/yyyy')}</TableCell>
-                    <TableCell className="text-sm">{inv.warehouseName}</TableCell>
-                    <TableCell className="text-right font-mono">{inv.subtotal.toLocaleString('pt-AO')}</TableCell>
-                    <TableCell className="text-right font-mono text-orange-600">{inv.ivaTotal.toLocaleString('pt-AO')}</TableCell>
-                    <TableCell className="text-right font-mono font-bold">{inv.total.toLocaleString('pt-AO')}</TableCell>
-                    <TableCell>
-                      <Badge variant={inv.status === 'confirmed' ? 'default' : inv.status === 'cancelled' ? 'destructive' : 'outline'}>
-                        {inv.status === 'confirmed' ? 'Confirmado' : inv.status === 'cancelled' ? 'Anulado' : 'Rascunho'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => setViewInvoice(inv)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
-                      <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                      Nenhuma fatura de compra encontrada
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {/* Tabs: Faturas / Encomendas */}
+        <Tabs value={listTab} onValueChange={v => setListTab(v as any)}>
+          <TabsList>
+            <TabsTrigger value="faturas" className="gap-1">
+              <FileText className="h-4 w-4" /> Faturas de Compra
+              <Badge variant="secondary" className="ml-1 text-[10px]">{invoices.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="encomendas" className="gap-1">
+              <ShoppingCart className="h-4 w-4" /> Encomendas
+              <Badge variant="secondary" className="ml-1 text-[10px]">{orders.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ═══ FATURAS TAB ═══ */}
+          <TabsContent value="faturas" className="space-y-3 mt-2">
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Pesquisar nº fatura, fornecedor..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Fornecedor</Label>
+                <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+                  <SelectTrigger className="w-48 h-9">
+                    <SelectValue placeholder="Todos fornecedores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos</SelectItem>
+                    {[...new Set(invoices.map(i => i.supplierName))].sort().map(name => (
+                      <SelectItem key={name} value={name.toLowerCase()}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">De</Label>
+                <Input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="h-9 w-36" />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Até</Label>
+                <Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="h-9 w-36" />
+              </div>
+              {(filterSupplier || filterDateFrom || filterDateTo) && (
+                <Button variant="ghost" size="sm" onClick={() => { setFilterSupplier(''); setFilterDateFrom(''); setFilterDateTo(''); }}>
+                  <X className="h-4 w-4 mr-1" /> Limpar
+                </Button>
+              )}
+            </div>
+
+            {/* Summary */}
+            <div className="flex gap-4 text-sm">
+              <span className="text-muted-foreground">{invoiceTotals.count} facturas</span>
+              <span>Sub Total: <strong className="font-mono">{invoiceTotals.subtotal.toLocaleString('pt-AO')} Kz</strong></span>
+              <span>IVA: <strong className="font-mono">{invoiceTotals.iva.toLocaleString('pt-AO')} Kz</strong></span>
+              <span>Total: <strong className="font-mono">{invoiceTotals.total.toLocaleString('pt-AO')} Kz</strong></span>
+            </div>
+
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nº Fatura</TableHead>
+                      <TableHead>Nº Fat. Fornecedor</TableHead>
+                      <TableHead>Fornecedor</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Armazém</TableHead>
+                      <TableHead className="text-right">Sub Total</TableHead>
+                      <TableHead className="text-right">IVA</TableHead>
+                      <TableHead className="text-right">Líquido</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acções</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map(inv => (
+                      <TableRow key={inv.id} className="cursor-pointer hover:bg-accent/50" onClick={() => setViewInvoice(inv)}>
+                        <TableCell className="font-mono text-xs font-medium">{inv.invoiceNumber}</TableCell>
+                        <TableCell className="text-xs">{inv.supplierInvoiceNo || '—'}</TableCell>
+                        <TableCell>{inv.supplierName}</TableCell>
+                        <TableCell className="text-sm">{format(new Date(inv.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-sm">{inv.warehouseName}</TableCell>
+                        <TableCell className="text-right font-mono">{inv.subtotal.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="text-right font-mono text-destructive">{inv.ivaTotal.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{inv.total.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell>
+                          <Badge variant={inv.status === 'confirmed' ? 'default' : inv.status === 'cancelled' ? 'destructive' : 'outline'}>
+                            {inv.status === 'confirmed' ? 'Confirmado' : inv.status === 'cancelled' ? 'Anulado' : 'Rascunho'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filtered.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
+                          <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                          Nenhuma fatura de compra encontrada
+                          <br />
+                          <Button variant="link" size="sm" className="mt-2" onClick={() => setSearchParams({ mode: "create" })}>
+                            <Plus className="h-4 w-4 mr-1" /> Criar nova fatura de compra
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ═══ ENCOMENDAS TAB ═══ */}
+          <TabsContent value="encomendas" className="space-y-3 mt-2">
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nº Encomenda</TableHead>
+                      <TableHead>Fornecedor</TableHead>
+                      <TableHead>Filial</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acções</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredOrders.map(order => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-mono">{order.orderNumber}</TableCell>
+                        <TableCell>{order.supplierName}</TableCell>
+                        <TableCell>{order.branchName}</TableCell>
+                        <TableCell>{format(new Date(order.createdAt), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-right font-medium font-mono">{order.total.toLocaleString('pt-AO')} Kz</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            order.status === 'received' ? 'default' :
+                            order.status === 'cancelled' ? 'destructive' :
+                            order.status === 'approved' ? 'default' : 'outline'
+                          }>
+                            {order.status === 'draft' ? 'Rascunho' :
+                             order.status === 'pending' ? 'Pendente' :
+                             order.status === 'approved' ? 'Aprovado' :
+                             order.status === 'received' ? 'Recebido' :
+                             order.status === 'partial' ? 'Parcial' : 'Cancelado'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/purchase-orders')}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredOrders.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                          <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                          Nenhuma encomenda encontrada
+                          <br />
+                          <Button variant="link" size="sm" className="mt-2" onClick={() => navigate('/purchase-orders')}>
+                            <Plus className="h-4 w-4 mr-1" /> Criar nova encomenda
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         <InvoiceViewDialog open={!!viewInvoice} onClose={() => setViewInvoice(null)} invoice={viewInvoice} />
       </div>
