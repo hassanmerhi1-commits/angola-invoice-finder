@@ -13,6 +13,7 @@
 
 import { api } from '@/lib/api/client';
 import { OpenItem, DocumentLink } from '@/types/erp';
+import { updateCoABalancesFromJournal } from '@/lib/chartOfAccountsEngine';
 import { logTransaction, TransactionCategory, TransactionAction } from '@/lib/transactionHistory';
 
 // ==================== TYPES ====================
