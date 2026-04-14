@@ -1440,21 +1440,104 @@ export default function PurchaseInvoices() {
             </CardContent>
           </Card>
 
+          {/* 🚚 Freight / Transport Costs */}
+          <Card className="border-amber-200 dark:border-amber-900">
+            <CardContent className="p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">🚚 Frete e Despesas de Transporte</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div>
+                  <Label className="text-xs">Frete (Transporte)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={freightCost || ''}
+                    onChange={e => setFreightCost(parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Outras Despesas</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={freightOtherCosts || ''}
+                    onChange={e => setFreightOtherCosts(parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Conta de Saída (Crédito)</Label>
+                  <div className="flex gap-1">
+                    <Input
+                      value={freightSourceAccount}
+                      onChange={e => setFreightSourceAccount(e.target.value)}
+                      className="h-8 text-xs font-mono flex-1"
+                      placeholder="4.1.1"
+                    />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
+                      setAccountPickerTarget('freight' as any);
+                      setFreightPickerOpen(true);
+                      setAccountPickerOpen(true);
+                    }}>
+                      <Search className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{freightSourceName}</p>
+                </div>
+                <div>
+                  <Label className="text-xs">Total Custos Adicionais</Label>
+                  <div className="h-8 flex items-center text-sm font-bold font-mono text-amber-700 dark:text-amber-400">
+                    {totalLandingCosts.toLocaleString('pt-AO')} Kz
+                  </div>
+                </div>
+              </div>
+
+              {/* Freight allocation preview */}
+              {totalLandingCosts > 0 && lines.length > 0 && (
+                <div className="border rounded p-2 bg-muted/30 space-y-1">
+                  <p className="text-[10px] font-medium text-muted-foreground">Distribuição proporcional do frete por produto:</p>
+                  {lines.filter(l => l.productId && l.totalQty > 0).map(l => {
+                    const perUnit = freightAllocations[l.productId] || 0;
+                    const effectiveCost = l.unitPrice + perUnit;
+                    return (
+                      <div key={l.productId} className="flex justify-between text-[11px]">
+                        <span className="truncate max-w-[200px]">{l.description}</span>
+                        <span className="font-mono text-muted-foreground">
+                          {l.unitPrice.toLocaleString('pt-AO')} + {perUnit.toFixed(2)} = <span className="font-bold text-foreground">{effectiveCost.toFixed(2)} Kz/un</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Totals bar */}
           <div className="flex justify-end">
-            <Card className="w-72">
+            <Card className="w-80">
               <CardContent className="p-3 space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Sub Total</span>
                   <span className="font-mono font-medium">{totals.subtotal.toLocaleString('pt-AO')}</span>
                 </div>
+                {totalLandingCosts > 0 && (
+                  <div className="flex justify-between text-sm text-amber-600">
+                    <span>Frete / Transporte</span>
+                    <span className="font-mono font-medium">+{totalLandingCosts.toLocaleString('pt-AO')}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm text-orange-600">
                   <span>IVA</span>
                   <span className="font-mono font-medium">{totals.ivaTotal.toLocaleString('pt-AO')}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-1">
-                  <span>Líquido</span>
-                  <span className="font-mono">{totals.total.toLocaleString('pt-AO')}</span>
+                  <span>Total</span>
+                  <span className="font-mono">{(totals.total + totalLandingCosts).toLocaleString('pt-AO')}</span>
                 </div>
               </CardContent>
             </Card>
