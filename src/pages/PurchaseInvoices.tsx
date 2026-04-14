@@ -645,6 +645,7 @@ export default function PurchaseInvoices() {
   const [poReceivedQtys, setPoReceivedQtys] = useState<Record<string, number>>({});
   const [poForm, setPoForm] = useState({ supplierId: '', branchId: currentBranch?.id || '', notes: '', expectedDeliveryDate: '', items: [] as { productId: string; quantity: number; unitCost: number }[] });
   const [poNewItem, setPoNewItem] = useState({ productId: '', quantity: 1, unitCost: 0 });
+  const [poProductPickerOpen, setPoProductPickerOpen] = useState(false);
 
   // Purchase orders
   const { orders, createOrder, approveOrder, receiveOrder, cancelOrder } = usePurchaseOrders();
@@ -1569,17 +1570,19 @@ export default function PurchaseInvoices() {
                 <Label className="font-medium">Adicionar Produto</Label>
                 <div className="grid grid-cols-4 gap-3">
                   <div className="col-span-2">
-                    <Select value={poNewItem.productId} onValueChange={v => {
-                      const p = products.find(x => x.id === v);
-                      setPoNewItem(prev => ({ ...prev, productId: v, unitCost: p?.cost || 0 }));
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Seleccione produto" /></SelectTrigger>
-                      <SelectContent>
-                        {products.filter(p => p.isActive).map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal h-10"
+                      onClick={() => setPoProductPickerOpen(true)}
+                    >
+                      <Search className="h-4 w-4 mr-2 shrink-0 text-muted-foreground" />
+                      <span className={poNewItem.productId ? '' : 'text-muted-foreground'}>
+                        {poNewItem.productId
+                          ? (products.find(p => p.id === poNewItem.productId)?.name || 'Produto')
+                          : 'Pesquisar produto...'}
+                      </span>
+                    </Button>
                   </div>
                   <Input type="number" min="1" placeholder="Qtd" value={poNewItem.quantity} onChange={e => setPoNewItem(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} />
                   <Input type="number" min="0" step="0.01" placeholder="Custo Un." value={poNewItem.unitCost} onChange={e => setPoNewItem(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))} />
@@ -2404,6 +2407,16 @@ export default function PurchaseInvoices() {
         onClose={() => setProductPickerOpen(false)}
         products={products}
         onSelect={handleAddProduct}
+        onCreateNew={() => setShowCreateProduct(true)}
+      />
+      <ProductPickerDialog
+        open={poProductPickerOpen}
+        onClose={() => setPoProductPickerOpen(false)}
+        products={products}
+        onSelect={(p) => {
+          setPoNewItem(prev => ({ ...prev, productId: p.id, unitCost: p.cost || 0 }));
+          setPoProductPickerOpen(false);
+        }}
         onCreateNew={() => setShowCreateProduct(true)}
       />
       <AccountPickerDialog
