@@ -524,6 +524,27 @@ export default function PurchaseInvoices() {
   const [form, setForm] = useState<Partial<PurchaseInvoice>>({});
   const [lines, setLines] = useState<PurchaseInvoiceLine[]>([]);
   const [journalLines, setJournalLines] = useState<PurchaseInvoiceJournalLine[]>([]);
+  // Freight / Transport cost
+  const [freightCost, setFreightCost] = useState(0);
+  const [freightOtherCosts, setFreightOtherCosts] = useState(0);
+  const [freightSourceAccount, setFreightSourceAccount] = useState('4.1.1'); // default Caixa
+  const [freightSourceName, setFreightSourceName] = useState('Caixa');
+  const [freightPickerOpen, setFreightPickerOpen] = useState(false);
+
+  const totalLandingCosts = freightCost + freightOtherCosts;
+
+  // Freight allocation per product (proportional to value)
+  const freightAllocations = useMemo(() => {
+    const itemsTotal = lines.reduce((s, l) => s + l.total, 0);
+    if (itemsTotal === 0 || totalLandingCosts === 0) return {} as Record<string, number>;
+    const alloc: Record<string, number> = {};
+    lines.forEach(l => {
+      if (!l.productId || l.totalQty <= 0) return;
+      const proportion = l.total / itemsTotal;
+      alloc[l.productId] = (totalLandingCosts * proportion) / l.totalQty;
+    });
+    return alloc;
+  }, [lines, totalLandingCosts]);
 
   const activeSuppliers = useMemo(() => suppliers.filter(s => s.isActive), [suppliers]);
 
