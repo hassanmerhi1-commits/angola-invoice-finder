@@ -13,6 +13,7 @@
 
 import { api } from '@/lib/api/client';
 import { OpenItem, DocumentLink } from '@/types/erp';
+import { updateCoABalancesFromJournal } from '@/lib/chartOfAccountsEngine';
 import { logTransaction, TransactionCategory, TransactionAction } from '@/lib/transactionHistory';
 
 // ==================== TYPES ====================
@@ -210,6 +211,14 @@ async function processTransactionLocal(request: TransactionRequest): Promise<Tra
       });
       localStorage.setItem(JE_KEY, JSON.stringify(entries));
       result.journalEntryId = entryId;
+
+      // Phase 2b: Update Chart of Accounts balances from journal lines
+      try {
+        await updateCoABalancesFromJournal(request.journalLines);
+        console.log(`[TransactionEngine] ✅ CoA balances updated for ${request.journalLines.length} lines`);
+      } catch (coaErr) {
+        console.error('[TransactionEngine] ⚠️ CoA balance update failed:', coaErr);
+      }
     }
 
     // Phase 3: Open Item (localStorage)
