@@ -1451,8 +1451,8 @@ export default function PurchaseInvoices() {
                         <TableCell className="font-mono">{order.orderNumber}</TableCell>
                         <TableCell>{order.supplierName}</TableCell>
                         <TableCell>{order.branchName}</TableCell>
-                        <TableCell>{format(new Date(order.createdAt), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell className="text-right font-medium font-mono">{order.total.toLocaleString('pt-AO')} Kz</TableCell>
+                        <TableCell>{order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy') : '—'}</TableCell>
+                        <TableCell className="text-right font-medium font-mono">{(order.total || 0).toLocaleString('pt-AO')} Kz</TableCell>
                         <TableCell>
                           <Badge variant={
                             order.status === 'received' ? 'default' :
@@ -1715,7 +1715,7 @@ export default function PurchaseInvoices() {
                   <div><span className="text-muted-foreground">Nº Encomenda:</span><p className="font-bold font-mono text-lg">{poViewOrder.orderNumber}</p></div>
                   <div><span className="text-muted-foreground">Fornecedor:</span><p className="font-medium">{poViewOrder.supplierName}</p></div>
                   <div><span className="text-muted-foreground">Filial:</span><p className="font-medium">{poViewOrder.branchName}</p></div>
-                  <div><span className="text-muted-foreground">Data:</span><p className="font-medium">{format(new Date(poViewOrder.createdAt), 'dd/MM/yyyy HH:mm', { locale: pt })}</p></div>
+                  <div><span className="text-muted-foreground">Data:</span><p className="font-medium">{poViewOrder.createdAt ? format(new Date(poViewOrder.createdAt), 'dd/MM/yyyy HH:mm', { locale: pt }) : '—'}</p></div>
                   {poViewOrder.expectedDeliveryDate && (
                     <div><span className="text-muted-foreground">Entrega Prevista:</span><p className="font-medium">{format(new Date(poViewOrder.expectedDeliveryDate), 'dd/MM/yyyy')}</p></div>
                   )}
