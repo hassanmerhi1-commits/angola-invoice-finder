@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils';
 import { useState } from 'react';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { Branch } from '@/types/erp';
@@ -76,7 +77,7 @@ export default function Branches() {
           // API unavailable - save to localStorage as fallback
           const { saveBranch } = await import('@/lib/storage');
           const newBranch: Branch = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: formData.name,
             code: formData.code || `FIL${Date.now().toString().slice(-4)}`,
             address: formData.address || '',

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { generateId } from '@/lib/utils';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useProducts, useSuppliers, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
@@ -803,7 +804,7 @@ export default function PurchaseInvoices() {
     let finalJournalLines = journalLines.length > 0 ? journalLines : [];
 
     const invoice: PurchaseInvoice = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       invoiceNumber: generatePurchaseInvoiceNumber(branchCode),
       supplierAccountCode: resolvedSupplierAccountCode,
       supplierName: matchedSupplier?.name || form.supplierName || '',

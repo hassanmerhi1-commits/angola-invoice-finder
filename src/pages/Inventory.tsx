@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useProducts } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
@@ -236,7 +237,7 @@ export default function Inventory() {
         let count = 0;
         for (const p of productsToImport) {
           const product = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             ...p,
             firstCost: p.cost,
             lastCost: p.cost,

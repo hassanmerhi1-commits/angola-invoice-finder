@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils';
 // Pro Forma hook for Kwanza ERP — API-First
 import { useState, useCallback, useEffect } from 'react';
 import { ProForma, ProFormaItem } from '@/types/proforma';
@@ -51,7 +52,7 @@ export function useProForma(branchId?: string) {
     validUntil.setDate(validUntil.getDate() + validDays);
 
     const proforma: ProForma = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       documentNumber: generateProFormaNumber(branchCode),
       branchId,
       branchName,
@@ -144,7 +145,7 @@ export function useProForma(branchId?: string) {
     }
     
     const sale: Sale = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       invoiceNumber,
       branchId: proforma.branchId,
       cashierId,
@@ -202,7 +203,7 @@ export function useProForma(branchId?: string) {
 
     const newProforma: ProForma = {
       ...original,
-      id: crypto.randomUUID(),
+      id: generateId(),
       documentNumber: generateProFormaNumber(branchCode),
       status: 'draft',
       validUntil: validUntil.toISOString(),

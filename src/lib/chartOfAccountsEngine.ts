@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils';
 /**
  * Chart of Accounts Engine
  * 
@@ -256,7 +257,7 @@ export async function ensureSupplierAccount(supplierId: string, supplierName: st
         const code = `3.2.${nextSeq.toString().padStart(3, '0')}`;
 
         const newAccount: Account = {
-          id: crypto.randomUUID(), // MUST be a valid UUID for the backend
+          id: generateId(), // MUST be a valid UUID for the backend
           code,
           name: supplierName.trim(),
           description: supplierNif ? `NIF: ${supplierNif}` : undefined,
@@ -311,7 +312,7 @@ export async function ensureSupplierAccount(supplierId: string, supplierName: st
 
   const now = new Date().toISOString();
   localAccounts.push({
-    id: crypto.randomUUID(),
+    id: generateId(),
     code,
     name: supplierName.trim(),
     description: supplierNif ? `NIF: ${supplierNif}` : undefined,
