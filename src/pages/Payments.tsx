@@ -378,7 +378,7 @@ export default function Payments() {
             {/* Entity Select */}
             <div>
               <Label>{entityLabel}</Label>
-              <Select value={entityId} onValueChange={setEntityId}>
+              <Select value={entityId} onValueChange={handleEntityChange}>
                 <SelectTrigger><SelectValue placeholder={`Seleccionar ${entityLabel.toLowerCase()}...`} /></SelectTrigger>
                 <SelectContent>
                   {entities.map(e => (
