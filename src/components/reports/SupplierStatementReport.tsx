@@ -216,6 +216,80 @@ export default function SupplierStatementReport() {
     exportToExcel(data, `ContaCorrente_${selectedSupplierData.name}_${format(new Date(), 'yyyyMMdd')}`);
   };
 
+  const handlePrint = () => {
+    if (!selectedSupplierData || statementEntries.length === 0) return;
+
+    const rows = statementEntries.map(entry => `
+      <tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #ddd;">${format(parseISO(entry.date.split('T')[0]), 'dd/MM/yyyy')}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #ddd;">${
+          entry.type === 'purchase' ? 'Compra' :
+          entry.type === 'payment' ? 'Pagamento' :
+          entry.type === 'credit_note' ? 'Nota Crédito' :
+          entry.type === 'debit_note' ? 'Nota Débito' : 'Adiantamento'
+        }</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #ddd;font-family:monospace;">${entry.reference}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #ddd;">${entry.description}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:right;">${entry.debit > 0 ? formatCurrency(entry.debit) : '-'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:right;">${entry.credit > 0 ? formatCurrency(entry.credit) : '-'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:right;font-weight:bold;">${formatCurrency(entry.balance)}</td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <html>
+      <head><title>Conta Corrente - ${selectedSupplierData.name}</title></head>
+      <body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
+        <h2 style="margin-bottom:4px;">Conta Corrente - Fornecedor</h2>
+        <p style="color:#666;margin-top:0;">Período: ${format(parseISO(dateFrom), 'dd/MM/yyyy')} a ${format(parseISO(dateTo), 'dd/MM/yyyy')}</p>
+        
+        <div style="background:#f5f5f5;padding:12px;border-radius:6px;margin:16px 0;">
+          <table style="width:100%;">
+            <tr>
+              <td><strong>Fornecedor:</strong> ${selectedSupplierData.name}</td>
+              <td><strong>NIF:</strong> ${selectedSupplierData.nif}</td>
+              <td><strong>Saldo Actual:</strong> ${formatCurrency(currentBalance)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#f0f0f0;">
+              <th style="padding:8px;text-align:left;border-bottom:2px solid #999;">Data</th>
+              <th style="padding:8px;text-align:left;border-bottom:2px solid #999;">Tipo</th>
+              <th style="padding:8px;text-align:left;border-bottom:2px solid #999;">Referência</th>
+              <th style="padding:8px;text-align:left;border-bottom:2px solid #999;">Descrição</th>
+              <th style="padding:8px;text-align:right;border-bottom:2px solid #999;">Débito</th>
+              <th style="padding:8px;text-align:right;border-bottom:2px solid #999;">Crédito</th>
+              <th style="padding:8px;text-align:right;border-bottom:2px solid #999;">Saldo</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+            <tr style="background:#f0f0f0;font-weight:bold;">
+              <td colspan="4" style="padding:8px;">TOTAIS</td>
+              <td style="padding:8px;text-align:right;">${formatCurrency(totals.debit)}</td>
+              <td style="padding:8px;text-align:right;">${formatCurrency(totals.credit)}</td>
+              <td style="padding:8px;text-align:right;">${formatCurrency(totals.credit - totals.debit)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:24px;font-size:11px;color:#999;">Impresso em ${format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      setTimeout(() => {
+        printWindow.print();
+      }, 300);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -301,11 +375,11 @@ export default function SupplierStatementReport() {
             <div className="flex justify-between items-center">
               <CardTitle>Movimentos</CardTitle>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleExport}>
+                <Button variant="outline" size="sm" onClick={handleExport} className="no-print">
                   <Download className="w-4 h-4 mr-2" />
                   Excel
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => window.print()}>
+                <Button variant="outline" size="sm" onClick={handlePrint} className="no-print">
                   <Printer className="w-4 h-4 mr-2" />
                   Imprimir
                 </Button>
