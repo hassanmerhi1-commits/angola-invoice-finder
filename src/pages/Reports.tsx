@@ -67,7 +67,7 @@ export default function Reports() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
+    <div className="flex-1 flex flex-col h-full overflow-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 pb-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
