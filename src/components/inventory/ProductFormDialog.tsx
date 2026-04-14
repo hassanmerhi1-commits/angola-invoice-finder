@@ -128,6 +128,8 @@ export function ProductFormDialog({
       return;
     }
 
+    const selectedSupplier = suppliers.find(s => s.id === formData.supplierId);
+    
     const savedProduct: Product = {
       id: product?.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: formData.name.trim(),
@@ -145,6 +147,8 @@ export function ProductFormDialog({
       unit: formData.unit,
       taxRate: formData.taxRate,
       branchId: formData.branchId,
+      supplierId: formData.supplierId || undefined,
+      supplierName: selectedSupplier?.name || undefined,
       isActive: formData.isActive,
       createdAt: product?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
