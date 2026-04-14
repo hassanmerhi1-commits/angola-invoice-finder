@@ -17,15 +17,23 @@ module.exports = function(broadcastTable) {
   router.get('/', async (req, res) => {
     try {
       const { branchId } = req.query;
-      let query = 'SELECT * FROM products WHERE is_active = true';
       const params = [];
-      
+      let query;
+
       if (branchId) {
-        query += ' AND (branch_id = $1 OR branch_id IS NULL)';
+        // Return branch-specific stock from stock_movements instead of global products.stock
+        query = `
+          SELECT p.*,
+            COALESCE(cs.current_stock, 0) AS stock
+          FROM products p
+          LEFT JOIN v_current_stock cs ON cs.product_id = p.id AND cs.warehouse_id = $1
+          WHERE p.is_active = true AND (p.branch_id = $1 OR p.branch_id IS NULL)
+          ORDER BY p.name`;
         params.push(branchId);
+      } else {
+        query = 'SELECT * FROM products WHERE is_active = true ORDER BY name';
       }
-      
-      query += ' ORDER BY name';
+
       const result = await db.query(query, params);
       res.json(result.rows);
     } catch (error) {
