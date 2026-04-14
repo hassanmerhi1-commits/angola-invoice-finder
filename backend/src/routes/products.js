@@ -68,7 +68,7 @@ module.exports = function(broadcastTable) {
   router.put('/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, version } = req.body;
+      const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, version, supplierId, supplierName } = req.body;
       
       let result;
       if (version != null) {
@@ -76,20 +76,21 @@ module.exports = function(broadcastTable) {
           `UPDATE products 
            SET name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
                stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
-               version = version + 1
+               version = version + 1, supplier_id = $14, supplier_name = $15
            WHERE id = $12 AND version = $13
            RETURNING *`,
-          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id, version]
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id, version, sanitizeUuid(supplierId), supplierName || null]
         );
         if (!checkOptimisticLock(result, res, 'Product')) return;
       } else {
         result = await db.query(
           `UPDATE products 
            SET name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
-               stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11
+               stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
+               supplier_id = $13, supplier_name = $14
            WHERE id = $12
            RETURNING *`,
-          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id]
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id, sanitizeUuid(supplierId), supplierName || null]
         );
         if (result.rowCount === 0) {
           return res.status(404).json({ error: 'Product not found' });
