@@ -645,6 +645,7 @@ export default function PurchaseInvoices() {
   const [poReceivedQtys, setPoReceivedQtys] = useState<Record<string, number>>({});
   const [poForm, setPoForm] = useState({ supplierId: '', branchId: currentBranch?.id || '', notes: '', expectedDeliveryDate: '', items: [] as { productId: string; quantity: number; unitCost: number }[] });
   const [poNewItem, setPoNewItem] = useState({ productId: '', quantity: 1, unitCost: 0 });
+  const [poProductPickerOpen, setPoProductPickerOpen] = useState(false);
 
   // Purchase orders
   const { orders, createOrder, approveOrder, receiveOrder, cancelOrder } = usePurchaseOrders();
