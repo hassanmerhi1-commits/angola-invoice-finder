@@ -2409,6 +2409,16 @@ export default function PurchaseInvoices() {
         onSelect={handleAddProduct}
         onCreateNew={() => setShowCreateProduct(true)}
       />
+      <ProductPickerDialog
+        open={poProductPickerOpen}
+        onClose={() => setPoProductPickerOpen(false)}
+        products={products}
+        onSelect={(p) => {
+          setPoNewItem(prev => ({ ...prev, productId: p.id, unitCost: p.cost || 0 }));
+          setPoProductPickerOpen(false);
+        }}
+        onCreateNew={() => setShowCreateProduct(true)}
+      />
       <AccountPickerDialog
         open={accountPickerOpen}
         onClose={() => setAccountPickerOpen(false)}
