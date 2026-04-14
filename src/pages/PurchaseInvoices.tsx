@@ -647,48 +647,6 @@ export default function PurchaseInvoices() {
     return alloc;
   }, [lines, totalLandingCosts]);
 
-  const postedJournalPreview = useMemo(() => buildPurchaseInvoiceJournalLines({
-    documentId: 'preview',
-    invoiceNumber: form.supplierInvoiceNo || form.ref || 'PRÉVIA',
-    currency: form.currency || 'KZ',
-    purchaseAccountCode: form.purchaseAccountCode || '2.1.1',
-    ivaAccountCode: form.ivaAccountCode || '3.3.1',
-    supplierAccountCode: form.supplierAccountCode || '',
-    supplierName: form.supplierName || 'Fornecedor',
-    subtotal: totals.subtotal,
-    ivaTotal: totals.ivaTotal,
-    supplierTotal: totals.total,
-    landingCosts: totalLandingCosts,
-    freightSourceAccount,
-    freightSourceName,
-    manualLines: journalLines,
-  }), [
-    form.currency,
-    form.ivaAccountCode,
-    form.purchaseAccountCode,
-    form.ref,
-    form.supplierAccountCode,
-    form.supplierInvoiceNo,
-    form.supplierName,
-    freightSourceAccount,
-    freightSourceName,
-    journalLines,
-    totals.ivaTotal,
-    totals.subtotal,
-    totals.total,
-    totalLandingCosts,
-  ]);
-
-  const postedJournalTotals = useMemo(() => {
-    const debit = postedJournalPreview.reduce((sum, line) => sum + (line.debit || 0), 0);
-    const credit = postedJournalPreview.reduce((sum, line) => sum + (line.credit || 0), 0);
-    return {
-      debit,
-      credit,
-      difference: debit - credit,
-    };
-  }, [postedJournalPreview]);
-
   const activeSuppliers = useMemo(() => suppliers.filter(s => s.isActive), [suppliers]);
 
   // Load invoices
@@ -820,6 +778,48 @@ export default function PurchaseInvoices() {
 
   // Totals
   const totals = useMemo(() => calculateInvoiceTotals(lines), [lines]);
+
+  const postedJournalPreview = useMemo(() => buildPurchaseInvoiceJournalLines({
+    documentId: 'preview',
+    invoiceNumber: form.supplierInvoiceNo || form.ref || 'PRÉVIA',
+    currency: form.currency || 'KZ',
+    purchaseAccountCode: form.purchaseAccountCode || '2.1.1',
+    ivaAccountCode: form.ivaAccountCode || '3.3.1',
+    supplierAccountCode: form.supplierAccountCode || '',
+    supplierName: form.supplierName || 'Fornecedor',
+    subtotal: totals.subtotal,
+    ivaTotal: totals.ivaTotal,
+    supplierTotal: totals.total,
+    landingCosts: totalLandingCosts,
+    freightSourceAccount,
+    freightSourceName,
+    manualLines: journalLines,
+  }), [
+    form.currency,
+    form.ivaAccountCode,
+    form.purchaseAccountCode,
+    form.ref,
+    form.supplierAccountCode,
+    form.supplierInvoiceNo,
+    form.supplierName,
+    freightSourceAccount,
+    freightSourceName,
+    journalLines,
+    totals.ivaTotal,
+    totals.subtotal,
+    totals.total,
+    totalLandingCosts,
+  ]);
+
+  const postedJournalTotals = useMemo(() => {
+    const debit = postedJournalPreview.reduce((sum, line) => sum + (line.debit || 0), 0);
+    const credit = postedJournalPreview.reduce((sum, line) => sum + (line.credit || 0), 0);
+    return {
+      debit,
+      credit,
+      difference: debit - credit,
+    };
+  }, [postedJournalPreview]);
 
   // Add journal line
   const addJournalLine = useCallback(() => {
