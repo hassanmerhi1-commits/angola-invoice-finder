@@ -608,7 +608,7 @@ export default function PurchaseInvoices() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // State
+   // State
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [mode, setMode] = useState<'list' | 'create'>('list');
   const [searchTerm, setSearchTerm] = useState('');
@@ -623,6 +623,11 @@ export default function PurchaseInvoices() {
   const [showCreateSupplier, setShowCreateSupplier] = useState(false);
   const [newSupplierForm, setNewSupplierForm] = useState({ name: '', nif: '', email: '', phone: '', address: '', city: '', country: 'Angola', contactPerson: '', notes: '' });
   const [saveError, setSaveError] = useState<string | null>(null);
+  // List mode state
+  const [listTab, setListTab] = useState<'faturas' | 'encomendas'>('faturas');
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   // Form state
   const [form, setForm] = useState<Partial<PurchaseInvoice>>({});
   const [lines, setLines] = useState<PurchaseInvoiceLine[]>([]);
@@ -633,6 +638,9 @@ export default function PurchaseInvoices() {
   const [freightSourceAccount, setFreightSourceAccount] = useState('4.1.1'); // default Caixa
   const [freightSourceName, setFreightSourceName] = useState('Caixa');
   const [freightPickerOpen, setFreightPickerOpen] = useState(false);
+
+  // Purchase orders
+  const { orders, createOrder, approveOrder, receiveOrder, cancelOrder } = usePurchaseOrders();
 
   const totalLandingCosts = freightCost + freightOtherCosts;
 
@@ -651,20 +659,103 @@ export default function PurchaseInvoices() {
 
   const activeSuppliers = useMemo(() => suppliers.filter(s => s.isActive), [suppliers]);
 
-  // Load invoices
+  // Load invoices — pull from BOTH purchase invoice storage AND document storage
   useEffect(() => {
-    getPurchaseInvoices(currentBranch?.id).then(setInvoices);
+    const loadAll = async () => {
+      // Primary: purchase invoice storage
+      const piInvoices = await getPurchaseInvoices(currentBranch?.id);
+      
+      // Fallback: also load from document storage (fatura_compra type)
+      const docInvoices = await getDocuments('fatura_compra', currentBranch?.id);
+      
+      // Merge: use PI storage as primary, fill gaps from doc storage
+      const piIds = new Set(piInvoices.map(i => i.id));
+      const docOnlyInvoices: PurchaseInvoice[] = docInvoices
+        .filter(d => !piIds.has(d.id))
+        .map(d => ({
+          id: d.id,
+          invoiceNumber: d.documentNumber,
+          supplierAccountCode: d.accountCode || '',
+          supplierName: d.entityName,
+          supplierNif: d.entityNif,
+          supplierPhone: d.entityPhone,
+          supplierBalance: 0,
+          supplierInvoiceNo: d.internalNotes?.replace('Nº Fatura Fornecedor: ', '') || '',
+          date: d.issueDate,
+          paymentDate: d.dueDate || d.issueDate,
+          currency: d.currency === 'AOA' ? 'KZ' : d.currency || 'KZ',
+          warehouseId: d.branchId,
+          warehouseName: d.branchName,
+          priceType: 'last_price' as const,
+          purchaseAccountCode: '2.1.1',
+          ivaAccountCode: '3.3.1',
+          transactionType: 'ALL',
+          currencyRate: 1,
+          taxRate2: 0,
+          surchargePercent: 0,
+          changePrice: false,
+          isPending: false,
+          lines: (d.lines || []).map(l => ({
+            id: l.id,
+            productId: l.productId || '',
+            productCode: l.productSku || '',
+            description: l.description,
+            quantity: l.quantity,
+            packaging: 1,
+            unitPrice: l.unitPrice,
+            discountPct: l.discount || 0,
+            discountPct2: 0,
+            totalQty: l.quantity,
+            total: l.lineTotal - (l.taxAmount || 0),
+            ivaRate: l.taxRate || 0,
+            ivaAmount: l.taxAmount || 0,
+            totalWithIva: l.lineTotal,
+            warehouseId: d.branchId,
+            warehouseName: d.branchName,
+            currentStock: 0,
+            unit: l.unit || 'UN',
+          })),
+          journalLines: [],
+          subtotal: d.subtotal,
+          ivaTotal: d.totalTax,
+          total: d.total,
+          status: d.status === 'cancelled' ? 'cancelled' as const : 'confirmed' as const,
+          branchId: d.branchId,
+          branchName: d.branchName,
+          createdBy: d.createdBy || '',
+          createdByName: d.createdByName || '',
+          createdAt: d.createdAt,
+          updatedAt: d.updatedAt,
+        }));
+      
+      setInvoices([...piInvoices, ...docOnlyInvoices]);
+    };
+    loadAll();
   }, [currentBranch?.id]);
 
-  // Filtered list
+  // Filtered list with date range and supplier filters
   const filtered = useMemo(() => {
-    if (!searchTerm) return invoices;
-    const q = searchTerm.toLowerCase();
-    return invoices.filter(i =>
-      i.invoiceNumber.toLowerCase().includes(q) ||
-      i.supplierName.toLowerCase().includes(q)
-    );
-  }, [invoices, searchTerm]);
+    let result = invoices;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      result = result.filter(i =>
+        i.invoiceNumber.toLowerCase().includes(q) ||
+        i.supplierName.toLowerCase().includes(q) ||
+        (i.supplierInvoiceNo && i.supplierInvoiceNo.toLowerCase().includes(q))
+      );
+    }
+    if (filterSupplier) {
+      const q = filterSupplier.toLowerCase();
+      result = result.filter(i => i.supplierName.toLowerCase().includes(q));
+    }
+    if (filterDateFrom) {
+      result = result.filter(i => i.date >= filterDateFrom);
+    }
+    if (filterDateTo) {
+      result = result.filter(i => i.date <= filterDateTo);
+    }
+    return result;
+  }, [invoices, searchTerm, filterSupplier, filterDateFrom, filterDateTo]);
 
   const filteredProducts = useMemo(() => {
     if (!searchTerm) return products.slice(0, 300);
