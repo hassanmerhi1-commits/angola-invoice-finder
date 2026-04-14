@@ -1464,8 +1464,11 @@ export default function PurchaseInvoices() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPoViewOrder(order)} title="Ver detalhes">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPoViewOrder(order)} title="Ver / Imprimir">
                               <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPoViewOrder(order)} title="Imprimir">
+                              <Printer className="h-4 w-4" />
                             </Button>
                             {order.status === 'pending' && (
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
