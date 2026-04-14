@@ -65,6 +65,7 @@ export function ProductFormDialog({
     unit: 'un',
     taxRate: 14,
     branchId: 'all',
+    supplierId: '',
     isActive: true,
   });
 
