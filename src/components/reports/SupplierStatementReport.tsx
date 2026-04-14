@@ -54,6 +54,7 @@ export default function SupplierStatementReport() {
         // 1) Try API (open_items + payments from DB)
         let apiEntries: Omit<StatementEntry, 'balance'>[] = [];
         let apiBalance = 0;
+        const seenRefs = new Set<string>(); // track references to prevent duplicates
 
         try {
           const res = await api.payments.statement('supplier', selectedSupplier, dateFrom, dateTo);
@@ -64,8 +65,12 @@ export default function SupplierStatementReport() {
 
             for (const oi of openItems) {
               const docType = oi.document_type as string;
+              const docNumber = oi.document_number || '';
               let type: StatementEntry['type'] = 'purchase';
               let description = '';
+
+              // Skip payment-type entries from open_items — they'll come from payments table
+              if (docType === 'payment' || docType === 'advance_payment') continue;
 
               if (docType === 'invoice' || docType === 'purchase_invoice') {
                 type = 'purchase';
@@ -83,25 +88,33 @@ export default function SupplierStatementReport() {
                 description = docType;
               }
 
+              const amount = parseFloat(oi.original_amount) || 0;
+              seenRefs.add(docNumber);
               apiEntries.push({
                 id: oi.id,
                 date: oi.document_date,
                 type,
-                reference: oi.document_number,
+                reference: docNumber,
                 description,
-                debit: !oi.is_debit ? oi.original_amount : 0,
-                credit: oi.is_debit ? oi.original_amount : 0,
+                debit: !oi.is_debit ? amount : 0,
+                credit: oi.is_debit ? amount : 0,
               });
             }
 
             for (const p of payments) {
+              const payRef = p.payment_number || '';
+              // Skip if we already have this reference from open_items
+              if (seenRefs.has(payRef)) continue;
+              seenRefs.add(payRef);
+
+              const amount = parseFloat(p.amount) || 0;
               apiEntries.push({
                 id: p.id,
                 date: p.created_at,
                 type: 'payment',
-                reference: p.payment_number,
+                reference: payRef,
                 description: `Pagamento - ${p.payment_method === 'cash' ? 'Numerário' : p.payment_method === 'transfer' ? 'Transferência' : p.payment_method === 'cheque' ? 'Cheque' : p.payment_method}`,
-                debit: p.amount,
+                debit: amount,
                 credit: 0,
               });
             }
