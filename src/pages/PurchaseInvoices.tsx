@@ -595,6 +595,10 @@ export default function PurchaseInvoices() {
     });
     setLines([]);
     setJournalLines([]);
+    setFreightCost(0);
+    setFreightOtherCosts(0);
+    setFreightSourceAccount('4.1.1');
+    setFreightSourceName('Caixa');
     setActiveTab('fatura');
     setMode('create');
   }, [currentBranch]);
