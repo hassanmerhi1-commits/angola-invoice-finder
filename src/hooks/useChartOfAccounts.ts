@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api/client';
 import { Account, AccountFormData, TrialBalanceRow, AccountType } from '@/types/accounting';
@@ -112,7 +113,7 @@ const saveLocalAccounts = (accounts: Account[]) => {
 
 const createLocalId = () =>
   (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-    ? crypto.randomUUID()
+    ? generateId()
     : `local-coa-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 export function useChartOfAccounts() {
