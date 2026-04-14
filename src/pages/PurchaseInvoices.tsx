@@ -1322,8 +1322,8 @@ export default function PurchaseInvoices() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Todos</SelectItem>
-                    {[...new Set(invoices.map(i => i.supplierName))].sort().map(name => (
-                      <SelectItem key={name} value={name.toLowerCase()}>{name}</SelectItem>
+                    {[...new Set(invoices.map(i => i.supplierName).filter(Boolean))].sort().map(name => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1596,7 +1596,7 @@ export default function PurchaseInvoices() {
                     }}>
                       <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {branches.map(b => (
+                        {branches.filter(b => b.id).map(b => (
                           <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                         ))}
                       </SelectContent>
