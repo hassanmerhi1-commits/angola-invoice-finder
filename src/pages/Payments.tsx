@@ -99,7 +99,7 @@ export default function Payments() {
   const { currentBranch } = useBranchContext();
   const { clients } = useClients();
   const { suppliers } = useSuppliers();
-  const { payments, openItems, refresh, createPayment } = usePaymentsData();
+  const { payments, openItems, loading, refresh, createPayment, loadOpenItems } = usePaymentsData();
 
   const [activeTab, setActiveTab] = useState<'receipts' | 'payments' | 'open-items'>('receipts');
   const [searchTerm, setSearchTerm] = useState('');
