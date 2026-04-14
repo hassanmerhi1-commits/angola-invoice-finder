@@ -11,17 +11,21 @@ export function AppLayout() {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <TopNav
-        user={user}
-        branches={branches}
-        currentBranch={currentBranch}
-        onBranchChange={setCurrentBranch}
-        onLogout={logout}
-      />
+      <div data-topnav>
+        <TopNav
+          user={user}
+          branches={branches}
+          currentBranch={currentBranch}
+          onBranchChange={setCurrentBranch}
+          onLogout={logout}
+        />
+      </div>
       <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
-      <StatusBar />
+      <div data-statusbar>
+        <StatusBar />
+      </div>
     </div>
   );
 }
