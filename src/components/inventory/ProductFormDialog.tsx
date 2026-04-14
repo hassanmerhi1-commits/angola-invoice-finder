@@ -240,6 +240,26 @@ export function ProductFormDialog({
               </div>
 
               <div>
+                <Label htmlFor="supplier">Fornecedor</Label>
+                <Select
+                  value={formData.supplierId || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, supplierId: value === 'none' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar fornecedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {suppliers.map((supplier) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
                 <Label htmlFor="unit">Unidade</Label>
                 <Select
                   value={formData.unit}
