@@ -638,6 +638,13 @@ export default function PurchaseInvoices() {
   const [freightSourceAccount, setFreightSourceAccount] = useState('4.1.1'); // default Caixa
   const [freightSourceName, setFreightSourceName] = useState('Caixa');
   const [freightPickerOpen, setFreightPickerOpen] = useState(false);
+  // PO inline state
+  const [poCreateOpen, setPoCreateOpen] = useState(false);
+  const [poViewOrder, setPoViewOrder] = useState<any | null>(null);
+  const [poReceiveOrder, setPoReceiveOrder] = useState<any | null>(null);
+  const [poReceivedQtys, setPoReceivedQtys] = useState<Record<string, number>>({});
+  const [poForm, setPoForm] = useState({ supplierId: '', branchId: currentBranch?.id || '', notes: '', expectedDeliveryDate: '', items: [] as { productId: string; quantity: number; unitCost: number }[] });
+  const [poNewItem, setPoNewItem] = useState({ productId: '', quantity: 1, unitCost: 0 });
 
   // Purchase orders
   const { orders, createOrder, approveOrder, receiveOrder, cancelOrder } = usePurchaseOrders();
