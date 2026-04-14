@@ -1464,8 +1464,11 @@ export default function PurchaseInvoices() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPoViewOrder(order)} title="Ver detalhes">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPoViewOrder(order)} title="Ver / Imprimir">
                               <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPoViewOrder(order)} title="Imprimir">
+                              <Printer className="h-4 w-4" />
                             </Button>
                             {order.status === 'pending' && (
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
@@ -1662,37 +1665,98 @@ export default function PurchaseInvoices() {
         <Dialog open={!!poViewOrder} onOpenChange={() => setPoViewOrder(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Detalhes da Encomenda {poViewOrder?.orderNumber}</DialogTitle>
+              <DialogTitle>Encomenda {poViewOrder?.orderNumber}</DialogTitle>
             </DialogHeader>
             {poViewOrder && (
-              <div className="space-y-4">
+              <div className="space-y-4" id="po-print-area">
                 <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><span className="text-muted-foreground">Nº Encomenda:</span><p className="font-bold font-mono text-lg">{poViewOrder.orderNumber}</p></div>
                   <div><span className="text-muted-foreground">Fornecedor:</span><p className="font-medium">{poViewOrder.supplierName}</p></div>
                   <div><span className="text-muted-foreground">Filial:</span><p className="font-medium">{poViewOrder.branchName}</p></div>
                   <div><span className="text-muted-foreground">Data:</span><p className="font-medium">{format(new Date(poViewOrder.createdAt), 'dd/MM/yyyy HH:mm', { locale: pt })}</p></div>
+                  {poViewOrder.expectedDeliveryDate && (
+                    <div><span className="text-muted-foreground">Entrega Prevista:</span><p className="font-medium">{format(new Date(poViewOrder.expectedDeliveryDate), 'dd/MM/yyyy')}</p></div>
+                  )}
                   <div><span className="text-muted-foreground">Estado:</span>
                     <Badge variant="outline" className="ml-2">
-                      {poViewOrder.status === 'draft' ? 'Rascunho' : poViewOrder.status === 'pending' ? 'Pendente' : poViewOrder.status === 'approved' ? 'Aprovado' : poViewOrder.status === 'received' ? 'Recebido' : 'Cancelado'}
+                      {poViewOrder.status === 'draft' ? 'Rascunho' : poViewOrder.status === 'pending' ? 'Pendente' : poViewOrder.status === 'approved' ? 'Aprovado' : poViewOrder.status === 'received' ? 'Recebido' : poViewOrder.status === 'awaiting_approval' ? 'Aguarda Aprovação' : 'Cancelado'}
                     </Badge>
                   </div>
+                  {poViewOrder.notes && (
+                    <div className="col-span-2"><span className="text-muted-foreground">Observações:</span><p className="font-medium">{poViewOrder.notes}</p></div>
+                  )}
                 </div>
                 <Table>
-                  <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead className="text-right">Qtd</TableHead><TableHead className="text-right">Custo</TableHead><TableHead className="text-right">Subtotal</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>#</TableHead><TableHead>Produto</TableHead><TableHead className="text-right">Qtd</TableHead><TableHead className="text-right">Custo Unit.</TableHead><TableHead className="text-right">Subtotal</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {poViewOrder.items.map((item: any) => (
-                      <TableRow key={item.productId}>
-                        <TableCell><p className="font-medium">{item.productName}</p><p className="text-xs text-muted-foreground">{item.sku}</p></TableCell>
+                    {poViewOrder.items.map((item: any, idx: number) => (
+                      <TableRow key={item.productId || idx}>
+                        <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                        <TableCell><p className="font-medium">{item.productName || item.product_name}</p><p className="text-xs text-muted-foreground">{item.sku}</p></TableCell>
                         <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">{item.unitCost.toLocaleString('pt-AO')} Kz</TableCell>
-                        <TableCell className="text-right">{item.subtotal.toLocaleString('pt-AO')} Kz</TableCell>
+                        <TableCell className="text-right">{(item.unitCost || item.unit_cost || 0).toLocaleString('pt-AO')} Kz</TableCell>
+                        <TableCell className="text-right">{(item.subtotal || 0).toLocaleString('pt-AO')} Kz</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-                <div className="text-right font-bold text-lg">Total: {poViewOrder.total.toLocaleString('pt-AO')} Kz</div>
+                <div className="border-t pt-2 space-y-1 text-sm text-right">
+                  <p>Subtotal: <span className="font-mono font-medium">{(poViewOrder.subtotal || 0).toLocaleString('pt-AO')} Kz</span></p>
+                  <p>IVA: <span className="font-mono font-medium">{(poViewOrder.taxAmount || poViewOrder.tax_amount || 0).toLocaleString('pt-AO')} Kz</span></p>
+                  <p className="text-lg font-bold">Total: {(poViewOrder.total || 0).toLocaleString('pt-AO')} Kz</p>
+                </div>
               </div>
             )}
-            <DialogFooter><Button variant="outline" onClick={() => setPoViewOrder(null)}>Fechar</Button></DialogFooter>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" className="gap-1" onClick={() => {
+                const area = document.getElementById('po-print-area');
+                if (!area) return;
+                const printWindow = window.open('', '_blank', 'width=800,height=600');
+                if (!printWindow) return;
+                printWindow.document.write(`<!DOCTYPE html><html><head><title>Encomenda ${poViewOrder?.orderNumber}</title><style>
+                  body { font-family: Arial, sans-serif; padding: 30px; color: #111; }
+                  h1 { font-size: 22px; margin-bottom: 5px; }
+                  h2 { font-size: 14px; color: #666; margin-bottom: 20px; }
+                  .info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; font-size: 13px; }
+                  .info .label { color: #888; }
+                  .info .value { font-weight: 600; }
+                  table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+                  th { background: #f5f5f5; font-weight: 600; }
+                  .right { text-align: right; }
+                  .totals { text-align: right; font-size: 13px; margin-top: 10px; }
+                  .totals .grand { font-size: 16px; font-weight: bold; }
+                  @media print { body { padding: 10px; } }
+                </style></head><body>
+                  <h1>Ordem de Compra</h1>
+                  <h2>${poViewOrder?.orderNumber}</h2>
+                  <div class="info">
+                    <div><span class="label">Fornecedor:</span><br/><span class="value">${poViewOrder?.supplierName}</span></div>
+                    <div><span class="label">Filial:</span><br/><span class="value">${poViewOrder?.branchName}</span></div>
+                    <div><span class="label">Data:</span><br/><span class="value">${poViewOrder ? format(new Date(poViewOrder.createdAt), 'dd/MM/yyyy HH:mm') : ''}</span></div>
+                    <div><span class="label">Estado:</span><br/><span class="value">${poViewOrder?.status === 'pending' ? 'Pendente' : poViewOrder?.status === 'approved' ? 'Aprovado' : poViewOrder?.status === 'received' ? 'Recebido' : poViewOrder?.status}</span></div>
+                    ${poViewOrder?.expectedDeliveryDate ? `<div><span class="label">Entrega Prevista:</span><br/><span class="value">${format(new Date(poViewOrder.expectedDeliveryDate), 'dd/MM/yyyy')}</span></div>` : ''}
+                    ${poViewOrder?.notes ? `<div class="col-span-2"><span class="label">Observações:</span><br/><span class="value">${poViewOrder.notes}</span></div>` : ''}
+                  </div>
+                  <table>
+                    <thead><tr><th>#</th><th>Produto</th><th>SKU</th><th class="right">Qtd</th><th class="right">Custo Unit.</th><th class="right">Subtotal</th></tr></thead>
+                    <tbody>${(poViewOrder?.items || []).map((item: any, i: number) => 
+                      `<tr><td>${i+1}</td><td>${item.productName || item.product_name || ''}</td><td>${item.sku || ''}</td><td class="right">${item.quantity}</td><td class="right">${(item.unitCost || item.unit_cost || 0).toLocaleString('pt-AO')} Kz</td><td class="right">${(item.subtotal || 0).toLocaleString('pt-AO')} Kz</td></tr>`
+                    ).join('')}</tbody>
+                  </table>
+                  <div class="totals">
+                    <p>Subtotal: ${(poViewOrder?.subtotal || 0).toLocaleString('pt-AO')} Kz</p>
+                    <p>IVA: ${(poViewOrder?.taxAmount || poViewOrder?.tax_amount || 0).toLocaleString('pt-AO')} Kz</p>
+                    <p class="grand">Total: ${(poViewOrder?.total || 0).toLocaleString('pt-AO')} Kz</p>
+                  </div>
+                </body></html>`);
+                printWindow.document.close();
+                setTimeout(() => { printWindow.print(); }, 300);
+              }}>
+                <Printer className="h-4 w-4" /> Imprimir
+              </Button>
+              <Button variant="outline" onClick={() => setPoViewOrder(null)}>Fechar</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
