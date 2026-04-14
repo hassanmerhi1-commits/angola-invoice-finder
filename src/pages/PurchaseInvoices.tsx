@@ -1451,8 +1451,8 @@ export default function PurchaseInvoices() {
                         <TableCell className="font-mono">{order.orderNumber}</TableCell>
                         <TableCell>{order.supplierName}</TableCell>
                         <TableCell>{order.branchName}</TableCell>
-                        <TableCell>{format(new Date(order.createdAt), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell className="text-right font-medium font-mono">{order.total.toLocaleString('pt-AO')} Kz</TableCell>
+                        <TableCell>{order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy') : '—'}</TableCell>
+                        <TableCell className="text-right font-medium font-mono">{(order.total || 0).toLocaleString('pt-AO')} Kz</TableCell>
                         <TableCell>
                           <Badge variant={
                             order.status === 'received' ? 'default' :
