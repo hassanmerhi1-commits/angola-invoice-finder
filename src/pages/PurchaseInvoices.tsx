@@ -1596,7 +1596,7 @@ export default function PurchaseInvoices() {
                     }}>
                       <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {branches.map(b => (
+                        {branches.filter(b => b.id).map(b => (
                           <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                         ))}
                       </SelectContent>
