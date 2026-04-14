@@ -830,7 +830,7 @@ export const api = {
             ipcQuery<any>(`SELECT * FROM v_entity_balance WHERE entity_type = $1 AND entity_id = $2`, [entityType, entityId]),
           ]);
 
-          return { data: { openItems: oiRes.data || [], payments: pRes.data || [], balance: balRes.data?.[0] || { balance: 0 } } };
+          return { data: { openItems: oiRes.data || [], payments: pRes.data || [], balance: balRes.data?.[0] || { balance: 0 } } } as ApiResponse<any>;
         })();
       }
       const sp = new URLSearchParams();
