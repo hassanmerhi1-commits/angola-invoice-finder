@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Product } from '@/types/erp';
-import { useBranches, useCategories } from '@/hooks/useERP';
+import { useBranches, useCategories, useSuppliers } from '@/hooks/useERP';
 import {
   Dialog,
   DialogContent,
@@ -47,6 +47,7 @@ export function ProductFormDialog({
 }: ProductFormDialogProps) {
   const { branches } = useBranches();
   const { categories } = useCategories();
+  const { suppliers } = useSuppliers();
   const { toast } = useToast();
   
   const activeCategories = categories.filter(c => c.isActive);
@@ -64,6 +65,7 @@ export function ProductFormDialog({
     unit: 'un',
     taxRate: 14,
     branchId: 'all',
+    supplierId: '',
     isActive: true,
   });
 
@@ -82,6 +84,7 @@ export function ProductFormDialog({
         unit: product.unit,
         taxRate: product.taxRate,
         branchId: product.branchId,
+        supplierId: product.supplierId || '',
         isActive: product.isActive,
       });
     } else {
@@ -98,6 +101,7 @@ export function ProductFormDialog({
         unit: 'un',
         taxRate: 14,
         branchId: 'all',
+        supplierId: '',
         isActive: true,
       });
     }
@@ -124,6 +128,8 @@ export function ProductFormDialog({
       return;
     }
 
+    const selectedSupplier = suppliers.find(s => s.id === formData.supplierId);
+    
     const savedProduct: Product = {
       id: product?.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: formData.name.trim(),
@@ -141,6 +147,8 @@ export function ProductFormDialog({
       unit: formData.unit,
       taxRate: formData.taxRate,
       branchId: formData.branchId,
+      supplierId: formData.supplierId || undefined,
+      supplierName: selectedSupplier?.name || undefined,
       isActive: formData.isActive,
       createdAt: product?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -225,6 +233,26 @@ export function ProductFormDialog({
                           />
                           {cat.name}
                         </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="supplier">Fornecedor</Label>
+                <Select
+                  value={formData.supplierId || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, supplierId: value === 'none' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar fornecedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {suppliers.map((supplier) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        {supplier.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
