@@ -1336,8 +1336,8 @@ export default function PurchaseInvoices() {
                 <Label className="text-xs text-muted-foreground">Até</Label>
                 <Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="h-9 w-36" />
               </div>
-              {(filterSupplier || filterDateFrom || filterDateTo) && (
-                <Button variant="ghost" size="sm" onClick={() => { setFilterSupplier(''); setFilterDateFrom(''); setFilterDateTo(''); }}>
+              {(filterSupplier && filterSupplier !== '__all__' || filterDateFrom || filterDateTo) && (
+                <Button variant="ghost" size="sm" onClick={() => { setFilterSupplier('__all__'); setFilterDateFrom(''); setFilterDateTo(''); }}>
                   <X className="h-4 w-4 mr-1" /> Limpar
                 </Button>
               )}
