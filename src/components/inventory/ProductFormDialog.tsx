@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Product } from '@/types/erp';
 import { useBranches, useCategories, useSuppliers } from '@/hooks/useERP';
 import {
@@ -39,6 +39,22 @@ const UNITS = [
   { value: 'pct', label: 'Pacote' },
 ];
 
+function resolveCategoryName(rawCategory: string | undefined, categories: Array<{ name: string }>) {
+  const cleaned = String(rawCategory || '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return categories[0]?.name || '';
+
+  const exactMatch = categories.find((category) => category.name.toLowerCase() === cleaned.toLowerCase());
+  if (exactMatch) return exactMatch.name;
+
+  const compact = cleaned.toLowerCase().replace(/\s+/g, '');
+  const repeatedMatch = categories.find((category) => {
+    const token = category.name.toLowerCase().replace(/\s+/g, '');
+    return token && compact.includes(token) && compact.replace(new RegExp(token, 'g'), '') === '';
+  });
+
+  return repeatedMatch?.name || cleaned;
+}
+
 export function ProductFormDialog({
   open,
   onOpenChange,
@@ -50,7 +66,7 @@ export function ProductFormDialog({
   const { suppliers } = useSuppliers();
   const { toast } = useToast();
   
-  const activeCategories = categories.filter(c => c.isActive);
+  const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -75,7 +91,7 @@ export function ProductFormDialog({
         name: product.name,
         sku: product.sku,
         barcode: product.barcode || '',
-        category: product.category,
+        category: resolveCategoryName(product.category, activeCategories),
         price: product.price,
         cost: product.cost,
         stock: product.stock,
@@ -92,7 +108,7 @@ export function ProductFormDialog({
         name: '',
         sku: '',
         barcode: '',
-        category: 'Alimentação',
+        category: activeCategories[0]?.name || 'Alimentação',
         price: 0,
         cost: 0,
         stock: 0,
@@ -105,7 +121,7 @@ export function ProductFormDialog({
         isActive: true,
       });
     }
-  }, [product, open]);
+  }, [product, open, activeCategories]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,7 +151,7 @@ export function ProductFormDialog({
       name: formData.name.trim(),
       sku: formData.sku.trim().toUpperCase(),
       barcode: formData.barcode.trim() || undefined,
-      category: formData.category,
+      category: resolveCategoryName(formData.category, activeCategories),
       price: formData.price,
       cost: formData.cost,
       firstCost: product?.firstCost || formData.cost,
@@ -217,7 +233,7 @@ export function ProductFormDialog({
               <div>
                 <Label htmlFor="category">Categoria</Label>
                 <Select
-                  value={formData.category}
+                  value={resolveCategoryName(formData.category, activeCategories)}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
                 >
                   <SelectTrigger>

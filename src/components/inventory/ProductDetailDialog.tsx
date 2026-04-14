@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Product } from '@/types/erp';
 import { useBranches, useCategories, useSuppliers } from '@/hooks/useERP';
 import {
@@ -41,6 +41,22 @@ const UNITS = [
 
 const IVA_RATES = [0, 5, 7, 14];
 
+function resolveCategoryName(rawCategory: string | undefined, categories: Array<{ name: string }>) {
+  const cleaned = String(rawCategory || '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return categories[0]?.name || '';
+
+  const exactMatch = categories.find((category) => category.name.toLowerCase() === cleaned.toLowerCase());
+  if (exactMatch) return exactMatch.name;
+
+  const compact = cleaned.toLowerCase().replace(/\s+/g, '');
+  const repeatedMatch = categories.find((category) => {
+    const token = category.name.toLowerCase().replace(/\s+/g, '');
+    return token && compact.includes(token) && compact.replace(new RegExp(token, 'g'), '') === '';
+  });
+
+  return repeatedMatch?.name || cleaned;
+}
+
 // Simple row component for the form grid
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -71,8 +87,8 @@ export function ProductDetailDialog({
   const { categories } = useCategories();
   const { suppliers } = useSuppliers();
 
-  const activeCategories = categories.filter(c => c.isActive);
-  const activeSuppliers = suppliers.filter(s => s.isActive);
+  const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
+  const activeSuppliers = useMemo(() => suppliers.filter(s => s.isActive), [suppliers]);
 
   const [formData, setFormData] = useState({
     id: '',
@@ -113,7 +129,7 @@ export function ProductDetailDialog({
         id: product.id,
         sku: product.sku,
         name: product.name,
-        category: product.category,
+        category: resolveCategoryName(product.category, activeCategories),
         unit: product.unit,
         iva: product.taxRate,
         tipo: 'INVENTARIO',
@@ -165,7 +181,7 @@ export function ProductDetailDialog({
         barcodes: [{ barPrice: '', embalagem: 1, priceLC: 0, plu: '', ultimoCusto: 0 }],
       });
     }
-  }, [product, open]);
+  }, [product, open, activeCategories]);
 
   const set = (field: string, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
 
@@ -195,7 +211,7 @@ export function ProductDetailDialog({
       name: formData.name,
       sku: formData.sku || `SKU-${Date.now()}`,
       barcode: formData.barcode || formData.barcodes[0]?.barPrice || undefined,
-      category: formData.category,
+      category: resolveCategoryName(formData.category, activeCategories),
       price: formData.price,
       price2: formData.price2 || undefined,
       price3: formData.price3 || undefined,
@@ -241,7 +257,7 @@ export function ProductDetailDialog({
                   <Input value={formData.name} onChange={e => set('name', e.target.value)} className="h-7 text-xs" />
                 </Row>
                 <Row label="Categoria">
-                  <Select value={formData.category} onValueChange={v => set('category', v)}>
+                  <Select value={resolveCategoryName(formData.category, activeCategories)} onValueChange={v => set('category', v)}>
                     <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-popover border shadow-lg z-50">
                       {activeCategories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
