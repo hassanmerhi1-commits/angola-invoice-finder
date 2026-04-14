@@ -929,13 +929,15 @@ export default function PurchaseInvoices() {
 
         // Phase 3: Journal entries
         journalLines: [
-          // Debit: Purchase account
+          // Debit: Purchase account (includes freight in cost)
           ...(invoice.subtotal > 0 ? [{
             accountCode: invoice.purchaseAccountCode || '2.1',
             accountName: 'Compra de Mercadorias',
-            debit: invoice.subtotal,
+            debit: invoice.subtotal + totalLandingCosts,
             credit: 0,
-            note: `FC ${invoice.invoiceNumber}`,
+            note: totalLandingCosts > 0
+              ? `FC ${invoice.invoiceNumber} (incl. frete ${totalLandingCosts.toLocaleString('pt-AO')} Kz)`
+              : `FC ${invoice.invoiceNumber}`,
           }] : []),
           // Debit: IVA
           ...(invoice.ivaTotal > 0 ? [{
@@ -945,7 +947,7 @@ export default function PurchaseInvoices() {
             credit: 0,
             note: `IVA - FC ${invoice.invoiceNumber}`,
           }] : []),
-          // Credit: Supplier
+          // Credit: Supplier (original invoice amount without freight)
           {
             accountCode: invoice.supplierAccountCode,
             accountName: invoice.supplierName,
@@ -953,6 +955,14 @@ export default function PurchaseInvoices() {
             credit: invoice.total,
             note: `FC ${invoice.invoiceNumber}`,
           },
+          // Credit: Freight source account (Caixa/Bank) — only if freight > 0
+          ...(totalLandingCosts > 0 ? [{
+            accountCode: freightSourceAccount,
+            accountName: freightSourceName,
+            debit: 0,
+            credit: totalLandingCosts,
+            note: `Frete/Transporte - FC ${invoice.invoiceNumber}`,
+          }] : []),
           // Add manual journal lines
           ...finalJournalLines.map(jl => ({
             accountCode: jl.accountCode,
