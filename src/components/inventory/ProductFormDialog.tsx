@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Product } from '@/types/erp';
-import { useBranches, useCategories } from '@/hooks/useERP';
+import { useBranches, useCategories, useSuppliers } from '@/hooks/useERP';
 import {
   Dialog,
   DialogContent,
@@ -47,6 +47,7 @@ export function ProductFormDialog({
 }: ProductFormDialogProps) {
   const { branches } = useBranches();
   const { categories } = useCategories();
+  const { suppliers } = useSuppliers();
   const { toast } = useToast();
   
   const activeCategories = categories.filter(c => c.isActive);
