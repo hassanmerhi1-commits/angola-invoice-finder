@@ -524,6 +524,27 @@ export default function PurchaseInvoices() {
   const [form, setForm] = useState<Partial<PurchaseInvoice>>({});
   const [lines, setLines] = useState<PurchaseInvoiceLine[]>([]);
   const [journalLines, setJournalLines] = useState<PurchaseInvoiceJournalLine[]>([]);
+  // Freight / Transport cost
+  const [freightCost, setFreightCost] = useState(0);
+  const [freightOtherCosts, setFreightOtherCosts] = useState(0);
+  const [freightSourceAccount, setFreightSourceAccount] = useState('4.1.1'); // default Caixa
+  const [freightSourceName, setFreightSourceName] = useState('Caixa');
+  const [freightPickerOpen, setFreightPickerOpen] = useState(false);
+
+  const totalLandingCosts = freightCost + freightOtherCosts;
+
+  // Freight allocation per product (proportional to value)
+  const freightAllocations = useMemo(() => {
+    const itemsTotal = lines.reduce((s, l) => s + l.total, 0);
+    if (itemsTotal === 0 || totalLandingCosts === 0) return {} as Record<string, number>;
+    const alloc: Record<string, number> = {};
+    lines.forEach(l => {
+      if (!l.productId || l.totalQty <= 0) return;
+      const proportion = l.total / itemsTotal;
+      alloc[l.productId] = (totalLandingCosts * proportion) / l.totalQty;
+    });
+    return alloc;
+  }, [lines, totalLandingCosts]);
 
   const activeSuppliers = useMemo(() => suppliers.filter(s => s.isActive), [suppliers]);
 
@@ -574,6 +595,10 @@ export default function PurchaseInvoices() {
     });
     setLines([]);
     setJournalLines([]);
+    setFreightCost(0);
+    setFreightOtherCosts(0);
+    setFreightSourceAccount('4.1.1');
+    setFreightSourceName('Caixa');
     setActiveTab('fatura');
     setMode('create');
   }, [currentBranch]);
@@ -686,13 +711,17 @@ export default function PurchaseInvoices() {
   }, []);
 
   const handleAccountSelect = useCallback((code: string, name: string) => {
-    if (accountPickerTarget === 'journal' && editingJournalIdx !== null) {
+    if (freightPickerOpen) {
+      setFreightSourceAccount(code);
+      setFreightSourceName(name);
+      setFreightPickerOpen(false);
+    } else if (accountPickerTarget === 'journal' && editingJournalIdx !== null) {
       updateJournalLine(editingJournalIdx, 'accountCode', code);
       updateJournalLine(editingJournalIdx, 'accountName', name);
     }
     setAccountPickerTarget(null);
     setEditingJournalIdx(null);
-  }, [accountPickerTarget, editingJournalIdx, updateJournalLine]);
+  }, [accountPickerTarget, editingJournalIdx, updateJournalLine, freightPickerOpen]);
 
   // ─────── SAVE (all phases) ───────
   const handleSave = useCallback(async () => {
@@ -890,13 +919,13 @@ export default function PurchaseInvoices() {
             warehouseId: l.warehouseId || invoice.warehouseId, // BRANCH-SCOPED
           })),
 
-        // Phase 2: Price updates (WAC)
+        // Phase 2: Price updates (WAC) — includes freight allocation
         priceUpdates: invoice.changePrice
           ? invoice.lines
               .filter(l => l.productId && l.totalQty > 0)
               .map(l => ({
                 productId: l.productId,
-                newUnitCost: l.unitPrice,
+                newUnitCost: l.unitPrice + (freightAllocations[l.productId] || 0),
                 quantityReceived: l.totalQty,
                 updateAvgCost: true,
               }))
@@ -904,13 +933,15 @@ export default function PurchaseInvoices() {
 
         // Phase 3: Journal entries
         journalLines: [
-          // Debit: Purchase account
+          // Debit: Purchase account (includes freight in cost)
           ...(invoice.subtotal > 0 ? [{
             accountCode: invoice.purchaseAccountCode || '2.1',
             accountName: 'Compra de Mercadorias',
-            debit: invoice.subtotal,
+            debit: invoice.subtotal + totalLandingCosts,
             credit: 0,
-            note: `FC ${invoice.invoiceNumber}`,
+            note: totalLandingCosts > 0
+              ? `FC ${invoice.invoiceNumber} (incl. frete ${totalLandingCosts.toLocaleString('pt-AO')} Kz)`
+              : `FC ${invoice.invoiceNumber}`,
           }] : []),
           // Debit: IVA
           ...(invoice.ivaTotal > 0 ? [{
@@ -920,7 +951,7 @@ export default function PurchaseInvoices() {
             credit: 0,
             note: `IVA - FC ${invoice.invoiceNumber}`,
           }] : []),
-          // Credit: Supplier
+          // Credit: Supplier (original invoice amount without freight)
           {
             accountCode: invoice.supplierAccountCode,
             accountName: invoice.supplierName,
@@ -928,6 +959,14 @@ export default function PurchaseInvoices() {
             credit: invoice.total,
             note: `FC ${invoice.invoiceNumber}`,
           },
+          // Credit: Freight source account (Caixa/Bank) — only if freight > 0
+          ...(totalLandingCosts > 0 ? [{
+            accountCode: freightSourceAccount,
+            accountName: freightSourceName,
+            debit: 0,
+            credit: totalLandingCosts,
+            note: `Frete/Transporte - FC ${invoice.invoiceNumber}`,
+          }] : []),
           // Add manual journal lines
           ...finalJournalLines.map(jl => ({
             accountCode: jl.accountCode,
@@ -1405,21 +1444,104 @@ export default function PurchaseInvoices() {
             </CardContent>
           </Card>
 
+          {/* 🚚 Freight / Transport Costs */}
+          <Card className="border-amber-200 dark:border-amber-900">
+            <CardContent className="p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">🚚 Frete e Despesas de Transporte</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div>
+                  <Label className="text-xs">Frete (Transporte)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={freightCost || ''}
+                    onChange={e => setFreightCost(parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Outras Despesas</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={freightOtherCosts || ''}
+                    onChange={e => setFreightOtherCosts(parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Conta de Saída (Crédito)</Label>
+                  <div className="flex gap-1">
+                    <Input
+                      value={freightSourceAccount}
+                      onChange={e => setFreightSourceAccount(e.target.value)}
+                      className="h-8 text-xs font-mono flex-1"
+                      placeholder="4.1.1"
+                    />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
+                      setAccountPickerTarget('freight' as any);
+                      setFreightPickerOpen(true);
+                      setAccountPickerOpen(true);
+                    }}>
+                      <Search className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{freightSourceName}</p>
+                </div>
+                <div>
+                  <Label className="text-xs">Total Custos Adicionais</Label>
+                  <div className="h-8 flex items-center text-sm font-bold font-mono text-amber-700 dark:text-amber-400">
+                    {totalLandingCosts.toLocaleString('pt-AO')} Kz
+                  </div>
+                </div>
+              </div>
+
+              {/* Freight allocation preview */}
+              {totalLandingCosts > 0 && lines.length > 0 && (
+                <div className="border rounded p-2 bg-muted/30 space-y-1">
+                  <p className="text-[10px] font-medium text-muted-foreground">Distribuição proporcional do frete por produto:</p>
+                  {lines.filter(l => l.productId && l.totalQty > 0).map(l => {
+                    const perUnit = freightAllocations[l.productId] || 0;
+                    const effectiveCost = l.unitPrice + perUnit;
+                    return (
+                      <div key={l.productId} className="flex justify-between text-[11px]">
+                        <span className="truncate max-w-[200px]">{l.description}</span>
+                        <span className="font-mono text-muted-foreground">
+                          {l.unitPrice.toLocaleString('pt-AO')} + {perUnit.toFixed(2)} = <span className="font-bold text-foreground">{effectiveCost.toFixed(2)} Kz/un</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Totals bar */}
           <div className="flex justify-end">
-            <Card className="w-72">
+            <Card className="w-80">
               <CardContent className="p-3 space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Sub Total</span>
                   <span className="font-mono font-medium">{totals.subtotal.toLocaleString('pt-AO')}</span>
                 </div>
+                {totalLandingCosts > 0 && (
+                  <div className="flex justify-between text-sm text-amber-600">
+                    <span>Frete / Transporte</span>
+                    <span className="font-mono font-medium">+{totalLandingCosts.toLocaleString('pt-AO')}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm text-orange-600">
                   <span>IVA</span>
                   <span className="font-mono font-medium">{totals.ivaTotal.toLocaleString('pt-AO')}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-1">
-                  <span>Líquido</span>
-                  <span className="font-mono">{totals.total.toLocaleString('pt-AO')}</span>
+                  <span>Total</span>
+                  <span className="font-mono">{(totals.total + totalLandingCosts).toLocaleString('pt-AO')}</span>
                 </div>
               </CardContent>
             </Card>
