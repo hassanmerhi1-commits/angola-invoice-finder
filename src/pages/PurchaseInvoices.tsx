@@ -1321,7 +1321,7 @@ export default function PurchaseInvoices() {
                     <SelectValue placeholder="Todos fornecedores" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="__all__">Todos</SelectItem>
                     {[...new Set(invoices.map(i => i.supplierName))].sort().map(name => (
                       <SelectItem key={name} value={name.toLowerCase()}>{name}</SelectItem>
                     ))}
