@@ -42,9 +42,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Search, Plus, Save, X, Trash2, Eye, FileText, BookOpen,
   Package, ArrowLeft, CheckCircle, Printer, AlertCircle,
+  ShoppingCart, Filter, Calendar, Download,
 } from 'lucide-react';
-import { saveDocument } from '@/lib/documentStorage';
+import { saveDocument, getDocuments } from '@/lib/documentStorage';
 import type { ERPDocument } from '@/types/documents';
+import { usePurchaseOrders } from '@/hooks/useERP';
 
 // ─────────── Supplier Picker Dialog ───────────
 function SupplierPickerDialog({
