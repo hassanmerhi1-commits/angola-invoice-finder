@@ -1175,8 +1175,9 @@ export default function PurchaseInvoices() {
             warehouseId: l.warehouseId || invoice.warehouseId, // BRANCH-SCOPED
           })),
 
-        // Phase 2: Price updates (WAC) — includes freight allocation
-        priceUpdates: invoice.changePrice
+        // Phase 2: Price updates (WAC) — ALWAYS includes freight allocation
+        // If changePrice is on, use invoice unitPrice + freight; otherwise just freight on top of existing cost
+        priceUpdates: (invoice.changePrice || totalLandingCosts > 0)
           ? invoice.lines
               .filter(l => l.productId && l.totalQty > 0)
               .map(l => ({
