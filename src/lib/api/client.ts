@@ -415,7 +415,10 @@ export const api = {
       return apiFetch<any[]>(endpoint);
     },
     create: (data: any) => {
-      return apiFetch<any>('/sales', { method: 'POST', body: JSON.stringify(data) });
+      if (isElectronMode()) {
+        return ipcInsert('products', mapProductPayloadForElectron(data));
+      }
+      return apiFetch<any>('/products', { method: 'POST', body: JSON.stringify(data) });
     },
     generateInvoiceNumber: (branchCode: string) => {
       return apiFetch<{ invoiceNumber: string }>(`/sales/generate-invoice-number/${branchCode}`);
