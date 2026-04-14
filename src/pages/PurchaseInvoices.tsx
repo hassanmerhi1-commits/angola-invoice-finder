@@ -500,7 +500,7 @@ export default function PurchaseInvoices() {
   const { user } = useAuth();
   const { currentBranch, branches } = useBranchContext();
   const { products, addProduct: addProductToStock, refreshProducts } = useProducts(currentBranch?.id);
-  const { suppliers, refreshSuppliers } = useSuppliers();
+  const { suppliers, refreshSuppliers, createSupplier } = useSuppliers();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -516,6 +516,8 @@ export default function PurchaseInvoices() {
   const [viewInvoice, setViewInvoice] = useState<PurchaseInvoice | null>(null);
   const [activeTab, setActiveTab] = useState('fatura');
   const [showCreateProduct, setShowCreateProduct] = useState(false);
+  const [showCreateSupplier, setShowCreateSupplier] = useState(false);
+  const [newSupplierForm, setNewSupplierForm] = useState({ name: '', nif: '', email: '', phone: '', address: '', city: '', country: 'Angola', contactPerson: '', notes: '' });
   const [saveError, setSaveError] = useState<string | null>(null);
   // Form state
   const [form, setForm] = useState<Partial<PurchaseInvoice>>({});
@@ -1556,8 +1558,8 @@ export default function PurchaseInvoices() {
         onRefresh={refreshSuppliers}
         onCreateNew={() => {
           setSupplierPickerOpen(false);
-          // Navigate to suppliers page to create
-          navigate('/suppliers');
+          setNewSupplierForm({ name: '', nif: '', email: '', phone: '', address: '', city: '', country: 'Angola', contactPerson: '', notes: '' });
+          setShowCreateSupplier(true);
         }}
       />
       <ProductPickerDialog
@@ -1582,6 +1584,80 @@ export default function PurchaseInvoices() {
           toast({ title: 'Produto criado', description: `${newProduct.name} adicionado ao stock e à fatura` });
         }}
       />
+
+      {/* Inline Create Supplier Dialog */}
+      <Dialog open={showCreateSupplier} onOpenChange={setShowCreateSupplier}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo Fornecedor</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome *</Label>
+              <Input value={newSupplierForm.name} onChange={e => setNewSupplierForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome do fornecedor" />
+            </div>
+            <div>
+              <Label>NIF</Label>
+              <Input value={newSupplierForm.nif} onChange={e => setNewSupplierForm(f => ({ ...f, nif: e.target.value }))} placeholder="NIF" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Email</Label>
+                <Input value={newSupplierForm.email} onChange={e => setNewSupplierForm(f => ({ ...f, email: e.target.value }))} placeholder="Email" />
+              </div>
+              <div>
+                <Label>Telefone</Label>
+                <Input value={newSupplierForm.phone} onChange={e => setNewSupplierForm(f => ({ ...f, phone: e.target.value }))} placeholder="Telefone" />
+              </div>
+            </div>
+            <div>
+              <Label>Morada</Label>
+              <Input value={newSupplierForm.address} onChange={e => setNewSupplierForm(f => ({ ...f, address: e.target.value }))} placeholder="Morada" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Cidade</Label>
+                <Input value={newSupplierForm.city} onChange={e => setNewSupplierForm(f => ({ ...f, city: e.target.value }))} placeholder="Cidade" />
+              </div>
+              <div>
+                <Label>País</Label>
+                <Input value={newSupplierForm.country} onChange={e => setNewSupplierForm(f => ({ ...f, country: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateSupplier(false)}>Cancelar</Button>
+            <Button
+              disabled={!newSupplierForm.name.trim()}
+              onClick={async () => {
+                try {
+                  const created = await createSupplier({
+                    name: newSupplierForm.name.trim(),
+                    nif: newSupplierForm.nif.trim() || '',
+                    email: newSupplierForm.email.trim(),
+                    phone: newSupplierForm.phone.trim(),
+                    address: newSupplierForm.address.trim(),
+                    city: newSupplierForm.city.trim(),
+                    country: newSupplierForm.country.trim() || 'Angola',
+                    contactPerson: newSupplierForm.contactPerson.trim(),
+                    notes: newSupplierForm.notes.trim(),
+                    isActive: true,
+                    balance: 0,
+                    paymentTerms: '30_days',
+                  } as any);
+                  setShowCreateSupplier(false);
+                  handleSelectSupplier(created);
+                  toast({ title: 'Fornecedor criado', description: `${created.name} adicionado e seleccionado` });
+                } catch (err: any) {
+                  toast({ title: 'Erro', description: err.message || 'Falha ao criar fornecedor', variant: 'destructive' });
+                }
+              }}
+            >
+              <Save className="h-4 w-4 mr-1" /> Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
