@@ -84,6 +84,7 @@ export function ProductFormDialog({
         unit: product.unit,
         taxRate: product.taxRate,
         branchId: product.branchId,
+        supplierId: product.supplierId || '',
         isActive: product.isActive,
       });
     } else {
@@ -100,6 +101,7 @@ export function ProductFormDialog({
         unit: 'un',
         taxRate: 14,
         branchId: 'all',
+        supplierId: '',
         isActive: true,
       });
     }
