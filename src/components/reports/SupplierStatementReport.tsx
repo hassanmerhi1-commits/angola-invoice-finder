@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,16 +6,17 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useSuppliers, usePurchaseOrders } from '@/hooks/useERP';
-import { Download, Printer, Truck, Search } from 'lucide-react';
+import { useSuppliers } from '@/hooks/useERP';
+import { Download, Printer, Truck, Search, Loader2 } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { exportToExcel } from '@/lib/excel';
+import { api } from '@/lib/api/client';
 
-interface SupplierEntry {
+interface StatementEntry {
   id: string;
   date: string;
-  type: 'purchase' | 'payment' | 'credit_note' | 'debit_note';
+  type: 'purchase' | 'payment' | 'credit_note' | 'debit_note' | 'advance';
   reference: string;
   description: string;
   debit: number;
@@ -25,52 +26,112 @@ interface SupplierEntry {
 
 export default function SupplierStatementReport() {
   const { suppliers } = useSuppliers();
-  const { orders } = usePurchaseOrders();
   
   const [selectedSupplier, setSelectedSupplier] = useState<string>('');
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [dateTo, setDateTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [statementEntries, setStatementEntries] = useState<StatementEntry[]>([]);
+  const [currentBalance, setCurrentBalance] = useState(0);
 
   const selectedSupplierData = useMemo(() => {
     return suppliers.find(s => s.id === selectedSupplier);
   }, [suppliers, selectedSupplier]);
 
-  const statementEntries = useMemo((): SupplierEntry[] => {
-    if (!selectedSupplier) return [];
-    
-    // Get purchase orders for this supplier
-    const supplierPOs = orders.filter(order => {
-      const orderDate = order.createdAt.split('T')[0];
-      const matchesSupplier = order.supplierId === selectedSupplier;
-      const matchesDate = orderDate >= dateFrom && orderDate <= dateTo;
-      const matchesStatus = order.status === 'received' || order.status === 'partial';
-      return matchesSupplier && matchesDate && matchesStatus;
-    });
+  // Fetch statement from backend when supplier or dates change
+  useEffect(() => {
+    if (!selectedSupplier) {
+      setStatementEntries([]);
+      setCurrentBalance(0);
+      return;
+    }
 
-    let runningBalance = 0;
-    
-    // Create statement entries from POs (credits - we owe supplier)
-    const entries: SupplierEntry[] = supplierPOs
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-      .map(po => {
-        const credit = po.total; // We owe supplier
-        runningBalance = runningBalance + credit;
-        
-        return {
-          id: po.id,
-          date: po.createdAt,
-          type: 'purchase' as const,
-          reference: po.orderNumber,
-          description: `Compra - ${po.items.length} item(s)`,
-          debit: 0,
-          credit: credit,
-          balance: runningBalance,
-        };
-      });
+    const fetchStatement = async () => {
+      setLoading(true);
+      try {
+        const res = await api.payments.statement('supplier', selectedSupplier, dateFrom, dateTo);
+        if (res.error) {
+          console.error('[SupplierStatement] Error:', res.error);
+          setStatementEntries([]);
+          return;
+        }
 
-    return entries;
-  }, [selectedSupplier, orders, dateFrom, dateTo]);
+        const data = res.data as any;
+        const { openItems = [], payments = [], balance = { balance: 0 } } = data;
+
+        // Build unified entries sorted by date
+        const entries: Omit<StatementEntry, 'balance'>[] = [];
+
+        // Open items (invoices, credit notes, debit notes)
+        for (const oi of openItems) {
+          const docType = oi.document_type as string;
+          let type: StatementEntry['type'] = 'purchase';
+          let description = '';
+
+          if (docType === 'invoice' || docType === 'purchase_invoice') {
+            type = 'purchase';
+            description = `Fatura de Compra`;
+          } else if (docType === 'credit_note') {
+            type = 'credit_note';
+            description = `Nota de Crédito`;
+          } else if (docType === 'debit_note') {
+            type = 'debit_note';
+            description = `Nota de Débito`;
+          } else if (docType === 'advance') {
+            type = 'advance';
+            description = `Adiantamento`;
+          } else {
+            description = docType;
+          }
+
+          entries.push({
+            id: oi.id,
+            date: oi.document_date,
+            type,
+            reference: oi.document_number,
+            description,
+            // For supplier: invoice = credit (we owe them), credit_note = debit (they owe us)
+            debit: !oi.is_debit ? oi.original_amount : 0,
+            credit: oi.is_debit ? oi.original_amount : 0,
+          });
+        }
+
+        // Payments
+        for (const p of payments) {
+          entries.push({
+            id: p.id,
+            date: p.created_at,
+            type: 'payment',
+            reference: p.payment_number,
+            description: `Pagamento - ${p.payment_method === 'cash' ? 'Numerário' : p.payment_method === 'transfer' ? 'Transferência' : p.payment_method === 'cheque' ? 'Cheque' : p.payment_method}`,
+            debit: p.amount, // Payment reduces what we owe
+            credit: 0,
+          });
+        }
+
+        // Sort by date
+        entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        // Calculate running balance
+        let runningBalance = 0;
+        const finalEntries: StatementEntry[] = entries.map(e => {
+          runningBalance += e.credit - e.debit;
+          return { ...e, balance: runningBalance };
+        });
+
+        setStatementEntries(finalEntries);
+        setCurrentBalance(parseFloat(balance.balance) || 0);
+      } catch (err) {
+        console.error('[SupplierStatement] Fetch error:', err);
+        setStatementEntries([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStatement();
+  }, [selectedSupplier, dateFrom, dateTo]);
 
   const totals = useMemo(() => {
     return statementEntries.reduce((acc, entry) => ({
@@ -78,17 +139,6 @@ export default function SupplierStatementReport() {
       credit: acc.credit + entry.credit,
     }), { debit: 0, credit: 0 });
   }, [statementEntries]);
-
-  // Calculate total debt per supplier
-  const supplierDebts = useMemo(() => {
-    const debts: Record<string, number> = {};
-    orders
-      .filter(o => o.status === 'received' || o.status === 'partial')
-      .forEach(order => {
-        debts[order.supplierId] = (debts[order.supplierId] || 0) + order.total;
-      });
-    return debts;
-  }, [orders]);
 
   const filteredSuppliers = useMemo(() => {
     if (!searchTerm) return suppliers;
@@ -107,6 +157,17 @@ export default function SupplierStatementReport() {
     }).format(value);
   };
 
+  const getTypeBadge = (type: StatementEntry['type']) => {
+    switch (type) {
+      case 'purchase': return <Badge>Compra</Badge>;
+      case 'payment': return <Badge variant="secondary">Pagamento</Badge>;
+      case 'credit_note': return <Badge variant="outline" className="text-green-600 border-green-600">NC</Badge>;
+      case 'debit_note': return <Badge variant="outline" className="text-red-600 border-red-600">ND</Badge>;
+      case 'advance': return <Badge variant="outline">Adiantamento</Badge>;
+      default: return <Badge variant="outline">{type}</Badge>;
+    }
+  };
+
   const handleExport = () => {
     if (!selectedSupplierData) return;
     
@@ -114,7 +175,8 @@ export default function SupplierStatementReport() {
       'Data': format(parseISO(entry.date), 'dd/MM/yyyy'),
       'Tipo': entry.type === 'purchase' ? 'Compra' : 
               entry.type === 'payment' ? 'Pagamento' :
-              entry.type === 'credit_note' ? 'Nota Crédito' : 'Nota Débito',
+              entry.type === 'credit_note' ? 'Nota Crédito' : 
+              entry.type === 'debit_note' ? 'Nota Débito' : 'Adiantamento',
       'Referência': entry.reference,
       'Descrição': entry.description,
       'Débito': entry.debit,
@@ -125,13 +187,8 @@ export default function SupplierStatementReport() {
     exportToExcel(data, `ContaCorrente_${selectedSupplierData.name}_${format(new Date(), 'yyyyMMdd')}`);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
     <div className="space-y-6">
-      {/* Filters */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -139,7 +196,7 @@ export default function SupplierStatementReport() {
             Conta Corrente - Fornecedor
           </CardTitle>
           <CardDescription>
-            Movimentos de compras e pagamentos por fornecedor
+            Todos os movimentos: compras, pagamentos, notas de crédito/débito e devoluções
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,7 +219,7 @@ export default function SupplierStatementReport() {
                 <SelectContent>
                   {filteredSuppliers.map(supplier => (
                     <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name} ({supplier.nif}) - Dívida: {formatCurrency(supplierDebts[supplier.id] || 0)}
+                      {supplier.name} ({supplier.nif})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -170,19 +227,11 @@ export default function SupplierStatementReport() {
             </div>
             <div>
               <Label>Data Início</Label>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </div>
             <div>
               <Label>Data Fim</Label>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
           </div>
           
@@ -206,9 +255,9 @@ export default function SupplierStatementReport() {
                   <p className="font-semibold">{selectedSupplierData.paymentTerms.replace('_', ' ')}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Saldo Devedor</p>
-                  <p className="font-semibold text-orange-500">
-                    {formatCurrency(supplierDebts[selectedSupplier] || 0)}
+                  <p className="text-sm text-muted-foreground">Saldo Actual</p>
+                  <p className={`font-semibold ${currentBalance > 0 ? 'text-orange-500' : 'text-green-500'}`}>
+                    {formatCurrency(currentBalance)}
                   </p>
                 </div>
               </div>
@@ -217,7 +266,6 @@ export default function SupplierStatementReport() {
         </CardContent>
       </Card>
 
-      {/* Statement Table */}
       {selectedSupplier && (
         <Card>
           <CardHeader>
@@ -228,7 +276,7 @@ export default function SupplierStatementReport() {
                   <Download className="w-4 h-4 mr-2" />
                   Excel
                 </Button>
-                <Button variant="outline" size="sm" onClick={handlePrint}>
+                <Button variant="outline" size="sm" onClick={() => window.print()}>
                   <Printer className="w-4 h-4 mr-2" />
                   Imprimir
                 </Button>
@@ -236,70 +284,68 @@ export default function SupplierStatementReport() {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Referência</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead className="text-right">Débito (Pagto)</TableHead>
-                  <TableHead className="text-right">Crédito (Compra)</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {statementEntries.length === 0 ? (
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Nenhum movimento encontrado para o período seleccionado
-                    </TableCell>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Referência</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="text-right">Débito (Pagto)</TableHead>
+                    <TableHead className="text-right">Crédito (Compra)</TableHead>
+                    <TableHead className="text-right">Saldo</TableHead>
                   </TableRow>
-                ) : (
-                  <>
-                    {statementEntries.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>
-                          {format(parseISO(entry.date), 'dd/MM/yyyy', { locale: pt })}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={entry.type === 'purchase' ? 'default' : 
-                                         entry.type === 'payment' ? 'secondary' : 'outline'}>
-                            {entry.type === 'purchase' ? 'Compra' : 
-                             entry.type === 'payment' ? 'Pagamento' :
-                             entry.type === 'credit_note' ? 'NC' : 'ND'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{entry.reference}</TableCell>
-                        <TableCell>{entry.description}</TableCell>
-                        <TableCell className="text-right text-green-500">
-                          {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
-                        </TableCell>
-                        <TableCell className="text-right text-orange-500">
-                          {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-orange-500">
-                          {formatCurrency(entry.balance)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {/* Totals Row */}
-                    <TableRow className="bg-muted/50 font-bold">
-                      <TableCell colSpan={4}>TOTAIS</TableCell>
-                      <TableCell className="text-right text-green-500">
-                        {formatCurrency(totals.debit)}
-                      </TableCell>
-                      <TableCell className="text-right text-orange-500">
-                        {formatCurrency(totals.credit)}
-                      </TableCell>
-                      <TableCell className="text-right text-orange-500">
-                        {formatCurrency(totals.credit - totals.debit)}
+                </TableHeader>
+                <TableBody>
+                  {statementEntries.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        Nenhum movimento encontrado para o período seleccionado
                       </TableCell>
                     </TableRow>
-                  </>
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    <>
+                      {statementEntries.map((entry) => (
+                        <TableRow key={entry.id}>
+                          <TableCell>
+                            {format(parseISO(entry.date.split('T')[0]), 'dd/MM/yyyy', { locale: pt })}
+                          </TableCell>
+                          <TableCell>{getTypeBadge(entry.type)}</TableCell>
+                          <TableCell className="font-mono text-sm">{entry.reference}</TableCell>
+                          <TableCell>{entry.description}</TableCell>
+                          <TableCell className="text-right text-green-500">
+                            {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
+                          </TableCell>
+                          <TableCell className="text-right text-orange-500">
+                            {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
+                          </TableCell>
+                          <TableCell className={`text-right font-medium ${entry.balance > 0 ? 'text-orange-500' : 'text-green-500'}`}>
+                            {formatCurrency(entry.balance)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-muted/50 font-bold">
+                        <TableCell colSpan={4}>TOTAIS</TableCell>
+                        <TableCell className="text-right text-green-500">
+                          {formatCurrency(totals.debit)}
+                        </TableCell>
+                        <TableCell className="text-right text-orange-500">
+                          {formatCurrency(totals.credit)}
+                        </TableCell>
+                        <TableCell className={`text-right ${totals.credit - totals.debit > 0 ? 'text-orange-500' : 'text-green-500'}`}>
+                          {formatCurrency(totals.credit - totals.debit)}
+                        </TableCell>
+                      </TableRow>
+                    </>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       )}
