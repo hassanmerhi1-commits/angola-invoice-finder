@@ -803,6 +803,41 @@ export const api = {
       }
       return apiFetch<any>(`/payments/balance/${entityType}/${entityId}`);
     },
+    statement: (entityType: string, entityId: string, dateFrom?: string, dateTo?: string) => {
+      if (isElectronMode()) {
+        // Build combined query for electron mode
+        return (async () => {
+          const oiParams: any[] = [entityType, entityId];
+          let oiSql = `SELECT id, document_type, document_id, document_number, document_date, due_date,
+                        original_amount, remaining_amount, is_debit, status, created_at
+                        FROM open_items WHERE entity_type = $1 AND entity_id = $2`;
+          let idx = 3;
+          if (dateFrom) { oiSql += ` AND document_date >= $${idx++}`; oiParams.push(dateFrom); }
+          if (dateTo)   { oiSql += ` AND document_date <= $${idx++}`; oiParams.push(dateTo); }
+          oiSql += ' ORDER BY document_date ASC, created_at ASC';
+
+          const pParams: any[] = [entityType, entityId];
+          let pSql = `SELECT id, payment_number, payment_type, payment_method, amount, reference, notes, created_at
+                      FROM payments WHERE entity_type = $1 AND entity_id = $2`;
+          idx = 3;
+          if (dateFrom) { pSql += ` AND created_at >= $${idx++}`; pParams.push(dateFrom); }
+          if (dateTo)   { pSql += ` AND created_at <= $${idx++}`; pParams.push(dateTo + 'T23:59:59'); }
+          pSql += ' ORDER BY created_at ASC';
+
+          const [oiRes, pRes, balRes] = await Promise.all([
+            ipcQuery<any>(oiSql, oiParams),
+            ipcQuery<any>(pSql, pParams),
+            ipcQuery<any>(`SELECT * FROM v_entity_balance WHERE entity_type = $1 AND entity_id = $2`, [entityType, entityId]),
+          ]);
+
+          return { data: { openItems: oiRes.data || [], payments: pRes.data || [], balance: balRes.data?.[0] || { balance: 0 } } } as ApiResponse<any>;
+        })();
+      }
+      const sp = new URLSearchParams();
+      if (dateFrom) sp.append('dateFrom', dateFrom);
+      if (dateTo) sp.append('dateTo', dateTo);
+      return apiFetch<any>(`/payments/statement/${entityType}/${entityId}?${sp}`);
+    },
     periods: () => {
       if (isElectronMode()) return ipcQuery<any>('SELECT * FROM accounting_periods ORDER BY year DESC, month DESC');
       return apiFetch<any[]>('/payments/periods');
