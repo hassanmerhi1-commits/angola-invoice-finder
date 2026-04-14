@@ -835,6 +835,60 @@ export function useSuppliers() {
 // ============================================
 // PURCHASE ORDERS
 // ============================================
+function mapPurchaseOrderItem(item: any): PurchaseOrderItem {
+  const quantity = Number(item.quantity ?? 0);
+  const unitCost = Number(item.unitCost ?? item.unit_cost ?? 0);
+  const taxRate = Number(item.taxRate ?? item.tax_rate ?? 0);
+  const subtotal = Number(item.subtotal ?? quantity * unitCost);
+
+  return {
+    productId: item.productId ?? item.product_id ?? '',
+    productName: item.productName ?? item.product_name ?? '',
+    sku: item.sku || '',
+    quantity,
+    receivedQuantity: item.receivedQuantity ?? item.received_quantity != null
+      ? Number(item.receivedQuantity ?? item.received_quantity)
+      : undefined,
+    unitCost,
+    freightAllocation: item.freightAllocation ?? item.freight_allocation != null
+      ? Number(item.freightAllocation ?? item.freight_allocation)
+      : undefined,
+    effectiveCost: item.effectiveCost ?? item.effective_cost != null
+      ? Number(item.effectiveCost ?? item.effective_cost)
+      : undefined,
+    taxRate,
+    subtotal,
+  };
+}
+
+function mapPurchaseOrder(order: any): PurchaseOrder {
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber ?? order.order_number ?? '',
+    supplierId: order.supplierId ?? order.supplier_id ?? '',
+    supplierName: order.supplierName ?? order.supplier_name ?? '',
+    branchId: order.branchId ?? order.branch_id ?? '',
+    branchName: order.branchName ?? order.branch_name ?? '',
+    items: Array.isArray(order.items) ? order.items.map(mapPurchaseOrderItem) : [],
+    subtotal: Number(order.subtotal ?? 0),
+    taxAmount: Number(order.taxAmount ?? order.tax_amount ?? 0),
+    total: Number(order.total ?? 0),
+    freightCost: order.freightCost ?? order.freight_cost != null ? Number(order.freightCost ?? order.freight_cost) : undefined,
+    freightDistributed: order.freightDistributed ?? order.freight_distributed ?? false,
+    otherCosts: order.otherCosts ?? order.other_costs != null ? Number(order.otherCosts ?? order.other_costs) : undefined,
+    otherCostsDescription: order.otherCostsDescription ?? order.other_costs_description,
+    status: order.status || 'pending',
+    notes: order.notes || '',
+    createdBy: order.createdBy ?? order.created_by ?? '',
+    createdAt: order.createdAt ?? order.created_at ?? '',
+    approvedBy: order.approvedBy ?? order.approved_by,
+    approvedAt: order.approvedAt ?? order.approved_at,
+    receivedBy: order.receivedBy ?? order.received_by,
+    receivedAt: order.receivedAt ?? order.received_at,
+    expectedDeliveryDate: order.expectedDeliveryDate ?? order.expected_delivery_date,
+  };
+}
+
 export function usePurchaseOrders(branchId?: string) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
 
@@ -843,7 +897,7 @@ export function usePurchaseOrders(branchId?: string) {
       () => api.purchaseOrders.list(branchId),
       () => storage.getPurchaseOrders(branchId)
     );
-    setOrders(data);
+    setOrders(Array.isArray(data) ? data.map(mapPurchaseOrder) : []);
   }, [branchId]);
 
   useEffect(() => { refreshOrders(); }, [refreshOrders]);
@@ -859,9 +913,8 @@ export function usePurchaseOrders(branchId?: string) {
     });
     if (result.data) {
       await refreshOrders();
-      return result.data;
+      return mapPurchaseOrder(result.data);
     }
-    // Fallback
     const suppliers = await storage.getSuppliers();
     const branches = await storage.getBranches();
     const supplier = suppliers.find(s => s.id === supplierId);

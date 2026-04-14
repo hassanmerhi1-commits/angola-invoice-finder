@@ -1269,8 +1269,8 @@ export default function PurchaseInvoices() {
   // ─── LIST MODE ───
   if (mode === 'list') {
     const filteredOrders = orders.filter(order =>
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.supplierName.toLowerCase().includes(searchTerm.toLowerCase())
+      (order.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.supplierName || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const invoiceTotals = {
@@ -1684,9 +1684,18 @@ export default function PurchaseInvoices() {
                     subtotal,
                   };
                 });
-                createOrder(poForm.supplierId, poForm.branchId, items as any, user?.id || '', poForm.notes || undefined, poForm.expectedDeliveryDate || undefined);
-                toast({ title: 'Encomenda criada com sucesso' });
-                setPoCreateOpen(false);
+                createOrder(poForm.supplierId, poForm.branchId, items as any, user?.id || '', poForm.notes || undefined, poForm.expectedDeliveryDate || undefined)
+                  .then(() => {
+                    toast({ title: 'Encomenda criada com sucesso' });
+                    setPoCreateOpen(false);
+                  })
+                  .catch((error) => {
+                    toast({
+                      title: 'Erro ao criar encomenda',
+                      description: error?.message || 'Falha ao criar a encomenda.',
+                      variant: 'destructive',
+                    });
+                  });
               }}>
                 <Save className="h-4 w-4 mr-1" /> Criar Encomenda
               </Button>
