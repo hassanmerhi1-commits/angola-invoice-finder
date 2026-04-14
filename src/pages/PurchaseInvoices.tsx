@@ -1322,8 +1322,8 @@ export default function PurchaseInvoices() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Todos</SelectItem>
-                    {[...new Set(invoices.map(i => i.supplierName))].sort().map(name => (
-                      <SelectItem key={name} value={name.toLowerCase()}>{name}</SelectItem>
+                    {[...new Set(invoices.map(i => i.supplierName).filter(Boolean))].sort().map(name => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
