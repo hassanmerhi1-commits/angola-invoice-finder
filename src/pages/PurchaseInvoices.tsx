@@ -1027,6 +1027,8 @@ export default function PurchaseInvoices() {
       });
 
       getPurchaseInvoices(currentBranch?.id).then(setInvoices);
+      // Show the saved invoice immediately for printing
+      setViewInvoice(invoice);
       setMode('list');
     } catch (error: any) {
       console.error('[PurchaseInvoices] Failed to save purchase invoice:', error);
