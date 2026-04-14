@@ -921,6 +921,19 @@ export function usePurchaseOrders(branchId?: string) {
 // ============================================
 // CATEGORIES
 // ============================================
+function mapCategory(c: any): Category {
+  return {
+    id: c.id,
+    name: c.name,
+    parentId: c.parentId ?? c.parent_id ?? null,
+    description: c.description || '',
+    color: c.color || '#6b7280',
+    isActive: c.isActive ?? c.is_active ?? true,
+    createdAt: c.createdAt ?? c.created_at ?? '',
+    updatedAt: c.updatedAt ?? c.updated_at ?? '',
+  };
+}
+
 export function useCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
 
@@ -929,7 +942,7 @@ export function useCategories() {
       () => api.categories.list(),
       () => storage.getCategories()
     );
-    setCategories(data);
+    setCategories(Array.isArray(data) ? data.map(mapCategory) : []);
   }, []);
 
   useEffect(() => { refreshCategories(); }, [refreshCategories]);
