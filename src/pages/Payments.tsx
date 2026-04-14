@@ -145,35 +145,45 @@ export default function Payments() {
     setSelectedOpenItems(new Set());
   };
 
-  const handleCreate = () => {
+  const handleEntityChange = useCallback((id: string) => {
+    setEntityId(id);
+    setSelectedOpenItems(new Set());
+    if (id) {
+      const entType = paymentType === 'receipt' ? 'customer' : 'supplier';
+      loadOpenItems(entType, id);
+    }
+  }, [paymentType, loadOpenItems]);
+
+  const handleCreate = async () => {
     if (!entityId || !amount || Number(amount) <= 0) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
     const entity = entities.find(e => e.id === entityId);
-    const payment: Payment = {
-      id: crypto.randomUUID(),
-      paymentNumber: `${paymentType === 'receipt' ? 'REC' : 'PAG'}-${Date.now().toString(36).toUpperCase()}`,
-      paymentType,
-      entityType: paymentType === 'receipt' ? 'customer' : 'supplier',
-      entityId,
-      entityName: entity?.name || '',
-      paymentMethod,
-      amount: Number(amount),
-      currency: 'AOA',
-      reference,
-      notes,
-      branchId: currentBranch?.id || '',
-      createdBy: user?.id || '',
-      createdAt: new Date().toISOString(),
-    };
-
     const selected = entityOpenItems.filter(oi => selectedOpenItems.has(oi.id));
-    createPayment(payment, selected);
-    toast.success(`${paymentType === 'receipt' ? 'Recibo' : 'Pagamento'} registado com sucesso`);
-    setShowNewDialog(false);
-    resetForm();
+
+    try {
+      await createPayment({
+        paymentType,
+        entityType: paymentType === 'receipt' ? 'customer' : 'supplier',
+        entityId,
+        entityName: entity?.name || '',
+        paymentMethod,
+        amount: Number(amount),
+        branchId: currentBranch?.id || '',
+        createdBy: user?.id || '',
+        reference,
+        notes,
+        invoiceIds: selected.map(oi => oi.documentId),
+      });
+      toast.success(`${paymentType === 'receipt' ? 'Recibo' : 'Pagamento'} registado com sucesso`);
+      setShowNewDialog(false);
+      resetForm();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao registar pagamento');
+      console.error('[PAYMENTS] Create failed:', err);
+    }
   };
 
   const openNewDialog = (type: 'receipt' | 'payment') => {
