@@ -1566,24 +1566,50 @@ export default function PurchaseInvoices() {
                 </div>
               </div>
 
-              {/* Add product */}
+              {/* Add product - inline search (no nested dialog) */}
               <div className="border rounded-lg p-3 space-y-3">
                 <Label className="font-medium">Adicionar Produto</Label>
                 <div className="grid grid-cols-4 gap-3">
-                  <div className="col-span-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal h-10"
-                      onClick={() => setPoProductPickerOpen(true)}
-                    >
-                      <Search className="h-4 w-4 mr-2 shrink-0 text-muted-foreground" />
-                      <span className={poNewItem.productId ? '' : 'text-muted-foreground'}>
-                        {poNewItem.productId
-                          ? (products.find(p => p.id === poNewItem.productId)?.name || 'Produto')
-                          : 'Pesquisar produto...'}
-                      </span>
-                    </Button>
+                  <div className="col-span-2 relative">
+                    <Input
+                      placeholder="Pesquisar produto por nome, SKU ou código..."
+                      value={poProductSearch}
+                      onChange={e => {
+                        setPoProductSearch(e.target.value);
+                        setPoProductDropdownOpen(true);
+                      }}
+                      onFocus={() => setPoProductDropdownOpen(true)}
+                    />
+                    {poNewItem.productId && !poProductSearch && (
+                      <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
+                        <span className="text-sm truncate">{products.find(p => p.id === poNewItem.productId)?.name || 'Produto'}</span>
+                      </div>
+                    )}
+                    {poProductDropdownOpen && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-[200px] overflow-y-auto">
+                        {(() => {
+                          const q = poProductSearch.toLowerCase();
+                          const filtered = products.filter(p =>
+                            !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode?.toLowerCase().includes(q)
+                          ).slice(0, 50);
+                          if (filtered.length === 0) return <div className="p-3 text-sm text-muted-foreground text-center">Nenhum produto encontrado</div>;
+                          return filtered.map(p => (
+                            <div
+                              key={p.id}
+                              className="px-3 py-2 text-sm cursor-pointer hover:bg-accent flex justify-between"
+                              onClick={() => {
+                                setPoNewItem(prev => ({ ...prev, productId: p.id, unitCost: p.cost || 0 }));
+                                setPoProductSearch(p.name);
+                                setPoProductDropdownOpen(false);
+                              }}
+                            >
+                              <span className="truncate">{p.name}</span>
+                              <span className="text-muted-foreground ml-2 shrink-0">{p.sku}</span>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    )}
                   </div>
                   <Input type="number" min="1" placeholder="Qtd" value={poNewItem.quantity} onChange={e => setPoNewItem(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} />
                   <Input type="number" min="0" step="0.01" placeholder="Custo Un." value={poNewItem.unitCost} onChange={e => setPoNewItem(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))} />
@@ -1596,6 +1622,7 @@ export default function PurchaseInvoices() {
                   }
                   setPoForm(p => ({ ...p, items: [...p.items, { ...poNewItem }] }));
                   setPoNewItem({ productId: '', quantity: 1, unitCost: 0 });
+                  setPoProductSearch('');
                 }}>
                   <Plus className="h-4 w-4 mr-1" /> Adicionar
                 </Button>
