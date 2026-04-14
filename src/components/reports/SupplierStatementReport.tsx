@@ -13,7 +13,6 @@ import { pt } from 'date-fns/locale';
 import { exportToExcel } from '@/lib/excel';
 import { api } from '@/lib/api/client';
 import { getPurchaseInvoices, PurchaseInvoice } from '@/lib/purchaseInvoiceStorage';
-import { useCompanySettings } from '@/hooks/useERP';
 
 interface StatementEntry {
   id: string;
@@ -28,7 +27,6 @@ interface StatementEntry {
 
 export default function SupplierStatementReport() {
   const { suppliers } = useSuppliers();
-  const { settings: companySettings } = useCompanySettings();
   
   const [selectedSupplier, setSelectedSupplier] = useState<string>('');
   const [dateFrom, setDateFrom] = useState(format(subMonths(new Date(), 6), 'yyyy-MM-dd'));
