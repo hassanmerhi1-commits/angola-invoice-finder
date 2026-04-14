@@ -192,10 +192,17 @@ export function useProducts(branchId?: string) {
     return () => window.removeEventListener(storage.PRODUCTS_CHANGED_EVENT, handleProductsChanged as EventListener);
   }, [branchId, refreshProducts]);
 
-  const addProduct = useCallback(async (product: Product) => {
+  const addProduct = useCallback(async (product: Product): Promise<Product> => {
     const result = await api.products.create(product);
-    if (!result.data) await storage.saveProduct(product);
+    if (result.data) {
+      const savedProduct = mapProduct(result.data);
+      await refreshProducts();
+      return savedProduct;
+    }
+
+    await storage.saveProduct(product);
     await refreshProducts();
+    return product;
   }, [refreshProducts]);
 
   const updateProduct = useCallback(async (product: Product) => {

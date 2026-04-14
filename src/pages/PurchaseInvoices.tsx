@@ -1579,9 +1579,9 @@ export default function PurchaseInvoices() {
         onOpenChange={setShowCreateProduct}
         product={null}
         onSave={async (newProduct) => {
-          await addProductToStock(newProduct);
-          handleAddProduct(newProduct);
-          toast({ title: 'Produto criado', description: `${newProduct.name} adicionado ao stock e à fatura` });
+          const savedProduct = await addProductToStock(newProduct);
+          handleAddProduct(savedProduct);
+          toast({ title: 'Produto criado', description: `${savedProduct.name} adicionado ao stock e à fatura` });
         }}
       />
 
