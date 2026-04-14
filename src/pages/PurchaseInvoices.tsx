@@ -638,6 +638,13 @@ export default function PurchaseInvoices() {
   const [freightSourceAccount, setFreightSourceAccount] = useState('4.1.1'); // default Caixa
   const [freightSourceName, setFreightSourceName] = useState('Caixa');
   const [freightPickerOpen, setFreightPickerOpen] = useState(false);
+  // PO inline state
+  const [poCreateOpen, setPoCreateOpen] = useState(false);
+  const [poViewOrder, setPoViewOrder] = useState<any | null>(null);
+  const [poReceiveOrder, setPoReceiveOrder] = useState<any | null>(null);
+  const [poReceivedQtys, setPoReceivedQtys] = useState<Record<string, number>>({});
+  const [poForm, setPoForm] = useState({ supplierId: '', branchId: currentBranch?.id || '', notes: '', expectedDeliveryDate: '', items: [] as { productId: string; quantity: number; unitCost: number }[] });
+  const [poNewItem, setPoNewItem] = useState({ productId: '', quantity: 1, unitCost: 0 });
 
   // Purchase orders
   const { orders, createOrder, approveOrder, receiveOrder, cancelOrder } = usePurchaseOrders();
@@ -1283,8 +1290,12 @@ export default function PurchaseInvoices() {
           </div>
           <div className="flex gap-2">
             {listTab === 'encomendas' && (
-              <Button variant="outline" className="gap-2" onClick={() => navigate('/purchase-orders')}>
-                <ShoppingCart className="h-4 w-4" /> Gerir Encomendas
+              <Button variant="outline" className="gap-2" onClick={() => {
+                setPoForm({ supplierId: '', branchId: currentBranch?.id || '', notes: '', expectedDeliveryDate: '', items: [] });
+                setPoNewItem({ productId: '', quantity: 1, unitCost: 0 });
+                setPoCreateOpen(true);
+              }}>
+                <Plus className="h-4 w-4" /> Nova Encomenda
               </Button>
             )}
             <Button onClick={() => setSearchParams({ mode: "create" })} className="gap-2">
@@ -1453,9 +1464,35 @@ export default function PurchaseInvoices() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/purchase-orders')}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPoViewOrder(order)} title="Ver detalhes">
                               <Eye className="h-4 w-4" />
                             </Button>
+                            {order.status === 'pending' && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                                approveOrder(order.id, user?.id || '');
+                                toast({ title: 'Encomenda aprovada', description: order.orderNumber });
+                              }} title="Aprovar">
+                                <CheckCircle className="h-4 w-4 text-primary" />
+                              </Button>
+                            )}
+                            {order.status === 'approved' && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                                setPoReceiveOrder(order);
+                                const qtys: Record<string, number> = {};
+                                order.items.forEach((item: any) => { qtys[item.productId] = item.quantity; });
+                                setPoReceivedQtys(qtys);
+                              }} title="Receber mercadoria">
+                                <Package className="h-4 w-4 text-primary" />
+                              </Button>
+                            )}
+                            {(order.status === 'draft' || order.status === 'pending') && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                                cancelOrder(order.id);
+                                toast({ title: 'Encomenda cancelada', description: order.orderNumber });
+                              }} title="Cancelar">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1466,7 +1503,10 @@ export default function PurchaseInvoices() {
                           <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-50" />
                           Nenhuma encomenda encontrada
                           <br />
-                          <Button variant="link" size="sm" className="mt-2" onClick={() => navigate('/purchase-orders')}>
+                          <Button variant="link" size="sm" className="mt-2" onClick={() => {
+                            setPoForm({ supplierId: '', branchId: currentBranch?.id || '', notes: '', expectedDeliveryDate: '', items: [] });
+                            setPoCreateOpen(true);
+                          }}>
                             <Plus className="h-4 w-4 mr-1" /> Criar nova encomenda
                           </Button>
                         </TableCell>
@@ -1480,6 +1520,228 @@ export default function PurchaseInvoices() {
         </Tabs>
 
         <InvoiceViewDialog open={!!viewInvoice} onClose={() => setViewInvoice(null)} invoice={viewInvoice} />
+
+        {/* ═══ PO CREATE DIALOG ═══ */}
+        <Dialog open={poCreateOpen} onOpenChange={setPoCreateOpen}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Nova Encomenda de Compra</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Fornecedor *</Label>
+                  <Select value={poForm.supplierId} onValueChange={v => setPoForm(p => ({ ...p, supplierId: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Seleccione o fornecedor" /></SelectTrigger>
+                    <SelectContent>
+                      {activeSuppliers.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Filial Destino *</Label>
+                  <Select value={poForm.branchId} onValueChange={v => setPoForm(p => ({ ...p, branchId: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Seleccione a filial" /></SelectTrigger>
+                    <SelectContent>
+                      {branches.filter(b => b.id).map(b => (
+                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Data Prevista de Entrega</Label>
+                  <Input type="date" value={poForm.expectedDeliveryDate} onChange={e => setPoForm(p => ({ ...p, expectedDeliveryDate: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Notas</Label>
+                  <Input value={poForm.notes} onChange={e => setPoForm(p => ({ ...p, notes: e.target.value }))} placeholder="Observações..." />
+                </div>
+              </div>
+
+              {/* Add product */}
+              <div className="border rounded-lg p-3 space-y-3">
+                <Label className="font-medium">Adicionar Produto</Label>
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="col-span-2">
+                    <Select value={poNewItem.productId} onValueChange={v => {
+                      const p = products.find(x => x.id === v);
+                      setPoNewItem(prev => ({ ...prev, productId: v, unitCost: p?.cost || 0 }));
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Seleccione produto" /></SelectTrigger>
+                      <SelectContent>
+                        {products.filter(p => p.isActive).map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input type="number" min="1" placeholder="Qtd" value={poNewItem.quantity} onChange={e => setPoNewItem(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} />
+                  <Input type="number" min="0" step="0.01" placeholder="Custo Un." value={poNewItem.unitCost} onChange={e => setPoNewItem(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => {
+                  if (!poNewItem.productId || poNewItem.quantity <= 0) return;
+                  if (poForm.items.find(i => i.productId === poNewItem.productId)) {
+                    toast({ title: 'Produto já na lista', variant: 'destructive' });
+                    return;
+                  }
+                  setPoForm(p => ({ ...p, items: [...p.items, { ...poNewItem }] }));
+                  setPoNewItem({ productId: '', quantity: 1, unitCost: 0 });
+                }}>
+                  <Plus className="h-4 w-4 mr-1" /> Adicionar
+                </Button>
+              </div>
+
+              {/* Items list */}
+              {poForm.items.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produto</TableHead>
+                      <TableHead className="text-right">Qtd</TableHead>
+                      <TableHead className="text-right">Custo Un.</TableHead>
+                      <TableHead className="text-right">Subtotal</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {poForm.items.map(item => {
+                      const prod = products.find(p => p.id === item.productId);
+                      return (
+                        <TableRow key={item.productId}>
+                          <TableCell>{prod?.name || item.productId}</TableCell>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell className="text-right font-mono">{item.unitCost.toLocaleString('pt-AO')} Kz</TableCell>
+                          <TableCell className="text-right font-mono font-medium">{(item.quantity * item.unitCost).toLocaleString('pt-AO')} Kz</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPoForm(p => ({ ...p, items: p.items.filter(i => i.productId !== item.productId) }))}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    <TableRow className="bg-muted/30">
+                      <TableCell colSpan={3} className="text-right font-medium">Total:</TableCell>
+                      <TableCell className="text-right font-mono font-bold">{poForm.items.reduce((s, i) => s + i.quantity * i.unitCost, 0).toLocaleString('pt-AO')} Kz</TableCell>
+                      <TableCell></TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPoCreateOpen(false)}>Cancelar</Button>
+              <Button disabled={!poForm.supplierId || !poForm.branchId || poForm.items.length === 0} onClick={() => {
+                const items = poForm.items.map(item => {
+                  const prod = products.find(p => p.id === item.productId);
+                  const subtotal = item.quantity * item.unitCost;
+                  return {
+                    productId: item.productId,
+                    productName: prod?.name || '',
+                    sku: prod?.sku || '',
+                    quantity: item.quantity,
+                    unitCost: item.unitCost,
+                    taxRate: prod?.taxRate || 14,
+                    subtotal,
+                  };
+                });
+                createOrder(poForm.supplierId, poForm.branchId, items as any, user?.id || '', poForm.notes || undefined, poForm.expectedDeliveryDate || undefined);
+                toast({ title: 'Encomenda criada com sucesso' });
+                setPoCreateOpen(false);
+              }}>
+                <Save className="h-4 w-4 mr-1" /> Criar Encomenda
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ═══ PO VIEW DIALOG ═══ */}
+        <Dialog open={!!poViewOrder} onOpenChange={() => setPoViewOrder(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Detalhes da Encomenda {poViewOrder?.orderNumber}</DialogTitle>
+            </DialogHeader>
+            {poViewOrder && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><span className="text-muted-foreground">Fornecedor:</span><p className="font-medium">{poViewOrder.supplierName}</p></div>
+                  <div><span className="text-muted-foreground">Filial:</span><p className="font-medium">{poViewOrder.branchName}</p></div>
+                  <div><span className="text-muted-foreground">Data:</span><p className="font-medium">{format(new Date(poViewOrder.createdAt), 'dd/MM/yyyy HH:mm', { locale: pt })}</p></div>
+                  <div><span className="text-muted-foreground">Estado:</span>
+                    <Badge variant="outline" className="ml-2">
+                      {poViewOrder.status === 'draft' ? 'Rascunho' : poViewOrder.status === 'pending' ? 'Pendente' : poViewOrder.status === 'approved' ? 'Aprovado' : poViewOrder.status === 'received' ? 'Recebido' : 'Cancelado'}
+                    </Badge>
+                  </div>
+                </div>
+                <Table>
+                  <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead className="text-right">Qtd</TableHead><TableHead className="text-right">Custo</TableHead><TableHead className="text-right">Subtotal</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {poViewOrder.items.map((item: any) => (
+                      <TableRow key={item.productId}>
+                        <TableCell><p className="font-medium">{item.productName}</p><p className="text-xs text-muted-foreground">{item.sku}</p></TableCell>
+                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell className="text-right">{item.unitCost.toLocaleString('pt-AO')} Kz</TableCell>
+                        <TableCell className="text-right">{item.subtotal.toLocaleString('pt-AO')} Kz</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="text-right font-bold text-lg">Total: {poViewOrder.total.toLocaleString('pt-AO')} Kz</div>
+              </div>
+            )}
+            <DialogFooter><Button variant="outline" onClick={() => setPoViewOrder(null)}>Fechar</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ═══ PO RECEIVE DIALOG ═══ */}
+        <Dialog open={!!poReceiveOrder} onOpenChange={() => setPoReceiveOrder(null)}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Receber Mercadoria — {poReceiveOrder?.orderNumber}</DialogTitle>
+            </DialogHeader>
+            {poReceiveOrder && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">Confirme as quantidades recebidas. O stock será actualizado automaticamente.</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produto</TableHead>
+                      <TableHead className="text-right">Encomendado</TableHead>
+                      <TableHead className="text-right">Recebido</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {poReceiveOrder.items.map((item: any) => (
+                      <TableRow key={item.productId}>
+                        <TableCell><p className="font-medium">{item.productName}</p></TableCell>
+                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          <Input type="number" min="0" max={item.quantity} className="w-20 ml-auto h-8 text-center"
+                            value={poReceivedQtys[item.productId] || 0}
+                            onChange={e => setPoReceivedQtys(prev => ({ ...prev, [item.productId]: parseInt(e.target.value) || 0 }))} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPoReceiveOrder(null)}>Cancelar</Button>
+              <Button onClick={() => {
+                if (!poReceiveOrder) return;
+                receiveOrder(poReceiveOrder.id, user?.id || '', poReceivedQtys);
+                toast({ title: 'Mercadoria recebida', description: `${poReceiveOrder.orderNumber} — stock actualizado` });
+                setPoReceiveOrder(null);
+              }}>
+                <CheckCircle className="h-4 w-4 mr-1" /> Confirmar Recepção
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

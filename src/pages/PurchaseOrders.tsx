@@ -599,7 +599,7 @@ export default function PurchaseOrders() {
                     <SelectValue placeholder="Seleccione a filial" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.map((branch) => (
+                    {branches.filter(b => b.id).map((branch) => (
                       <SelectItem key={branch.id} value={branch.id}>
                         {branch.name}
                       </SelectItem>
