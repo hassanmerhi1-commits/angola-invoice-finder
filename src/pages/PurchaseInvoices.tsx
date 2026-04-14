@@ -804,7 +804,7 @@ export default function PurchaseInvoices() {
     let finalJournalLines = journalLines.length > 0 ? journalLines : [];
 
     const invoice: PurchaseInvoice = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       invoiceNumber: generatePurchaseInvoiceNumber(branchCode),
       supplierAccountCode: resolvedSupplierAccountCode,
       supplierName: matchedSupplier?.name || form.supplierName || '',
