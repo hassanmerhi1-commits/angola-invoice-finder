@@ -744,7 +744,7 @@ export default function PurchaseInvoices() {
         (i.supplierInvoiceNo && i.supplierInvoiceNo.toLowerCase().includes(q))
       );
     }
-    if (filterSupplier) {
+    if (filterSupplier && filterSupplier !== '__all__') {
       const q = filterSupplier.toLowerCase();
       result = result.filter(i => i.supplierName.toLowerCase().includes(q));
     }
