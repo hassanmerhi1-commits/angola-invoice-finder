@@ -8,10 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useSuppliers } from '@/hooks/useERP';
 import { Download, Printer, Truck, Search, Loader2 } from 'lucide-react';
-import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
+import { format, parseISO, subMonths } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { exportToExcel } from '@/lib/excel';
 import { api } from '@/lib/api/client';
+import { getPurchaseInvoices, PurchaseInvoice } from '@/lib/purchaseInvoiceStorage';
 
 interface StatementEntry {
   id: string;
@@ -28,8 +29,8 @@ export default function SupplierStatementReport() {
   const { suppliers } = useSuppliers();
   
   const [selectedSupplier, setSelectedSupplier] = useState<string>('');
-  const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
-  const [dateTo, setDateTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [dateFrom, setDateFrom] = useState(format(subMonths(new Date(), 6), 'yyyy-MM-dd'));
+  const [dateTo, setDateTo] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [statementEntries, setStatementEntries] = useState<StatementEntry[]>([]);
@@ -39,7 +40,7 @@ export default function SupplierStatementReport() {
     return suppliers.find(s => s.id === selectedSupplier);
   }, [suppliers, selectedSupplier]);
 
-  // Fetch statement from backend when supplier or dates change
+  // Fetch statement from backend + localStorage fallback
   useEffect(() => {
     if (!selectedSupplier) {
       setStatementEntries([]);
@@ -50,78 +51,106 @@ export default function SupplierStatementReport() {
     const fetchStatement = async () => {
       setLoading(true);
       try {
-        const res = await api.payments.statement('supplier', selectedSupplier, dateFrom, dateTo);
-        if (res.error) {
-          console.error('[SupplierStatement] Error:', res.error);
-          setStatementEntries([]);
-          return;
-        }
+        // 1) Try API (open_items + payments from DB)
+        let apiEntries: Omit<StatementEntry, 'balance'>[] = [];
+        let apiBalance = 0;
 
-        const data = res.data as any;
-        const { openItems = [], payments = [], balance = { balance: 0 } } = data;
+        try {
+          const res = await api.payments.statement('supplier', selectedSupplier, dateFrom, dateTo);
+          if (!res.error) {
+            const data = res.data as any;
+            const { openItems = [], payments = [], balance = { balance: 0 } } = data;
+            apiBalance = parseFloat(balance.balance) || 0;
 
-        // Build unified entries sorted by date
-        const entries: Omit<StatementEntry, 'balance'>[] = [];
+            for (const oi of openItems) {
+              const docType = oi.document_type as string;
+              let type: StatementEntry['type'] = 'purchase';
+              let description = '';
 
-        // Open items (invoices, credit notes, debit notes)
-        for (const oi of openItems) {
-          const docType = oi.document_type as string;
-          let type: StatementEntry['type'] = 'purchase';
-          let description = '';
+              if (docType === 'invoice' || docType === 'purchase_invoice') {
+                type = 'purchase';
+                description = 'Fatura de Compra';
+              } else if (docType === 'credit_note') {
+                type = 'credit_note';
+                description = 'Nota de Crédito';
+              } else if (docType === 'debit_note') {
+                type = 'debit_note';
+                description = 'Nota de Débito';
+              } else if (docType === 'advance') {
+                type = 'advance';
+                description = 'Adiantamento';
+              } else {
+                description = docType;
+              }
 
-          if (docType === 'invoice' || docType === 'purchase_invoice') {
-            type = 'purchase';
-            description = `Fatura de Compra`;
-          } else if (docType === 'credit_note') {
-            type = 'credit_note';
-            description = `Nota de Crédito`;
-          } else if (docType === 'debit_note') {
-            type = 'debit_note';
-            description = `Nota de Débito`;
-          } else if (docType === 'advance') {
-            type = 'advance';
-            description = `Adiantamento`;
-          } else {
-            description = docType;
+              apiEntries.push({
+                id: oi.id,
+                date: oi.document_date,
+                type,
+                reference: oi.document_number,
+                description,
+                debit: !oi.is_debit ? oi.original_amount : 0,
+                credit: oi.is_debit ? oi.original_amount : 0,
+              });
+            }
+
+            for (const p of payments) {
+              apiEntries.push({
+                id: p.id,
+                date: p.created_at,
+                type: 'payment',
+                reference: p.payment_number,
+                description: `Pagamento - ${p.payment_method === 'cash' ? 'Numerário' : p.payment_method === 'transfer' ? 'Transferência' : p.payment_method === 'cheque' ? 'Cheque' : p.payment_method}`,
+                debit: p.amount,
+                credit: 0,
+              });
+            }
           }
-
-          entries.push({
-            id: oi.id,
-            date: oi.document_date,
-            type,
-            reference: oi.document_number,
-            description,
-            // For supplier: invoice = credit (we owe them), credit_note = debit (they owe us)
-            debit: !oi.is_debit ? oi.original_amount : 0,
-            credit: oi.is_debit ? oi.original_amount : 0,
-          });
+        } catch (err) {
+          console.warn('[SupplierStatement] API fetch failed, using localStorage:', err);
         }
 
-        // Payments
-        for (const p of payments) {
-          entries.push({
-            id: p.id,
-            date: p.created_at,
-            type: 'payment',
-            reference: p.payment_number,
-            description: `Pagamento - ${p.payment_method === 'cash' ? 'Numerário' : p.payment_method === 'transfer' ? 'Transferência' : p.payment_method === 'cheque' ? 'Cheque' : p.payment_method}`,
-            debit: p.amount, // Payment reduces what we owe
-            credit: 0,
+        // 2) Also pull from localStorage purchase invoices (web fallback)
+        const localInvoices = await getPurchaseInvoices();
+        const supplierData = suppliers.find(s => s.id === selectedSupplier);
+        const existingIds = new Set(apiEntries.map(e => e.id));
+
+        for (const inv of localInvoices) {
+          if (existingIds.has(inv.id)) continue; // skip duplicates
+          // Match supplier by ID, NIF, or name
+          const matches = supplierData && (
+            inv.supplierAccountCode === supplierData.id ||
+            inv.supplierNif === supplierData.nif ||
+            inv.supplierName.trim().toLowerCase() === supplierData.name.trim().toLowerCase()
+          );
+          if (!matches) continue;
+          // Date filter
+          const invDate = inv.date || inv.createdAt;
+          if (invDate < dateFrom || invDate > dateTo + 'T23:59:59') continue;
+
+          apiEntries.push({
+            id: inv.id,
+            date: invDate,
+            type: 'purchase',
+            reference: inv.invoiceNumber,
+            description: `Fatura de Compra ${inv.invoiceNumber}`,
+            debit: 0,
+            credit: inv.total,
           });
         }
 
         // Sort by date
-        entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        apiEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         // Calculate running balance
         let runningBalance = 0;
-        const finalEntries: StatementEntry[] = entries.map(e => {
+        const finalEntries: StatementEntry[] = apiEntries.map(e => {
           runningBalance += e.credit - e.debit;
           return { ...e, balance: runningBalance };
         });
 
         setStatementEntries(finalEntries);
-        setCurrentBalance(parseFloat(balance.balance) || 0);
+        setCurrentBalance(apiBalance || runningBalance);
       } catch (err) {
         console.error('[SupplierStatement] Fetch error:', err);
         setStatementEntries([]);
@@ -131,7 +160,7 @@ export default function SupplierStatementReport() {
     };
 
     fetchStatement();
-  }, [selectedSupplier, dateFrom, dateTo]);
+  }, [selectedSupplier, dateFrom, dateTo, suppliers]);
 
   const totals = useMemo(() => {
     return statementEntries.reduce((acc, entry) => ({
