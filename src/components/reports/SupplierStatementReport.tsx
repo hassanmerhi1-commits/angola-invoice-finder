@@ -290,6 +290,7 @@ export default function SupplierStatementReport() {
     }
   };
 
+  return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
