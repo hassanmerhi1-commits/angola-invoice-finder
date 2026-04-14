@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils';
 // Kwanza ERP API Client — API-first transaction routing
 // Transactional writes always use the backend HTTP API so browser and desktop share the same execution path
 // Electron IPC stays available only for desktop-only utilities and non-transactional reads
@@ -50,7 +51,7 @@ async function ipcInsert(table: string, data: any): Promise<ApiResponse<any>> {
   try {
     // Ensure ID
     if (!data.id) {
-      data.id = crypto.randomUUID();
+      data.id = generateId();
     }
     const result = await window.electronAPI!.db.insert(table, data);
     if (result.success) return { data };
@@ -131,7 +132,7 @@ function mapSupplierPayloadForElectron(data: any) {
   const now = new Date().toISOString();
 
   return {
-    id: data.id || crypto.randomUUID(),
+    id: data.id || generateId(),
     name: data.name || '',
     nif: data.nif || '',
     email: data.email || '',
@@ -154,7 +155,7 @@ function mapProductPayloadForElectron(data: any) {
   const cost = Number(data.cost ?? 0);
 
   return {
-    id: data.id || crypto.randomUUID(),
+    id: data.id || generateId(),
     name: data.name || '',
     sku: data.sku || '',
     barcode: data.barcode || '',
@@ -212,7 +213,7 @@ async function ensureSupplierSubAccountElectron(supplierName: string, supplierNi
     const code = `3.2.${String(nextSeq).padStart(3, '0')}`;
 
     const insertResult = await ipcInsert('chart_of_accounts', {
-      id: crypto.randomUUID(),
+      id: generateId(),
       code,
       name: supplierName,
       description: supplierNif ? `NIF: ${supplierNif}` : '',
@@ -293,7 +294,7 @@ export const api = {
     create: (data: any) => {
       if (isElectronMode()) {
         const branch = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: data.name,
           code: data.code || `FIL${Date.now().toString().slice(-4)}`,
           address: data.address || '',
@@ -432,7 +433,7 @@ export const api = {
       return apiFetch<any[]>('/clients');
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcInsert('clients', { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() });
+      if (isElectronMode()) return ipcInsert('clients', { id: generateId(), ...data, created_at: new Date().toISOString() });
       return apiFetch<any>('/clients', { method: 'POST', body: JSON.stringify(data) });
     },
     update: (id: string, data: any) => {
@@ -452,7 +453,7 @@ export const api = {
       return apiFetch<any[]>('/categories');
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcInsert('categories', { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() });
+      if (isElectronMode()) return ipcInsert('categories', { id: generateId(), ...data, created_at: new Date().toISOString() });
       return apiFetch<any>('/categories', { method: 'POST', body: JSON.stringify(data) });
     },
     update: (id: string, data: any) => {
@@ -571,7 +572,7 @@ export const api = {
     generate: (branchId: string, date: string) => {
       if (isElectronMode()) {
         return ipcInsert('daily_reports', {
-          id: crypto.randomUUID(), branch_id: branchId, report_date: date,
+          id: generateId(), branch_id: branchId, report_date: date,
           status: 'open', created_at: new Date().toISOString(),
         });
       }
@@ -646,7 +647,7 @@ export const api = {
       return apiFetch<any[]>(`/purchase-orders${branchId ? `?branchId=${branchId}` : ''}`);
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcInsert('purchase_orders', { id: crypto.randomUUID(), ...data, status: 'pending', created_at: new Date().toISOString() });
+      if (isElectronMode()) return ipcInsert('purchase_orders', { id: generateId(), ...data, status: 'pending', created_at: new Date().toISOString() });
       return apiFetch<any>('/purchase-orders', { method: 'POST', body: JSON.stringify(data) });
     },
     approve: (id: string, approvedBy: string) => {
@@ -705,7 +706,7 @@ export const api = {
       return apiFetch<any[]>(`/chart-of-accounts/reports/trial-balance?${params}`);
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcInsert('chart_of_accounts', { id: crypto.randomUUID(), ...data, is_active: true, current_balance: 0, created_at: new Date().toISOString() });
+      if (isElectronMode()) return ipcInsert('chart_of_accounts', { id: generateId(), ...data, is_active: true, current_balance: 0, created_at: new Date().toISOString() });
       return apiFetch<any>('/chart-of-accounts', { method: 'POST', body: JSON.stringify(data) });
     },
     update: (id: string, data: any) => {
@@ -877,7 +878,7 @@ export const api = {
       return apiFetch<any[]>('/tax/codes');
     },
     createCode: (data: any) => {
-      if (isElectronMode()) return ipcInsert('tax_codes', { id: crypto.randomUUID(), ...data });
+      if (isElectronMode()) return ipcInsert('tax_codes', { id: generateId(), ...data });
       return apiFetch<any>('/tax/codes', { method: 'POST', body: JSON.stringify(data) });
     },
     updateCode: (id: string, data: any) => {
@@ -968,7 +969,7 @@ export const api = {
       return apiFetch<any[]>('/budgets/cost-centers');
     },
     createCostCenter: (data: any) => {
-      if (isElectronMode()) return ipcInsert('cost_centers', { id: crypto.randomUUID(), ...data });
+      if (isElectronMode()) return ipcInsert('cost_centers', { id: generateId(), ...data });
       return apiFetch<any>('/budgets/cost-centers', { method: 'POST', body: JSON.stringify(data) });
     },
     list: (params?: { year?: number; month?: number; costCenterId?: string }) => {
@@ -980,7 +981,7 @@ export const api = {
       return apiFetch<any[]>(`/budgets/budgets?${sp}`);
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcInsert('budgets', { id: crypto.randomUUID(), ...data });
+      if (isElectronMode()) return ipcInsert('budgets', { id: generateId(), ...data });
       return apiFetch<any>('/budgets/budgets', { method: 'POST', body: JSON.stringify(data) });
     },
     summary: (year?: number) => {
@@ -1002,7 +1003,7 @@ export const api = {
       return apiFetch<any[]>(`/approvals/workflows${sp}`);
     },
     createWorkflow: (data: any) => {
-      if (isElectronMode()) return ipcInsert('approval_workflows', { id: crypto.randomUUID(), ...data });
+      if (isElectronMode()) return ipcInsert('approval_workflows', { id: generateId(), ...data });
       return apiFetch<any>('/approvals/workflows', { method: 'POST', body: JSON.stringify(data) });
     },
     requests: (params?: { status?: string; documentType?: string; branchId?: string }) => {
@@ -1023,7 +1024,7 @@ export const api = {
       return apiFetch<any[]>(`/approvals/requests?${sp}`);
     },
     submitRequest: (data: any) => {
-      if (isElectronMode()) return ipcInsert('approval_requests', { id: crypto.randomUUID(), ...data, status: 'pending', created_at: new Date().toISOString() });
+      if (isElectronMode()) return ipcInsert('approval_requests', { id: generateId(), ...data, status: 'pending', created_at: new Date().toISOString() });
       return apiFetch<any>('/approvals/requests', { method: 'POST', body: JSON.stringify(data) });
     },
     approve: (id: string, userId: string, userName: string, comments?: string) => {
@@ -1133,7 +1134,7 @@ export const api = {
       return apiFetch<any[]>('/exchange-rates/latest');
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcInsert('exchange_rates', { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() });
+      if (isElectronMode()) return ipcInsert('exchange_rates', { id: generateId(), ...data, created_at: new Date().toISOString() });
       return apiFetch<any>('/exchange-rates', { method: 'POST', body: JSON.stringify(data) });
     },
     delete: (id: string) => {
@@ -1173,7 +1174,7 @@ export const api = {
     },
     create: (data: any) => {
       if (isElectronMode()) return ipcInsert('users', {
-        id: crypto.randomUUID(), ...data,
+        id: generateId(), ...data,
         password_hash: data.password || data.password_hash || '',
         is_active: true, created_at: new Date().toISOString(),
       });
