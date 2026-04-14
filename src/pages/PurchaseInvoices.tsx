@@ -711,13 +711,17 @@ export default function PurchaseInvoices() {
   }, []);
 
   const handleAccountSelect = useCallback((code: string, name: string) => {
-    if (accountPickerTarget === 'journal' && editingJournalIdx !== null) {
+    if (freightPickerOpen) {
+      setFreightSourceAccount(code);
+      setFreightSourceName(name);
+      setFreightPickerOpen(false);
+    } else if (accountPickerTarget === 'journal' && editingJournalIdx !== null) {
       updateJournalLine(editingJournalIdx, 'accountCode', code);
       updateJournalLine(editingJournalIdx, 'accountName', name);
     }
     setAccountPickerTarget(null);
     setEditingJournalIdx(null);
-  }, [accountPickerTarget, editingJournalIdx, updateJournalLine]);
+  }, [accountPickerTarget, editingJournalIdx, updateJournalLine, freightPickerOpen]);
 
   // ─────── SAVE (all phases) ───────
   const handleSave = useCallback(async () => {
