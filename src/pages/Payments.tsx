@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from '@/i18n';
+import { api } from '@/lib/api/client';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useAuth } from '@/hooks/useERP';
 import { Button } from '@/components/ui/button';
@@ -26,43 +27,70 @@ import type { OpenItem, Payment } from '@/types/erp';
 function usePaymentsData() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [openItems, setOpenItems] = useState<OpenItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
+    setLoading(true);
     try {
-      const stored = localStorage.getItem('kwanzaerp_payments');
-      setPayments(stored ? JSON.parse(stored) : []);
-      const storedOI = localStorage.getItem('kwanzaerp_open_items');
-      setOpenItems(storedOI ? JSON.parse(storedOI) : []);
-    } catch { setPayments([]); setOpenItems([]); }
+      const paymentsRes = await api.payments.list();
+      if (paymentsRes.data) {
+        setPayments(paymentsRes.data.map((p: any) => ({
+          id: p.id,
+          paymentNumber: p.payment_number,
+          paymentType: p.payment_type,
+          entityType: p.entity_type,
+          entityId: p.entity_id,
+          entityName: p.entity_name,
+          paymentMethod: p.payment_method,
+          amount: parseFloat(p.amount),
+          currency: p.currency || 'AOA',
+          reference: p.reference,
+          notes: p.notes,
+          branchId: p.branch_id,
+          createdBy: p.created_by,
+          createdAt: p.created_at,
+        })));
+      }
+    } catch (e) {
+      console.error('[PAYMENTS] Failed to load:', e);
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const createPayment = useCallback((payment: Payment, selectedItems: OpenItem[]) => {
-    // Save payment
-    const all = JSON.parse(localStorage.getItem('kwanzaerp_payments') || '[]');
-    all.push(payment);
-    localStorage.setItem('kwanzaerp_payments', JSON.stringify(all));
-
-    // Update open items (clear selected)
-    const allOI: OpenItem[] = JSON.parse(localStorage.getItem('kwanzaerp_open_items') || '[]');
-    let remaining = payment.amount;
-    for (const sel of selectedItems) {
-      const idx = allOI.findIndex(o => o.id === sel.id);
-      if (idx >= 0 && remaining > 0) {
-        const clearAmount = Math.min(remaining, allOI[idx].remainingAmount);
-        allOI[idx].remainingAmount -= clearAmount;
-        allOI[idx].status = allOI[idx].remainingAmount <= 0 ? 'cleared' : 'partial';
-        if (allOI[idx].remainingAmount <= 0) allOI[idx].clearedAt = new Date().toISOString();
-        remaining -= clearAmount;
-      }
-    }
-    localStorage.setItem('kwanzaerp_open_items', JSON.stringify(allOI));
-    refresh();
-    return payment;
+  const createPayment = useCallback(async (paymentData: any) => {
+    const res = await api.payments.create(paymentData);
+    if (res.error) throw new Error(res.error);
+    await refresh();
+    return res.data;
   }, [refresh]);
 
-  return { payments, openItems, refresh, createPayment };
+  const loadOpenItems = useCallback(async (entityType: string, entityId: string) => {
+    const res = await api.payments.openItems(entityType, entityId);
+    if (res.data) {
+      setOpenItems(res.data.map((oi: any) => ({
+        id: oi.id,
+        entityType: oi.entity_type,
+        entityId: oi.entity_id,
+        documentType: oi.document_type,
+        documentId: oi.document_id,
+        documentNumber: oi.document_number,
+        documentDate: oi.document_date,
+        dueDate: oi.due_date,
+        originalAmount: parseFloat(oi.original_amount),
+        remainingAmount: parseFloat(oi.remaining_amount),
+        isDebit: oi.is_debit,
+        status: oi.status,
+        currency: oi.currency || 'AOA',
+        branchId: oi.branch_id,
+        createdAt: oi.created_at,
+        clearedAt: oi.cleared_at,
+      })));
+    }
+  }, []);
+
+  return { payments, openItems, loading, refresh, createPayment, loadOpenItems };
 }
 
 export default function Payments() {
@@ -71,7 +99,7 @@ export default function Payments() {
   const { currentBranch } = useBranchContext();
   const { clients } = useClients();
   const { suppliers } = useSuppliers();
-  const { payments, openItems, refresh, createPayment } = usePaymentsData();
+  const { payments, openItems, loading, refresh, createPayment, loadOpenItems } = usePaymentsData();
 
   const [activeTab, setActiveTab] = useState<'receipts' | 'payments' | 'open-items'>('receipts');
   const [searchTerm, setSearchTerm] = useState('');
@@ -117,35 +145,45 @@ export default function Payments() {
     setSelectedOpenItems(new Set());
   };
 
-  const handleCreate = () => {
+  const handleEntityChange = useCallback((id: string) => {
+    setEntityId(id);
+    setSelectedOpenItems(new Set());
+    if (id) {
+      const entType = paymentType === 'receipt' ? 'customer' : 'supplier';
+      loadOpenItems(entType, id);
+    }
+  }, [paymentType, loadOpenItems]);
+
+  const handleCreate = async () => {
     if (!entityId || !amount || Number(amount) <= 0) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
     const entity = entities.find(e => e.id === entityId);
-    const payment: Payment = {
-      id: crypto.randomUUID(),
-      paymentNumber: `${paymentType === 'receipt' ? 'REC' : 'PAG'}-${Date.now().toString(36).toUpperCase()}`,
-      paymentType,
-      entityType: paymentType === 'receipt' ? 'customer' : 'supplier',
-      entityId,
-      entityName: entity?.name || '',
-      paymentMethod,
-      amount: Number(amount),
-      currency: 'AOA',
-      reference,
-      notes,
-      branchId: currentBranch?.id || '',
-      createdBy: user?.id || '',
-      createdAt: new Date().toISOString(),
-    };
-
     const selected = entityOpenItems.filter(oi => selectedOpenItems.has(oi.id));
-    createPayment(payment, selected);
-    toast.success(`${paymentType === 'receipt' ? 'Recibo' : 'Pagamento'} registado com sucesso`);
-    setShowNewDialog(false);
-    resetForm();
+
+    try {
+      await createPayment({
+        paymentType,
+        entityType: paymentType === 'receipt' ? 'customer' : 'supplier',
+        entityId,
+        entityName: entity?.name || '',
+        paymentMethod,
+        amount: Number(amount),
+        branchId: currentBranch?.id || '',
+        createdBy: user?.id || '',
+        reference,
+        notes,
+        invoiceIds: selected.map(oi => oi.documentId),
+      });
+      toast.success(`${paymentType === 'receipt' ? 'Recibo' : 'Pagamento'} registado com sucesso`);
+      setShowNewDialog(false);
+      resetForm();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao registar pagamento');
+      console.error('[PAYMENTS] Create failed:', err);
+    }
   };
 
   const openNewDialog = (type: 'receipt' | 'payment') => {
@@ -340,7 +378,7 @@ export default function Payments() {
             {/* Entity Select */}
             <div>
               <Label>{entityLabel}</Label>
-              <Select value={entityId} onValueChange={setEntityId}>
+              <Select value={entityId} onValueChange={handleEntityChange}>
                 <SelectTrigger><SelectValue placeholder={`Seleccionar ${entityLabel.toLowerCase()}...`} /></SelectTrigger>
                 <SelectContent>
                   {entities.map(e => (
