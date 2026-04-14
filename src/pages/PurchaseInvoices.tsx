@@ -744,7 +744,7 @@ export default function PurchaseInvoices() {
         (i.supplierInvoiceNo && i.supplierInvoiceNo.toLowerCase().includes(q))
       );
     }
-    if (filterSupplier) {
+    if (filterSupplier && filterSupplier !== '__all__') {
       const q = filterSupplier.toLowerCase();
       result = result.filter(i => i.supplierName.toLowerCase().includes(q));
     }
@@ -1321,7 +1321,7 @@ export default function PurchaseInvoices() {
                     <SelectValue placeholder="Todos fornecedores" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="__all__">Todos</SelectItem>
                     {[...new Set(invoices.map(i => i.supplierName))].sort().map(name => (
                       <SelectItem key={name} value={name.toLowerCase()}>{name}</SelectItem>
                     ))}
@@ -1336,8 +1336,8 @@ export default function PurchaseInvoices() {
                 <Label className="text-xs text-muted-foreground">Até</Label>
                 <Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="h-9 w-36" />
               </div>
-              {(filterSupplier || filterDateFrom || filterDateTo) && (
-                <Button variant="ghost" size="sm" onClick={() => { setFilterSupplier(''); setFilterDateFrom(''); setFilterDateTo(''); }}>
+              {(filterSupplier && filterSupplier !== '__all__' || filterDateFrom || filterDateTo) && (
+                <Button variant="ghost" size="sm" onClick={() => { setFilterSupplier('__all__'); setFilterDateFrom(''); setFilterDateTo(''); }}>
                   <X className="h-4 w-4 mr-1" /> Limpar
                 </Button>
               )}
