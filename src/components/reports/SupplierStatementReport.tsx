@@ -13,6 +13,7 @@ import { pt } from 'date-fns/locale';
 import { exportToExcel } from '@/lib/excel';
 import { api } from '@/lib/api/client';
 import { getPurchaseInvoices, PurchaseInvoice } from '@/lib/purchaseInvoiceStorage';
+import { useCompanySettings } from '@/hooks/useERP';
 
 interface StatementEntry {
   id: string;
@@ -27,6 +28,7 @@ interface StatementEntry {
 
 export default function SupplierStatementReport() {
   const { suppliers } = useSuppliers();
+  const { settings: companySettings } = useCompanySettings();
   
   const [selectedSupplier, setSelectedSupplier] = useState<string>('');
   const [dateFrom, setDateFrom] = useState(format(subMonths(new Date(), 6), 'yyyy-MM-dd'));
@@ -301,11 +303,11 @@ export default function SupplierStatementReport() {
             <div className="flex justify-between items-center">
               <CardTitle>Movimentos</CardTitle>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleExport}>
+                <Button variant="outline" size="sm" onClick={handleExport} className="no-print">
                   <Download className="w-4 h-4 mr-2" />
                   Excel
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => window.print()}>
+                <Button variant="outline" size="sm" onClick={handlePrint} className="no-print">
                   <Printer className="w-4 h-4 mr-2" />
                   Imprimir
                 </Button>
