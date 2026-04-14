@@ -45,13 +45,13 @@ module.exports = function(broadcastTable) {
   // Create product
   router.post('/', async (req, res) => {
     try {
-      const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive } = req.body;
+      const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, supplierId, supplierName } = req.body;
       
       const result = await db.query(
-        `INSERT INTO products (name, sku, barcode, category, price, cost, stock, unit, tax_rate, branch_id, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO products (name, sku, barcode, category, price, cost, stock, unit, tax_rate, branch_id, is_active, supplier_id, supplier_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
-        [name, sku, barcode, category, price, cost, stock || 0, unit || 'un', taxRate || 14, sanitizeUuid(branchId), isActive !== false]
+        [name, sku, barcode, category, price, cost, stock || 0, unit || 'un', taxRate || 14, sanitizeUuid(branchId), isActive !== false, sanitizeUuid(supplierId), supplierName || null]
       );
       
       // Broadcast to ALL clients
