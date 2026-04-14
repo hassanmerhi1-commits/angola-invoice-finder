@@ -924,7 +924,7 @@ export function usePurchaseOrders(branchId?: string) {
 function mapCategory(c: any): Category {
   return {
     id: c.id,
-    name: c.name,
+    name: String(c.name || '').replace(/\s+/g, ' ').trim(),
     parentId: c.parentId ?? c.parent_id ?? null,
     description: c.description || '',
     color: c.color || '#6b7280',
@@ -932,6 +932,30 @@ function mapCategory(c: any): Category {
     createdAt: c.createdAt ?? c.created_at ?? '',
     updatedAt: c.updatedAt ?? c.updated_at ?? '',
   };
+}
+
+function dedupeCategoriesByName(categories: Category[]): Category[] {
+  const uniqueByName = new Map<string, Category>();
+
+  for (const category of categories) {
+    if (!category.name) continue;
+    const key = category.name.toLowerCase();
+    const existing = uniqueByName.get(key);
+
+    if (!existing) {
+      uniqueByName.set(key, category);
+      continue;
+    }
+
+    const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+    const currentTime = new Date(category.updatedAt || category.createdAt || 0).getTime();
+
+    if ((!existing.isActive && category.isActive) || currentTime > existingTime) {
+      uniqueByName.set(key, category);
+    }
+  }
+
+  return Array.from(uniqueByName.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-AO'));
 }
 
 export function useCategories() {
@@ -942,7 +966,7 @@ export function useCategories() {
       () => api.categories.list(),
       () => storage.getCategories()
     );
-    setCategories(Array.isArray(data) ? data.map(mapCategory) : []);
+    setCategories(Array.isArray(data) ? dedupeCategoriesByName(data.map(mapCategory)) : []);
   }, []);
 
   useEffect(() => { refreshCategories(); }, [refreshCategories]);

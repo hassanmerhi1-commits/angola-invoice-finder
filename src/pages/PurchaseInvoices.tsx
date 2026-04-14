@@ -12,7 +12,6 @@ import {
   PurchaseInvoiceJournalLine,
   calculateLine,
   calculateInvoiceTotals,
-  generateAutoJournalLines,
   getPurchaseInvoices,
   savePurchaseInvoice,
   generatePurchaseInvoiceNumber,
@@ -330,6 +329,108 @@ function AccountPickerDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function buildPurchaseInvoiceJournalLines({
+  documentId,
+  invoiceNumber,
+  currency,
+  purchaseAccountCode,
+  ivaAccountCode,
+  supplierAccountCode,
+  supplierName,
+  subtotal,
+  ivaTotal,
+  supplierTotal,
+  landingCosts,
+  freightSourceAccount,
+  freightSourceName,
+  manualLines,
+}: {
+  documentId: string;
+  invoiceNumber: string;
+  currency: string;
+  purchaseAccountCode: string;
+  ivaAccountCode: string;
+  supplierAccountCode: string;
+  supplierName: string;
+  subtotal: number;
+  ivaTotal: number;
+  supplierTotal: number;
+  landingCosts: number;
+  freightSourceAccount: string;
+  freightSourceName: string;
+  manualLines: PurchaseInvoiceJournalLine[];
+}): PurchaseInvoiceJournalLine[] {
+  const postedLines: PurchaseInvoiceJournalLine[] = [];
+  let autoIndex = 0;
+  const nextId = (suffix: string) => `${documentId}_${suffix}_${++autoIndex}`;
+
+  if (subtotal > 0) {
+    postedLines.push({
+      id: nextId('purchase'),
+      accountCode: purchaseAccountCode || '2.1.1',
+      accountName: 'Compra de Mercadorias',
+      currency,
+      note: `Mercadoria - FC ${invoiceNumber}`,
+      debit: subtotal,
+      credit: 0,
+    });
+  }
+
+  if (landingCosts > 0) {
+    postedLines.push({
+      id: nextId('freight_debit'),
+      accountCode: purchaseAccountCode || '2.1.1',
+      accountName: 'Compra de Mercadorias',
+      currency,
+      note: `Frete / Transporte rateado - FC ${invoiceNumber}`,
+      debit: landingCosts,
+      credit: 0,
+    });
+  }
+
+  if (ivaTotal > 0) {
+    postedLines.push({
+      id: nextId('iva'),
+      accountCode: ivaAccountCode || '3.3.1',
+      accountName: 'IVA Dedutível',
+      currency,
+      note: `IVA - FC ${invoiceNumber}`,
+      debit: ivaTotal,
+      credit: 0,
+    });
+  }
+
+  postedLines.push({
+    id: nextId('supplier'),
+    accountCode: supplierAccountCode,
+    accountName: supplierName,
+    currency,
+    note: `FC ${invoiceNumber}`,
+    debit: 0,
+    credit: supplierTotal,
+  });
+
+  if (landingCosts > 0) {
+    postedLines.push({
+      id: nextId('freight_credit'),
+      accountCode: freightSourceAccount,
+      accountName: freightSourceName,
+      currency,
+      note: `Saída de caixa/banco - Frete FC ${invoiceNumber}`,
+      debit: 0,
+      credit: landingCosts,
+    });
+  }
+
+  return [
+    ...postedLines,
+    ...manualLines.map((line, index) => ({
+      ...line,
+      id: line.id || nextId(`manual_${index + 1}`),
+    })),
+  ];
 }
 
 // ─────────── Invoice View Dialog ───────────
@@ -678,6 +779,48 @@ export default function PurchaseInvoices() {
   // Totals
   const totals = useMemo(() => calculateInvoiceTotals(lines), [lines]);
 
+  const postedJournalPreview = useMemo(() => buildPurchaseInvoiceJournalLines({
+    documentId: 'preview',
+    invoiceNumber: form.supplierInvoiceNo || form.ref || 'PRÉVIA',
+    currency: form.currency || 'KZ',
+    purchaseAccountCode: form.purchaseAccountCode || '2.1.1',
+    ivaAccountCode: form.ivaAccountCode || '3.3.1',
+    supplierAccountCode: form.supplierAccountCode || '',
+    supplierName: form.supplierName || 'Fornecedor',
+    subtotal: totals.subtotal,
+    ivaTotal: totals.ivaTotal,
+    supplierTotal: totals.total,
+    landingCosts: totalLandingCosts,
+    freightSourceAccount,
+    freightSourceName,
+    manualLines: journalLines,
+  }), [
+    form.currency,
+    form.ivaAccountCode,
+    form.purchaseAccountCode,
+    form.ref,
+    form.supplierAccountCode,
+    form.supplierInvoiceNo,
+    form.supplierName,
+    freightSourceAccount,
+    freightSourceName,
+    journalLines,
+    totals.ivaTotal,
+    totals.subtotal,
+    totals.total,
+    totalLandingCosts,
+  ]);
+
+  const postedJournalTotals = useMemo(() => {
+    const debit = postedJournalPreview.reduce((sum, line) => sum + (line.debit || 0), 0);
+    const credit = postedJournalPreview.reduce((sum, line) => sum + (line.credit || 0), 0);
+    return {
+      debit,
+      credit,
+      difference: debit - credit,
+    };
+  }, [postedJournalPreview]);
+
   // Add journal line
   const addJournalLine = useCallback(() => {
     setJournalLines(prev => [...prev, {
@@ -829,8 +972,7 @@ export default function PurchaseInvoices() {
     const now = new Date().toISOString();
     const branchCode = currentBranch?.code || 'SEDE';
 
-    // Phase 3: Auto-generate journal lines if none manually added
-    let finalJournalLines = journalLines.length > 0 ? journalLines : [];
+    const manualJournalLines = journalLines;
 
     const invoice: PurchaseInvoice = {
       id: generateId(),
@@ -864,7 +1006,7 @@ export default function PurchaseInvoices() {
       isPending: form.isPending || false,
       extraNote: form.extraNote,
       lines,
-      journalLines: finalJournalLines,
+      journalLines: [],
       subtotal: totals.subtotal,
       ivaTotal: totals.ivaTotal,
       total: totals.total,
@@ -877,9 +1019,22 @@ export default function PurchaseInvoices() {
       updatedAt: now,
     };
 
-    // Phase 3: Generate auto journal entries
-    const autoJournal = generateAutoJournalLines(invoice);
-    invoice.journalLines = [...autoJournal, ...finalJournalLines];
+    invoice.journalLines = buildPurchaseInvoiceJournalLines({
+      documentId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      currency: invoice.currency,
+      purchaseAccountCode: invoice.purchaseAccountCode || '2.1.1',
+      ivaAccountCode: invoice.ivaAccountCode || '3.3.1',
+      supplierAccountCode: invoice.supplierAccountCode,
+      supplierName: invoice.supplierName,
+      subtotal: invoice.subtotal,
+      ivaTotal: invoice.ivaTotal,
+      supplierTotal: invoice.total,
+      landingCosts: totalLandingCosts,
+      freightSourceAccount,
+      freightSourceName,
+      manualLines: manualJournalLines,
+    });
 
     try {
       console.log('[PurchaseInvoices] Calling processTransaction...', {
@@ -932,50 +1087,13 @@ export default function PurchaseInvoices() {
           : undefined,
 
         // Phase 3: Journal entries
-        journalLines: [
-          // Debit: Purchase account (includes freight in cost)
-          ...(invoice.subtotal > 0 ? [{
-            accountCode: invoice.purchaseAccountCode || '2.1',
-            accountName: 'Compra de Mercadorias',
-            debit: invoice.subtotal + totalLandingCosts,
-            credit: 0,
-            note: totalLandingCosts > 0
-              ? `FC ${invoice.invoiceNumber} (incl. frete ${totalLandingCosts.toLocaleString('pt-AO')} Kz)`
-              : `FC ${invoice.invoiceNumber}`,
-          }] : []),
-          // Debit: IVA
-          ...(invoice.ivaTotal > 0 ? [{
-            accountCode: invoice.ivaAccountCode || '3.3.1',
-            accountName: 'IVA Dedutível',
-            debit: invoice.ivaTotal,
-            credit: 0,
-            note: `IVA - FC ${invoice.invoiceNumber}`,
-          }] : []),
-          // Credit: Supplier (original invoice amount without freight)
-          {
-            accountCode: invoice.supplierAccountCode,
-            accountName: invoice.supplierName,
-            debit: 0,
-            credit: invoice.total,
-            note: `FC ${invoice.invoiceNumber}`,
-          },
-          // Credit: Freight source account (Caixa/Bank) — only if freight > 0
-          ...(totalLandingCosts > 0 ? [{
-            accountCode: freightSourceAccount,
-            accountName: freightSourceName,
-            debit: 0,
-            credit: totalLandingCosts,
-            note: `Frete/Transporte - FC ${invoice.invoiceNumber}`,
-          }] : []),
-          // Add manual journal lines
-          ...finalJournalLines.map(jl => ({
-            accountCode: jl.accountCode,
-            accountName: jl.accountName,
-            debit: jl.debit,
-            credit: jl.credit,
-            note: jl.note,
-          })),
-        ],
+        journalLines: invoice.journalLines.map((line) => ({
+          accountCode: line.accountCode,
+          accountName: line.accountName,
+          debit: line.debit,
+          credit: line.credit,
+          note: line.note,
+        })),
 
         // Phase 4: Open item (payable to supplier) — use REAL supplier ID
         openItem: {
@@ -1532,18 +1650,23 @@ export default function PurchaseInvoices() {
                   <span className="font-mono font-medium">{totals.subtotal.toLocaleString('pt-AO')}</span>
                 </div>
                 {totalLandingCosts > 0 && (
-                  <div className="flex justify-between text-sm text-amber-600">
-                    <span>Frete / Transporte</span>
-                    <span className="font-mono font-medium">+{totalLandingCosts.toLocaleString('pt-AO')}</span>
-                  </div>
+                  <>
+                    <div className="flex justify-between text-sm text-amber-600">
+                      <span>Frete / Transporte</span>
+                      <span className="font-mono font-medium">{totalLandingCosts.toLocaleString('pt-AO')}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Rateado ao custo dos produtos, sem alterar o valor da fatura do fornecedor.
+                    </p>
+                  </>
                 )}
                 <div className="flex justify-between text-sm text-orange-600">
                   <span>IVA</span>
                   <span className="font-mono font-medium">{totals.ivaTotal.toLocaleString('pt-AO')}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-1">
-                  <span>Total</span>
-                  <span className="font-mono">{(totals.total + totalLandingCosts).toLocaleString('pt-AO')}</span>
+                  <span>Total da Fatura</span>
+                  <span className="font-mono">{totals.total.toLocaleString('pt-AO')}</span>
                 </div>
               </CardContent>
             </Card>
@@ -1558,6 +1681,54 @@ export default function PurchaseInvoices() {
               <Plus className="h-4 w-4" /> Adicionar Linha
             </Button>
           </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Pré-visualização do lançamento final</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs">
+                    <TableHead>Conta</TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Nota</TableHead>
+                    <TableHead className="w-28 text-right">Débito</TableHead>
+                    <TableHead className="w-28 text-right">Crédito</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {postedJournalPreview.map((line) => (
+                    <TableRow key={line.id} className="text-xs">
+                      <TableCell className="font-mono">{line.accountCode || '—'}</TableCell>
+                      <TableCell>{line.accountName || '—'}</TableCell>
+                      <TableCell>{line.note || '—'}</TableCell>
+                      <TableCell className="text-right font-mono">{line.debit > 0 ? line.debit.toLocaleString('pt-AO') : '—'}</TableCell>
+                      <TableCell className="text-right font-mono">{line.credit > 0 ? line.credit.toLocaleString('pt-AO') : '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="flex justify-end border-t px-4 py-3 text-sm">
+                <div className="w-80 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Débito:</span>
+                    <span className="font-mono">{postedJournalTotals.debit.toLocaleString('pt-AO')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Crédito:</span>
+                    <span className="font-mono">{postedJournalTotals.credit.toLocaleString('pt-AO')}</span>
+                  </div>
+                  <div className="flex justify-between font-bold border-t pt-1">
+                    <span>Diferença:</span>
+                    <span className={`font-mono ${Math.abs(postedJournalTotals.difference) > 0.01 ? 'text-destructive' : 'text-green-600'}`}>
+                      {postedJournalTotals.difference.toLocaleString('pt-AO')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardContent className="p-0">
@@ -1640,9 +1811,9 @@ export default function PurchaseInvoices() {
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        Os lançamentos automáticos (Compra, IVA, Fornecedor) são gerados ao guardar.
+                        Os lançamentos automáticos acima já mostram Compra, IVA, Fornecedor e Frete.
                         <br />
-                        Adicione linhas aqui para despesas adicionais (ex: Frete, Despesas Alfandegárias).
+                        Adicione linhas aqui apenas para ajustes extras.
                       </TableCell>
                     </TableRow>
                   )}
@@ -1651,26 +1822,6 @@ export default function PurchaseInvoices() {
             </CardContent>
           </Card>
 
-          {journalLines.length > 0 && (
-            <div className="flex justify-end text-sm">
-              <div className="w-72 space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Débito:</span>
-                  <span className="font-mono">{journalLines.reduce((s, l) => s + l.debit, 0).toLocaleString('pt-AO')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Crédito:</span>
-                  <span className="font-mono">{journalLines.reduce((s, l) => s + l.credit, 0).toLocaleString('pt-AO')}</span>
-                </div>
-                <div className="flex justify-between font-bold border-t pt-1">
-                  <span>Diferença:</span>
-                  <span className={`font-mono ${Math.abs(journalLines.reduce((s, l) => s + l.debit - l.credit, 0)) > 0.01 ? 'text-destructive' : 'text-green-600'}`}>
-                    {journalLines.reduce((s, l) => s + l.debit - l.credit, 0).toLocaleString('pt-AO')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
         </TabsContent>
       </Tabs>
 
