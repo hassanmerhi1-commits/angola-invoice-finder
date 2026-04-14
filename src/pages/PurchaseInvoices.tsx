@@ -383,10 +383,10 @@ function buildPurchaseInvoiceJournalLines({
   if (landingCosts > 0) {
     postedLines.push({
       id: nextId('freight_debit'),
-      accountCode: purchaseAccountCode || '2.1.1',
-      accountName: 'Compra de Mercadorias',
+      accountCode: '6.2.6',
+      accountName: 'Transporte sobre Compras',
       currency,
-      note: `Frete / Transporte rateado - FC ${invoiceNumber}`,
+      note: `Frete / Transporte - FC ${invoiceNumber}`,
       debit: landingCosts,
       credit: 0,
     });
