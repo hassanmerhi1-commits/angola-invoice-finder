@@ -617,8 +617,11 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
   const supplierAccountCode = await getEntityAccountCode(client, 'supplier', order.supplier_id, order.supplier_name);
 
   const journalLines = [
-    { accountCode: '2.1.1', description: `Compra ${order.order_number}`, debit: subtotal + freightCost, credit: 0 },
+    { accountCode: '2.1.1', description: `Mercadoria ${order.order_number}`, debit: subtotal, credit: 0 },
   ];
+  if (freightCost > 0) {
+    journalLines.push({ accountCode: '6.2.6', description: `Frete ${order.order_number}`, debit: freightCost, credit: 0 });
+  }
   if (taxAmount > 0) {
     journalLines.push({ accountCode: '3.3.1', description: `IVA compra ${order.order_number}`, debit: taxAmount, credit: 0 });
   }
