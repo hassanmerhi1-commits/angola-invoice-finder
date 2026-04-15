@@ -466,7 +466,18 @@ async function processSale(client, saleData) {
 // ==================== CREATE PURCHASE ORDER ====================
 
 async function createPurchaseOrder(client, data) {
-  const { supplierId, branchId, items, createdBy, createdByName, notes, expectedDeliveryDate } = data;
+  const {
+    supplierId,
+    branchId,
+    items,
+    createdBy,
+    createdByName,
+    notes,
+    expectedDeliveryDate,
+    freightCost,
+    otherCosts,
+    otherCostsDescription,
+  } = data;
 
   requireParam(supplierId, 'supplierId');
   requireParam(branchId, 'branchId');
@@ -485,25 +496,41 @@ async function createPurchaseOrder(client, data) {
   // Sequence-based number
   const orderNumber = await generateSequenceNumber(client, 'purchase_order', 'PO');
 
+  const normalizedFreightCost = requirePositive(freightCost || 0, 'freightCost');
+  const normalizedOtherCosts = requirePositive(otherCosts || 0, 'otherCosts');
   const subtotal = items.reduce((sum, item) => sum + (item.subtotal || item.quantity * item.unitCost), 0);
   const taxAmount = items.reduce((sum, item) => sum + ((item.subtotal || item.quantity * item.unitCost) * (item.taxRate || 0) / 100), 0);
-  const total = subtotal + taxAmount;
+  const total = subtotal + taxAmount + normalizedFreightCost + normalizedOtherCosts;
 
   const orderId = randomUUID();
   await client.query(
     `INSERT INTO purchase_orders (id, order_number, supplier_id, supplier_name, branch_id, branch_name,
-      subtotal, tax_amount, total, created_by, notes, expected_delivery_date, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending')`,
+      subtotal, tax_amount, total, created_by, notes, expected_delivery_date, freight_cost, other_costs,
+      other_costs_description, freight_distributed, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,false,'pending')`,
     [orderId, orderNumber, supplierId, supplierName, branchId, branchName,
-     subtotal, taxAmount, total, createdBy, notes, expectedDeliveryDate]
+     subtotal, taxAmount, total, createdBy, notes, expectedDeliveryDate,
+     normalizedFreightCost, normalizedOtherCosts, otherCostsDescription || null]
   );
 
   for (const item of items) {
     const itemId = randomUUID();
     await client.query(
-      `INSERT INTO purchase_order_items (id, order_id, product_id, product_name, sku, quantity, unit_cost, tax_rate, subtotal)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [itemId, orderId, item.productId, item.productName, item.sku, item.quantity, item.unitCost, item.taxRate || 0, item.subtotal || item.quantity * item.unitCost]
+      `INSERT INTO purchase_order_items (id, order_id, product_id, product_name, sku, quantity, unit_cost, tax_rate, subtotal, freight_allocation, effective_cost)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        itemId,
+        orderId,
+        item.productId,
+        item.productName,
+        item.sku,
+        item.quantity,
+        item.unitCost,
+        item.taxRate || 0,
+        item.subtotal || item.quantity * item.unitCost,
+        item.freightAllocation || 0,
+        item.effectiveCost || item.unitCost,
+      ]
     );
   }
 
@@ -572,11 +599,18 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
         const proportion = itemValue / orderItemsTotal;
         freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
       }
-      const effectiveCost = parseFloat(item.unit_cost) + freightPerUnit;
+      const effectiveCost = parseFloat(item.effective_cost || 0) > 0
+        ? parseFloat(item.effective_cost)
+        : parseFloat(item.unit_cost) + freightPerUnit;
 
       // WAC calculation (lock product row)
       const productResult = await client.query(
-        'SELECT id, stock, cost FROM products WHERE id = $1 AND branch_id = $2 FOR UPDATE',
+        `SELECT id, stock, cost
+         FROM products
+         WHERE id = $1 AND (branch_id = $2 OR branch_id IS NULL)
+         ORDER BY CASE WHEN branch_id = $2 THEN 0 ELSE 1 END
+         LIMIT 1
+         FOR UPDATE`,
         [item.product_id, order.branch_id]
       );
 
@@ -590,8 +624,8 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
           : effectiveCost;
 
         await client.query(
-          'UPDATE products SET cost = $1 WHERE id = $2 AND branch_id = $3',
-          [newAverageCost.toFixed(2), item.product_id, order.branch_id]
+          'UPDATE products SET cost = $1 WHERE id = $2',
+          [newAverageCost.toFixed(2), product.id]
         );
       }
 
