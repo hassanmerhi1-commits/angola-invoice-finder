@@ -70,6 +70,13 @@ export default function ChartOfAccounts() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [ledgerAccount, setLedgerAccount] = useState<Account | null>(null);
+  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
+
+  const openLedger = (account: Account) => {
+    setLedgerAccount(account);
+    setIsLedgerOpen(true);
+  };
 
   const [formData, setFormData] = useState({
     code: '',
