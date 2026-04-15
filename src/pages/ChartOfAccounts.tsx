@@ -15,9 +15,10 @@ import { toast } from 'sonner';
 import {
   Plus, Search, Edit2, Trash2, RefreshCw,
   FileText, Receipt, CreditCard, Banknote,
-  ChevronRight, ChevronDown, Printer, Download
+  ChevronRight, ChevronDown, Printer, Download, Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import AccountLedgerDialog from '@/components/accounting/AccountLedgerDialog';
 
 // Category tabs
 const CATEGORY_TABS = [
