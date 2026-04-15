@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useERP";
 import { LanguageProvider } from "@/i18n";
 import { BranchProvider } from "@/contexts/BranchContext";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Login from "./pages/Login";
 import Setup from "./pages/Setup";
 import Dashboard from "./pages/Dashboard";
@@ -206,25 +207,27 @@ const App = () => {
     : undefined;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <LanguageProvider>
-        <BranchProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            {isElectron ? (
-              <HashRouter>
-                <AppRoutes />
-              </HashRouter>
-            ) : (
-              <BrowserRouter basename={browserBasename}>
-                <AppRoutes />
-              </BrowserRouter>
-            )}
-          </TooltipProvider>
-        </BranchProvider>
-      </LanguageProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <LanguageProvider>
+          <BranchProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              {isElectron ? (
+                <HashRouter>
+                  <AppRoutes />
+                </HashRouter>
+              ) : (
+                <BrowserRouter basename={browserBasename}>
+                  <AppRoutes />
+                </BrowserRouter>
+              )}
+            </TooltipProvider>
+          </BranchProvider>
+        </LanguageProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 
