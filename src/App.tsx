@@ -207,25 +207,27 @@ const App = () => {
     : undefined;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <LanguageProvider>
-        <BranchProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            {isElectron ? (
-              <HashRouter>
-                <AppRoutes />
-              </HashRouter>
-            ) : (
-              <BrowserRouter basename={browserBasename}>
-                <AppRoutes />
-              </BrowserRouter>
-            )}
-          </TooltipProvider>
-        </BranchProvider>
-      </LanguageProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <LanguageProvider>
+          <BranchProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              {isElectron ? (
+                <HashRouter>
+                  <AppRoutes />
+                </HashRouter>
+              ) : (
+                <BrowserRouter basename={browserBasename}>
+                  <AppRoutes />
+                </BrowserRouter>
+              )}
+            </TooltipProvider>
+          </BranchProvider>
+        </LanguageProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 
