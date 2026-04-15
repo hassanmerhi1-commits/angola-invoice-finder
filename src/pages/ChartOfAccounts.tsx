@@ -326,6 +326,7 @@ export default function ChartOfAccounts() {
                   onToggle={handleToggle}
                   onSelect={setSelectedAccountId}
                   onDoubleClick={openEditDialog}
+                  onViewLedger={openLedger}
                   selectedId={selectedAccountId}
                   allAccounts={filteredAccounts}
                 />
