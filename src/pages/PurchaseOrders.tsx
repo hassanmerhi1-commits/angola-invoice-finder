@@ -38,14 +38,17 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 
-const STATUS_LABELS: Record<PurchaseOrder['status'], { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Rascunho', variant: 'outline' },
   pending: { label: 'Pendente', variant: 'secondary' },
   approved: { label: 'Aprovado', variant: 'default' },
   received: { label: 'Recebido', variant: 'default' },
   partial: { label: 'Parcial', variant: 'secondary' },
   cancelled: { label: 'Cancelado', variant: 'destructive' },
+  awaiting_approval: { label: 'Aguarda Aprovação', variant: 'secondary' },
 };
+
+const getStatusBadge = (status: string) => STATUS_LABELS[status] || { label: status, variant: 'outline' as const };
 
 export default function PurchaseOrders() {
   const navigate = useNavigate();
