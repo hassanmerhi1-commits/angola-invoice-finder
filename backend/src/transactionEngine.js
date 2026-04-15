@@ -592,51 +592,55 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
 
     await client.query('UPDATE purchase_order_items SET received_quantity = $1 WHERE id = $2', [receivedQty, item.id]);
 
-    if (receivedQty > 0) {
-      let freightPerUnit = 0;
-      if (orderItemsTotal > 0 && totalLandingCosts > 0) {
-        const itemValue = item.quantity * parseFloat(item.unit_cost);
-        const proportion = itemValue / orderItemsTotal;
-        freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
-      }
-      const effectiveCost = parseFloat(item.effective_cost || 0) > 0
-        ? parseFloat(item.effective_cost)
-        : parseFloat(item.unit_cost) + freightPerUnit;
+      if (receivedQty > 0) {
+        let freightPerUnit = 0;
+        if (orderItemsTotal > 0 && totalLandingCosts > 0) {
+          const itemValue = item.quantity * parseFloat(item.unit_cost);
+          const proportion = itemValue / orderItemsTotal;
+          freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
+        }
+        const effectiveCost = parseFloat(item.effective_cost || 0) > 0
+          ? parseFloat(item.effective_cost)
+          : parseFloat(item.unit_cost) + freightPerUnit;
 
-      // WAC calculation (lock product row)
-      const productResult = await client.query(
-        `SELECT id, stock, cost
-         FROM products
-         WHERE id = $1 AND (branch_id = $2 OR branch_id IS NULL)
-         ORDER BY CASE WHEN branch_id = $2 THEN 0 ELSE 1 END
-         LIMIT 1
-         FOR UPDATE`,
-        [item.product_id, order.branch_id]
-      );
+        const resolvedProductId = await resolveStockProductId(client, item.product_id || item.sku, order.branch_id);
 
-      if (productResult.rows.length > 0) {
-        const product = productResult.rows[0];
-        const currentStock = parseInt(product.stock) || 0;
-        const currentCost = parseFloat(product.cost) || 0;
-        const newTotalStock = currentStock + receivedQty;
-        const newAverageCost = newTotalStock > 0
-          ? ((currentStock * currentCost) + (receivedQty * effectiveCost)) / newTotalStock
-          : effectiveCost;
+        const productResult = await client.query(
+          `SELECT id, stock, cost
+           FROM products
+           WHERE id = $1
+           FOR UPDATE`,
+          [resolvedProductId]
+        );
+
+        if (productResult.rows.length > 0) {
+          const product = productResult.rows[0];
+          const currentStock = parseInt(product.stock) || 0;
+          const currentCost = parseFloat(product.cost) || 0;
+          const newTotalStock = currentStock + receivedQty;
+          const newAverageCost = newTotalStock > 0
+            ? ((currentStock * currentCost) + (receivedQty * effectiveCost)) / newTotalStock
+            : effectiveCost;
+
+          await client.query(
+            'UPDATE products SET cost = $1 WHERE id = $2',
+            [newAverageCost.toFixed(2), resolvedProductId]
+          );
+        }
 
         await client.query(
-          'UPDATE products SET cost = $1 WHERE id = $2',
-          [newAverageCost.toFixed(2), product.id]
+          'UPDATE purchase_order_items SET freight_allocation = $1, effective_cost = $2 WHERE id = $3',
+          [freightPerUnit * item.quantity, effectiveCost, item.id]
         );
-      }
 
-      // Stock IN
-      await recordStockMovement(client, {
-        productId: item.product_id, warehouseId: order.branch_id,
-        movementType: 'IN', quantity: receivedQty, unitCost: effectiveCost,
-        referenceType: 'purchase', referenceId: orderId,
-        referenceNumber: order.order_number, createdBy: receivedBy,
-      });
-    }
+        // Stock IN
+        await recordStockMovement(client, {
+          productId: resolvedProductId, warehouseId: order.branch_id,
+          movementType: 'IN', quantity: receivedQty, unitCost: effectiveCost,
+          referenceType: 'purchase', referenceId: orderId,
+          referenceNumber: order.order_number, createdBy: receivedBy,
+        });
+      }
   }
 
   // Update PO status

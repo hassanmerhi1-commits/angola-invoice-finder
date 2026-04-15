@@ -202,7 +202,7 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
         ? parseFloat(item.effective_cost)
         : parseFloat(item.unit_cost) + freightPerUnit;
 
-      // WAC calculation
+      const resolvedProductId = item.product_id;
       const productResult = await client.query(
         `SELECT id, stock, cost
          FROM products
@@ -210,7 +210,7 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
          ORDER BY CASE WHEN branch_id = $2 THEN 0 ELSE 1 END
          LIMIT 1
          FOR UPDATE`,
-        [item.product_id, order.branch_id]
+        [resolvedProductId, order.branch_id]
       );
       if (productResult.rows.length > 0) {
         const product = productResult.rows[0];
@@ -224,9 +224,14 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
           [newAverageCost.toFixed(2), product.id]);
       }
 
+      await client.query(
+        'UPDATE purchase_order_items SET freight_allocation = $1, effective_cost = $2 WHERE id = $3',
+        [freightPerUnit * item.quantity, effectiveCost, item.id]
+      );
+
       // Stock IN
       await recordStockMovement(client, {
-        productId: item.product_id, warehouseId: order.branch_id,
+        productId: resolvedProductId, warehouseId: order.branch_id,
         movementType: 'IN', quantity: receivedQty, unitCost: effectiveCost,
         referenceType: 'purchase', referenceId: orderId,
         referenceNumber: order.order_number, createdBy: receivedBy,
