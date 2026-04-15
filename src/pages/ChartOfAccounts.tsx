@@ -15,9 +15,10 @@ import { toast } from 'sonner';
 import {
   Plus, Search, Edit2, Trash2, RefreshCw,
   FileText, Receipt, CreditCard, Banknote,
-  ChevronRight, ChevronDown, Printer, Download
+  ChevronRight, ChevronDown, Printer, Download, Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import AccountLedgerDialog from '@/components/accounting/AccountLedgerDialog';
 
 // Category tabs
 const CATEGORY_TABS = [
@@ -69,6 +70,13 @@ export default function ChartOfAccounts() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [ledgerAccount, setLedgerAccount] = useState<Account | null>(null);
+  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
+
+  const openLedger = (account: Account) => {
+    setLedgerAccount(account);
+    setIsLedgerOpen(true);
+  };
 
   const [formData, setFormData] = useState({
     code: '',
@@ -260,6 +268,10 @@ export default function ChartOfAccounts() {
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-purple-600 border-purple-200 hover:bg-purple-50 dark:border-purple-800 dark:hover:bg-purple-950/30" disabled={!selectedAccount}>
           <CreditCard className="w-3 h-3" /> Nota De Crédito
         </Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 bg-primary/10 text-primary border-primary/30 hover:bg-primary/20" disabled={!selectedAccount}
+          onClick={() => selectedAccount && openLedger(selectedAccount)}>
+          <Eye className="w-3 h-3" /> Extracto
+        </Button>
         <div className="w-px h-5 bg-border mx-1" />
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={expandAll}>Expandir</Button>
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={collapseAll}>Recolher</Button>
@@ -314,6 +326,7 @@ export default function ChartOfAccounts() {
                   onToggle={handleToggle}
                   onSelect={setSelectedAccountId}
                   onDoubleClick={openEditDialog}
+                  onViewLedger={openLedger}
                   selectedId={selectedAccountId}
                   allAccounts={filteredAccounts}
                 />
@@ -423,6 +436,9 @@ export default function ChartOfAccounts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Account Ledger Dialog */}
+      <AccountLedgerDialog account={ledgerAccount} open={isLedgerOpen} onOpenChange={setIsLedgerOpen} />
     </div>
   );
 }
@@ -435,17 +451,17 @@ interface AccountTreeRowProps {
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
   onDoubleClick: (account: Account) => void;
+  onViewLedger: (account: Account) => void;
   selectedId: string | null;
   allAccounts: Account[];
 }
 
-function AccountTreeRow({ account, level, expandedIds, onToggle, onSelect, onDoubleClick, selectedId, allAccounts }: AccountTreeRowProps) {
+function AccountTreeRow({ account, level, expandedIds, onToggle, onSelect, onDoubleClick, onViewLedger, selectedId, allAccounts }: AccountTreeRowProps) {
   const isExpanded = expandedIds.has(account.id);
   const children = allAccounts.filter(a => a.parent_id === account.id);
   const hasChildren = children.length > 0;
   const isSelected = selectedId === account.id;
   
-  // For header/parent accounts: compute balance as sum of all descendants
   const computeBalance = (acc: Account): number => {
     const kids = allAccounts.filter(a => a.parent_id === acc.id);
     if (kids.length === 0) return Number(acc.current_balance) || 0;
@@ -463,7 +479,7 @@ function AccountTreeRow({ account, level, expandedIds, onToggle, onSelect, onDou
           account.is_header && "bg-muted/40 font-semibold"
         )}
         onClick={() => onSelect(account.id)}
-        onDoubleClick={() => onDoubleClick(account)}
+        onDoubleClick={() => onViewLedger(account)}
       >
         <td className="px-3 py-1.5">
           <div className="flex items-center gap-1" style={{ paddingLeft: `${level * 16}px` }}>
@@ -496,6 +512,7 @@ function AccountTreeRow({ account, level, expandedIds, onToggle, onSelect, onDou
           onToggle={onToggle}
           onSelect={onSelect}
           onDoubleClick={onDoubleClick}
+          onViewLedger={onViewLedger}
           selectedId={selectedId}
           allAccounts={allAccounts}
         />
