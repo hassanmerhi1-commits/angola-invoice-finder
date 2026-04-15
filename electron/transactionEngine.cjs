@@ -168,6 +168,114 @@ async function auditLog(client, params) {
   } catch (e) { console.warn('[AUDIT] Log skipped:', e.message); }
 }
 
+// ==================== PROCESS PURCHASE RECEIVE ====================
+
+async function processPurchaseReceive(client, pool, orderId, receivedQuantities, receivedBy) {
+  if (!orderId) throw new Error('Parâmetro obrigatório em falta: orderId');
+  if (!receivedBy) throw new Error('Parâmetro obrigatório em falta: receivedBy');
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const orderResult = await client.query('SELECT * FROM purchase_orders WHERE id = $1 FOR UPDATE', [orderId]);
+  const order = orderResult.rows[0];
+  if (!order) throw new Error(`Ordem de compra ${orderId} não encontrada`);
+
+  const itemsResult = await client.query('SELECT * FROM purchase_order_items WHERE order_id = $1', [orderId]);
+
+  const orderItemsTotal = itemsResult.rows.reduce((sum, item) => sum + (item.quantity * parseFloat(item.unit_cost)), 0);
+  const freightCost = parseFloat(order.freight_cost) || 0;
+  const otherCosts = parseFloat(order.other_costs) || 0;
+  const totalLandingCosts = freightCost + otherCosts;
+
+  for (const item of itemsResult.rows) {
+    const receivedQty = receivedQuantities?.[item.product_id] ?? item.quantity;
+    await client.query('UPDATE purchase_order_items SET received_quantity = $1 WHERE id = $2', [receivedQty, item.id]);
+
+    if (receivedQty > 0) {
+      let freightPerUnit = 0;
+      if (orderItemsTotal > 0 && totalLandingCosts > 0) {
+        const itemValue = item.quantity * parseFloat(item.unit_cost);
+        const proportion = itemValue / orderItemsTotal;
+        freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
+      }
+      const effectiveCost = parseFloat(item.unit_cost) + freightPerUnit;
+
+      // WAC calculation
+      const productResult = await client.query(
+        'SELECT id, stock, cost FROM products WHERE id = $1 AND branch_id = $2 FOR UPDATE',
+        [item.product_id, order.branch_id]
+      );
+      if (productResult.rows.length > 0) {
+        const product = productResult.rows[0];
+        const currentStock = parseInt(product.stock) || 0;
+        const currentCost = parseFloat(product.cost) || 0;
+        const newTotalStock = currentStock + receivedQty;
+        const newAverageCost = newTotalStock > 0
+          ? ((currentStock * currentCost) + (receivedQty * effectiveCost)) / newTotalStock
+          : effectiveCost;
+        await client.query('UPDATE products SET cost = $1 WHERE id = $2 AND branch_id = $3',
+          [newAverageCost.toFixed(2), item.product_id, order.branch_id]);
+      }
+
+      // Stock IN
+      await recordStockMovement(client, {
+        productId: item.product_id, warehouseId: order.branch_id,
+        movementType: 'IN', quantity: receivedQty, unitCost: effectiveCost,
+        referenceType: 'purchase', referenceId: orderId,
+        referenceNumber: order.order_number, createdBy: receivedBy,
+      });
+    }
+  }
+
+  // Update PO status
+  await client.query(
+    `UPDATE purchase_orders SET status = 'received', received_by = $1, received_at = CURRENT_TIMESTAMP, freight_distributed = true WHERE id = $2`,
+    [receivedBy, orderId]
+  );
+
+  // Journal entry — freight debited to 6.2.6, merchandise to 2.1.1
+  const subtotal = parseFloat(order.subtotal || 0);
+  const taxAmount = parseFloat(order.tax_amount || 0);
+  const supplierAccountCode = await getEntityAccountCode(client, 'supplier', order.supplier_id, order.supplier_name);
+
+  const journalLines = [
+    { accountCode: '2.1.1', description: `Mercadoria ${order.order_number}`, debit: subtotal, credit: 0 },
+  ];
+  if (freightCost > 0) {
+    journalLines.push({ accountCode: '6.2.6', description: `Frete ${order.order_number}`, debit: freightCost, credit: 0 });
+  }
+  if (taxAmount > 0) {
+    journalLines.push({ accountCode: '3.3.1', description: `IVA compra ${order.order_number}`, debit: taxAmount, credit: 0 });
+  }
+  journalLines.push({ accountCode: supplierAccountCode, description: `Fornecedor ${order.supplier_name}`, debit: 0, credit: subtotal + freightCost + taxAmount });
+
+  await createJournalEntry(client, {
+    description: `Compra ${order.order_number} - ${order.supplier_name}`,
+    referenceType: 'purchase', referenceId: orderId,
+    branchId: order.branch_id, createdBy: receivedBy, lines: journalLines,
+  });
+
+  // Open item
+  if (order.supplier_id) {
+    await createOpenItem(client, {
+      entityType: 'supplier', entityId: order.supplier_id, documentType: 'invoice',
+      documentId: orderId, documentNumber: order.order_number, documentDate: today,
+      originalAmount: subtotal + freightCost + taxAmount, isDebit: true, branchId: order.branch_id,
+    });
+  }
+
+  // Audit
+  await auditLog(client, {
+    tableName: 'purchase_orders', recordId: orderId, action: 'status_change',
+    userId: receivedBy, branchId: order.branch_id,
+    newValues: { orderNumber: order.order_number, total: subtotal + freightCost + taxAmount },
+    description: `Recepção ${order.order_number} - ${order.supplier_name}`,
+  });
+
+  console.log(`[TX ENGINE] Purchase ${order.order_number} received ✓`);
+  return order;
+}
+
 module.exports = {
   recordStockMovement,
   createJournalEntry,
@@ -176,6 +284,7 @@ module.exports = {
   getEntityAccountCode,
   createOpenItem,
   auditLog,
+  processPurchaseReceive,
   isUuid,
   randomUUID,
 };
