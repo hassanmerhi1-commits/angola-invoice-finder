@@ -494,8 +494,8 @@ export default function PurchaseOrders() {
                       {order.total.toLocaleString('pt-AO')} Kz
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_LABELS[order.status].variant}>
-                        {STATUS_LABELS[order.status].label}
+                      <Badge variant={getStatusBadge(order.status).variant}>
+                        {getStatusBadge(order.status).label}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -874,8 +874,8 @@ export default function PurchaseOrders() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Estado:</span>
-                  <Badge variant={STATUS_LABELS[selectedOrder.status].variant} className="ml-2">
-                    {STATUS_LABELS[selectedOrder.status].label}
+                  <Badge variant={getStatusBadge(selectedOrder.status).variant} className="ml-2">
+                    {getStatusBadge(selectedOrder.status).label}
                   </Badge>
                 </div>
               </div>
