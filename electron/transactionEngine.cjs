@@ -202,7 +202,6 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
         ? parseFloat(item.effective_cost)
         : parseFloat(item.unit_cost) + freightPerUnit;
 
-      // WAC calculation
       const productResult = await client.query(
         `SELECT id, stock, cost
          FROM products
@@ -223,6 +222,11 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
         await client.query('UPDATE products SET cost = $1 WHERE id = $2',
           [newAverageCost.toFixed(2), product.id]);
       }
+
+      await client.query(
+        'UPDATE purchase_order_items SET freight_allocation = $1, effective_cost = $2 WHERE id = $3',
+        [freightPerUnit * item.quantity, effectiveCost, item.id]
+      );
 
       // Stock IN
       await recordStockMovement(client, {
