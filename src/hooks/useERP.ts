@@ -956,7 +956,8 @@ export function usePurchaseOrders(branchId?: string) {
     const result = await api.purchaseOrders.receive(orderId, userId, receivedQuantities);
     if (!result.data) throw new Error(result.error || 'Falha ao receber encomenda');
     await refreshOrders();
-  }, [refreshOrders]);
+    window.dispatchEvent(new CustomEvent(storage.PRODUCTS_CHANGED_EVENT, { detail: { branchId } }));
+  }, [branchId, refreshOrders]);
 
   const cancelOrder = useCallback(async (orderId: string) => {
     const allOrders = await storage.getPurchaseOrders();
