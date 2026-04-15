@@ -198,11 +198,18 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
         const proportion = itemValue / orderItemsTotal;
         freightPerUnit = (totalLandingCosts * proportion) / item.quantity;
       }
-      const effectiveCost = parseFloat(item.unit_cost) + freightPerUnit;
+      const effectiveCost = parseFloat(item.effective_cost || 0) > 0
+        ? parseFloat(item.effective_cost)
+        : parseFloat(item.unit_cost) + freightPerUnit;
 
       // WAC calculation
       const productResult = await client.query(
-        'SELECT id, stock, cost FROM products WHERE id = $1 AND branch_id = $2 FOR UPDATE',
+        `SELECT id, stock, cost
+         FROM products
+         WHERE id = $1 AND (branch_id = $2 OR branch_id IS NULL)
+         ORDER BY CASE WHEN branch_id = $2 THEN 0 ELSE 1 END
+         LIMIT 1
+         FOR UPDATE`,
         [item.product_id, order.branch_id]
       );
       if (productResult.rows.length > 0) {
@@ -213,8 +220,8 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
         const newAverageCost = newTotalStock > 0
           ? ((currentStock * currentCost) + (receivedQty * effectiveCost)) / newTotalStock
           : effectiveCost;
-        await client.query('UPDATE products SET cost = $1 WHERE id = $2 AND branch_id = $3',
-          [newAverageCost.toFixed(2), item.product_id, order.branch_id]);
+        await client.query('UPDATE products SET cost = $1 WHERE id = $2',
+          [newAverageCost.toFixed(2), product.id]);
       }
 
       // Stock IN
