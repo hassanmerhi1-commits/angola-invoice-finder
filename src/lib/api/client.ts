@@ -717,6 +717,28 @@ export const api = {
       if (isElectronMode()) return ipcDelete('chart_of_accounts', id);
       return apiFetch<any>(`/chart-of-accounts/${id}`, { method: 'DELETE' });
     },
+    getLedger: (id: string, startDate?: string, endDate?: string) => {
+      if (isElectronMode()) {
+        let sql = `
+          SELECT jel.*, je.entry_number, je.entry_date, je.description as journal_description,
+                 je.reference_type, je.reference_id, je.is_posted, je.created_at as journal_created_at
+          FROM journal_entry_lines jel
+          INNER JOIN journal_entries je ON je.id = jel.journal_entry_id
+          WHERE jel.account_id = $1 AND je.is_posted = true
+        `;
+        const params: any[] = [id];
+        if (startDate && endDate) {
+          sql += ' AND je.entry_date BETWEEN $2 AND $3';
+          params.push(startDate, endDate);
+        }
+        sql += ' ORDER BY je.entry_date DESC, je.created_at DESC';
+        return ipcQuery<any>(sql, params);
+      }
+      const p = new URLSearchParams();
+      if (startDate) p.append('start_date', startDate);
+      if (endDate) p.append('end_date', endDate);
+      return apiFetch<any[]>(`/chart-of-accounts/${id}/ledger?${p}`);
+    },
   },
 
   // Journal Entries

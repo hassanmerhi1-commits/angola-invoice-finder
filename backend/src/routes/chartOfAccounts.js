@@ -188,6 +188,48 @@ module.exports = function(broadcastTable) {
     }
   });
 
+  // Get account ledger (all journal entry lines for an account)
+  router.get('/:id/ledger', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { start_date, end_date } = req.query;
+
+      let dateFilter = '';
+      const params = [id];
+
+      if (start_date && end_date) {
+        dateFilter = 'AND je.entry_date BETWEEN $2 AND $3';
+        params.push(start_date, end_date);
+      }
+
+      const result = await db.query(`
+        SELECT 
+          jel.id,
+          jel.journal_entry_id,
+          jel.account_id,
+          jel.description,
+          jel.debit_amount,
+          jel.credit_amount,
+          je.entry_number,
+          je.entry_date,
+          je.description as journal_description,
+          je.reference_type,
+          je.reference_id,
+          je.is_posted,
+          je.created_at as journal_created_at
+        FROM journal_entry_lines jel
+        INNER JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.account_id = $1 AND je.is_posted = true ${dateFilter}
+        ORDER BY je.entry_date DESC, je.created_at DESC
+      `, params);
+
+      res.json(result.rows);
+    } catch (error) {
+      console.error('[CHART OF ACCOUNTS ERROR]', error);
+      res.status(500).json({ error: 'Failed to fetch account ledger' });
+    }
+  });
+
   // Get account balance with movements
   router.get('/:id/balance', async (req, res) => {
     try {
