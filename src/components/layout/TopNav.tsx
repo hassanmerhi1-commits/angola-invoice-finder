@@ -156,6 +156,8 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
   ];
 
   // ========== ACTION TOOLBAR ==========
+  const getButtonVariant = (variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'modern' | 'modern-outline') => variant ?? 'outline';
+
   const getActionButtons = () => {
     const p = location.pathname;
     if (p === '/' || p === '') return [];
@@ -329,8 +331,8 @@ export function TopNav({ user, branches, currentBranch, onBranchChange, onLogout
       {/* ====== ROW 3: Action Toolbar ====== */}
       {actionButtons.length > 0 && (
         <div className="h-10 px-3 bg-background hidden lg:flex items-center gap-1.5 border-b overflow-x-auto">
-          {actionButtons.map((btn, idx) => (
-            <Button key={idx} variant={btn.variant} size="sm" className="h-7 text-xs gap-1.5 px-3 rounded-lg">
+          {actionButtons.filter(Boolean).map((btn, idx) => (
+            <Button key={idx} variant={getButtonVariant(btn?.variant)} size="sm" className="h-7 text-xs gap-1.5 px-3 rounded-lg">
               <btn.icon className="w-3.5 h-3.5" />
               {btn.label}
             </Button>

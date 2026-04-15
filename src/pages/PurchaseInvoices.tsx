@@ -48,6 +48,33 @@ import { saveDocument, getDocuments } from '@/lib/documentStorage';
 import type { ERPDocument } from '@/types/documents';
 import { usePurchaseOrders } from '@/hooks/useERP';
 
+const PURCHASE_INVOICE_STATUS_BADGES: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  confirmed: { label: 'Confirmado', variant: 'default' },
+  cancelled: { label: 'Anulado', variant: 'destructive' },
+  draft: { label: 'Rascunho', variant: 'outline' },
+  pending: { label: 'Pendente', variant: 'secondary' },
+};
+
+const PURCHASE_ORDER_STATUS_BADGES: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  draft: { label: 'Rascunho', variant: 'outline' },
+  pending: { label: 'Pendente', variant: 'secondary' },
+  approved: { label: 'Aprovado', variant: 'default' },
+  awaiting_approval: { label: 'Aguarda Aprovação', variant: 'secondary' },
+  received: { label: 'Recebido', variant: 'default' },
+  partial: { label: 'Parcial', variant: 'secondary' },
+  cancelled: { label: 'Cancelado', variant: 'destructive' },
+};
+
+const getPurchaseInvoiceStatusBadge = (status?: string) => {
+  if (!status) return { label: 'Rascunho', variant: 'outline' as const };
+  return PURCHASE_INVOICE_STATUS_BADGES[status] || { label: status, variant: 'outline' as const };
+};
+
+const getPurchaseOrderStatusBadge = (status?: string) => {
+  if (!status) return { label: 'Rascunho', variant: 'outline' as const };
+  return PURCHASE_ORDER_STATUS_BADGES[status] || { label: status, variant: 'outline' as const };
+};
+
 // ─────────── Supplier Picker Dialog ───────────
 function SupplierPickerDialog({
   open, onClose, suppliers, onSelect, onCreateNew, onRefresh,
@@ -512,8 +539,8 @@ function InvoiceViewDialog({
           <DialogTitle className="flex items-center gap-3">
             <span className="text-orange-600 font-bold">COMPRA</span>
             <span>{invoice.invoiceNumber}</span>
-            <Badge variant={invoice.status === 'confirmed' ? 'default' : invoice.status === 'cancelled' ? 'destructive' : 'outline'}>
-              {invoice.status === 'confirmed' ? 'Confirmado' : invoice.status === 'cancelled' ? 'Anulado' : 'Rascunho'}
+            <Badge variant={getPurchaseInvoiceStatusBadge(invoice.status).variant}>
+              {getPurchaseInvoiceStatusBadge(invoice.status).label}
             </Badge>
             <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={handlePrint}>
               <Printer className="h-4 w-4" /> Imprimir
@@ -1395,8 +1422,8 @@ export default function PurchaseInvoices() {
                         <TableCell className="text-right font-mono text-destructive">{inv.ivaTotal.toLocaleString('pt-AO')}</TableCell>
                         <TableCell className="text-right font-mono font-bold">{inv.total.toLocaleString('pt-AO')}</TableCell>
                         <TableCell>
-                          <Badge variant={inv.status === 'confirmed' ? 'default' : inv.status === 'cancelled' ? 'destructive' : 'outline'}>
-                            {inv.status === 'confirmed' ? 'Confirmado' : inv.status === 'cancelled' ? 'Anulado' : 'Rascunho'}
+                          <Badge variant={getPurchaseInvoiceStatusBadge(inv.status).variant}>
+                            {getPurchaseInvoiceStatusBadge(inv.status).label}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -1454,16 +1481,8 @@ export default function PurchaseInvoices() {
                         <TableCell>{order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy') : '—'}</TableCell>
                         <TableCell className="text-right font-medium font-mono">{(order.total || 0).toLocaleString('pt-AO')} Kz</TableCell>
                         <TableCell>
-                          <Badge variant={
-                            order.status === 'received' ? 'default' :
-                            order.status === 'cancelled' ? 'destructive' :
-                            order.status === 'approved' ? 'default' : 'outline'
-                          }>
-                            {order.status === 'draft' ? 'Rascunho' :
-                             order.status === 'pending' ? 'Pendente' :
-                             order.status === 'approved' ? 'Aprovado' :
-                             order.status === 'received' ? 'Recebido' :
-                             order.status === 'partial' ? 'Parcial' : 'Cancelado'}
+                          <Badge variant={getPurchaseOrderStatusBadge(order.status).variant}>
+                            {getPurchaseOrderStatusBadge(order.status).label}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -1720,8 +1739,8 @@ export default function PurchaseInvoices() {
                     <div><span className="text-muted-foreground">Entrega Prevista:</span><p className="font-medium">{format(new Date(poViewOrder.expectedDeliveryDate), 'dd/MM/yyyy')}</p></div>
                   )}
                   <div><span className="text-muted-foreground">Estado:</span>
-                    <Badge variant="outline" className="ml-2">
-                      {poViewOrder.status === 'draft' ? 'Rascunho' : poViewOrder.status === 'pending' ? 'Pendente' : poViewOrder.status === 'approved' ? 'Aprovado' : poViewOrder.status === 'received' ? 'Recebido' : poViewOrder.status === 'awaiting_approval' ? 'Aguarda Aprovação' : 'Cancelado'}
+                    <Badge variant={getPurchaseOrderStatusBadge(poViewOrder.status).variant} className="ml-2">
+                      {getPurchaseOrderStatusBadge(poViewOrder.status).label}
                     </Badge>
                   </div>
                   {poViewOrder.notes && (
