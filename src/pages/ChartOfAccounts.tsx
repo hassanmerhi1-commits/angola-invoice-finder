@@ -268,6 +268,10 @@ export default function ChartOfAccounts() {
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-purple-600 border-purple-200 hover:bg-purple-50 dark:border-purple-800 dark:hover:bg-purple-950/30" disabled={!selectedAccount}>
           <CreditCard className="w-3 h-3" /> Nota De Crédito
         </Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 bg-primary/10 text-primary border-primary/30 hover:bg-primary/20" disabled={!selectedAccount}
+          onClick={() => selectedAccount && openLedger(selectedAccount)}>
+          <Eye className="w-3 h-3" /> Extracto
+        </Button>
         <div className="w-px h-5 bg-border mx-1" />
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={expandAll}>Expandir</Button>
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={collapseAll}>Recolher</Button>
