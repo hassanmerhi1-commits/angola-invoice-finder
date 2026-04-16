@@ -655,6 +655,7 @@ export default function PurchaseInvoices() {
   const [saveError, setSaveError] = useState<string | null>(null);
   // List mode state
   const [listTab, setListTab] = useState<'faturas' | 'encomendas' | 'devolucoes'>('faturas');
+  const [returnCount, setReturnCount] = useState(0);
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
