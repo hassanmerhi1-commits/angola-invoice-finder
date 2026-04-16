@@ -289,17 +289,12 @@ export function PurchaseReturnsTab() {
           },
           stockEntries: items.map(item => ({
             productId: item.productId,
-            sku: item.sku,
             productName: item.productName,
-            warehouseId: branchId,
-            warehouseName: currentBranch?.name || '',
-            movementType: 'OUT' as const,
+            productSku: item.sku,
             quantity: item.quantity,
             unitCost: item.unitCost,
-            totalCost: item.subtotal,
-            referenceType: 'credit_note',
-            referenceId: returnDoc.id,
-            referenceNumber: returnNumber,
+            direction: 'OUT' as const,
+            warehouseId: branchId,
           })),
         });
       } catch (err) {
