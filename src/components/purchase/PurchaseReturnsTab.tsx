@@ -176,8 +176,26 @@ export function PurchaseReturnsTab() {
       const taxAmount = items.reduce((s, i) => s + i.taxAmount, 0);
       const total = subtotal + taxAmount;
 
-      // Resolve real supplier ID
-      const resolvedSupplierId = selectedInvoice.supplierId || '';
+      // Resolve real supplier ID from suppliers list by matching name/NIF
+      let resolvedSupplierId = '';
+      try {
+        const suppliersResp = await api.suppliers.list();
+        const allSuppliers = suppliersResp.data || [];
+        const matched = allSuppliers.find((s: any) =>
+          s.name === selectedInvoice.supplierName ||
+          (selectedInvoice.supplierNif && s.nif === selectedInvoice.supplierNif)
+        );
+        resolvedSupplierId = matched?.id || '';
+      } catch {
+        // fallback: try localStorage
+        const raw = localStorage.getItem('kwanzaerp_suppliers');
+        const suppliers = raw ? JSON.parse(raw) : [];
+        const matched = suppliers.find((s: any) =>
+          s.name === selectedInvoice.supplierName ||
+          (selectedInvoice.supplierNif && s.nif === selectedInvoice.supplierNif)
+        );
+        resolvedSupplierId = matched?.id || '';
+      }
 
       const returnDoc: SupplierReturn = {
         id: generateId(),
