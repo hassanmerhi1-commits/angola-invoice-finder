@@ -1199,7 +1199,7 @@ export default function PurchaseInvoices() {
             productName: l.description,
             productSku: l.productCode,
             quantity: l.totalQty,
-            unitCost: l.unitPrice,
+            unitCost: l.unitPrice + (freightAllocations[l.productId] || 0),
             direction: 'IN' as const,
             warehouseId: l.warehouseId || invoice.warehouseId, // BRANCH-SCOPED
           })),
