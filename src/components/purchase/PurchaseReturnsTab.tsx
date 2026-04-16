@@ -271,24 +271,26 @@ export function PurchaseReturnsTab() {
       // Reverse accounting — debit supplier (reduce payable), credit purchase
       try {
         await processTransaction({
-          type: 'PURCHASE_RETURN',
+          transactionType: 'credit_note',
+          documentId: returnDoc.id,
+          documentNumber: returnNumber,
           branchId,
+          supplierId: selectedInvoice.supplierAccountCode,
+          supplierName: selectedInvoice.supplierName,
           lines: items.map(item => ({
             productId: item.productId,
             sku: item.sku,
+            description: item.productName,
             quantity: item.quantity,
             unitPrice: item.unitCost,
             taxRate: item.taxRate,
+            warehouseId: branchId,
           })),
-          supplierId: selectedInvoice.supplierAccountCode,
-          supplierName: selectedInvoice.supplierName,
-          documentId: returnDoc.id,
-          documentNumber: returnNumber,
           userId: returnDoc.createdBy,
           notes: `Devolução de compra - ${returnNumber}`,
         });
       } catch (err) {
-        console.warn('Transaction engine PURCHASE_RETURN not supported, skipping accounting:', err);
+        console.warn('Transaction engine fallback for purchase return:', err);
       }
 
       toast({ title: 'Devolução criada', description: `${returnNumber} — ${selectedLines.length} linha(s)` });
