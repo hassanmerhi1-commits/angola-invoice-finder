@@ -554,6 +554,13 @@ export function PurchaseReturnsTab() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Branch info */}
+            <div className="flex items-center gap-2 text-sm px-3 py-2 bg-muted/50 rounded-md border">
+              <Package className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Filial:</span>
+              <span className="font-medium">{currentBranch?.name || '—'}</span>
+            </div>
+
             {/* Source invoice selection */}
             <div className="grid grid-cols-2 gap-4">
               <div>
