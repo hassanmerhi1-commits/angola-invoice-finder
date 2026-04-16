@@ -1566,6 +1566,11 @@ export default function PurchaseInvoices() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ═══ DEVOLUÇÕES TAB ═══ */}
+          <TabsContent value="devolucoes" className="space-y-3 mt-2">
+            <PurchaseReturnsTab />
+          </TabsContent>
         </Tabs>
 
         <InvoiceViewDialog open={!!viewInvoice} onClose={() => setViewInvoice(null)} invoice={viewInvoice} />
