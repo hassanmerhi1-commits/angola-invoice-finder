@@ -95,9 +95,10 @@ export function ProductDetailDialog({
   const [usdRate, setUsdRate] = useState<number>(0);
   useEffect(() => {
     if (!open) return;
-    api.get('/api/exchange-rates/latest')
+    api.exchangeRates.latest()
       .then(res => {
-        const usd = (res.data as any[])?.find((r: any) => r.from_currency === 'USD' && r.to_currency === 'AOA');
+        const rates = res.data as any[];
+        const usd = rates?.find((r: any) => (r.from_currency || r.fromCurrency) === 'USD' && (r.to_currency || r.toCurrency) === 'AOA');
         if (usd) setUsdRate(parseFloat(usd.rate));
       })
       .catch(() => {});
