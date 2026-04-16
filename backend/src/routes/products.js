@@ -78,40 +78,41 @@ module.exports = function(broadcastTable) {
       const { name, sku, barcode, category, price, price2, price3, price4, cost, stock, unit, taxRate, branchId, isActive, version, supplierId, supplierName, lastCost, avgCost } = req.body;
       
       let result;
-      const baseFields = `name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
-               stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
-               price2 = $16, price3 = $17, price4 = $18,
-               supplier_id = $19, supplier_name = $20`;
-      
-      // Update last_cost and avg_cost if provided
-      const costUpdates = lastCost != null ? `, last_cost = $21, avg_cost = $22` : '';
-      const costParams = lastCost != null ? [lastCost, avgCost || cost] : [];
-
       if (version != null) {
-        const paramOffset = lastCost != null ? 23 : 21;
         result = await db.query(
           `UPDATE products 
-           SET ${baseFields}, version = version + 1${costUpdates}
-           WHERE id = $${paramOffset - 8} AND version = $${paramOffset - 7}
+           SET name=$1, sku=$2, barcode=$3, category=$4, price=$5, cost=$6, 
+               stock=$7, unit=$8, tax_rate=$9, branch_id=$10, is_active=$11,
+               price2=$12, price3=$13, price4=$14,
+               supplier_id=$15, supplier_name=$16,
+               last_cost=COALESCE($17, last_cost), avg_cost=COALESCE($18, avg_cost),
+               version = version + 1
+           WHERE id=$19 AND version=$20
            RETURNING *`,
-          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive,
-           id, version, sanitizeUuid(supplierId), supplierName || null,
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate,
+           sanitizeUuid(branchId), isActive,
            price2 || 0, price3 || 0, price4 || 0,
            sanitizeUuid(supplierId), supplierName || null,
-           ...costParams]
+           lastCost ?? null, avgCost ?? null,
+           id, version]
         );
         if (!checkOptimisticLock(result, res, 'Product')) return;
       } else {
         result = await db.query(
           `UPDATE products 
-           SET ${baseFields}${costUpdates}
-           WHERE id = $12
+           SET name=$1, sku=$2, barcode=$3, category=$4, price=$5, cost=$6, 
+               stock=$7, unit=$8, tax_rate=$9, branch_id=$10, is_active=$11,
+               price2=$12, price3=$13, price4=$14,
+               supplier_id=$15, supplier_name=$16,
+               last_cost=COALESCE($17, last_cost), avg_cost=COALESCE($18, avg_cost)
+           WHERE id=$19
            RETURNING *`,
-          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id,
-           sanitizeUuid(supplierId), supplierName || null, null,
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate,
+           sanitizeUuid(branchId), isActive,
            price2 || 0, price3 || 0, price4 || 0,
            sanitizeUuid(supplierId), supplierName || null,
-           ...costParams]
+           lastCost ?? null, avgCost ?? null,
+           id]
         );
         if (result.rowCount === 0) {
           return res.status(404).json({ error: 'Product not found' });
