@@ -777,6 +777,10 @@ export function PurchaseReturnsTab() {
                   <p className="font-mono">{viewReturn.purchaseOrderNumber}</p>
                 </div>
                 <div>
+                  <Label className="text-muted-foreground text-xs">Filial</Label>
+                  <p className="font-medium">{viewReturn.branchName || '—'}</p>
+                </div>
+                <div>
                   <Label className="text-muted-foreground text-xs">Estado</Label>
                   <Badge variant={RETURN_STATUS_BADGES[viewReturn.status]?.variant || 'outline'}>
                     {RETURN_STATUS_BADGES[viewReturn.status]?.label || viewReturn.status}
