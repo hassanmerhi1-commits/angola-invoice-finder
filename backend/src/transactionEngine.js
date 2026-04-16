@@ -625,13 +625,21 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
 
   const itemsResult = await client.query('SELECT * FROM purchase_order_items WHERE order_id = $1', [orderId]);
 
+  // FREIGHT MUST NEVER stay separate from inventory — it MUST be capitalized into product cost
   const freightCost = parseFloat(order.freight_cost) || 0;
   const otherCosts = parseFloat(order.other_costs) || 0;
   const totalLandingCosts = freightCost + otherCosts;
+
+  console.log(`[TX ENGINE] ═══ PURCHASE RECEIVE ${order.order_number} ═══`);
+  console.log(`[TX ENGINE] freight_cost=${freightCost}, other_costs=${otherCosts}, totalLandingCosts=${totalLandingCosts}`);
+  console.log(`[TX ENGINE] items count=${itemsResult.rows.length}, receivedQuantities=`, JSON.stringify(receivedQuantities));
+
   const receiveCostPlan = buildPurchaseReceiveCostPlan(itemsResult.rows, receivedQuantities, totalLandingCosts);
 
   for (const plan of receiveCostPlan) {
-    const { item, receivedQty, freightShare, newUnitCost } = plan;
+    const { item, receivedQty, freightShare, newUnitCost, unitCost } = plan;
+
+    console.log(`[TX ENGINE] Item ${item.product_name || item.product_id}: origCost=${unitCost}, qty=${receivedQty}, freightShare=${freightShare}, newUnitCost=${newUnitCost}`);
 
     await client.query(
       'UPDATE purchase_order_items SET received_quantity = $1, freight_allocation = $2, effective_cost = $3 WHERE id = $4',
@@ -639,15 +647,15 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
     );
 
     if (receivedQty <= 0) {
+      console.log(`[TX ENGINE] Skipping ${item.product_id} — zero qty`);
       continue;
     }
 
     const resolvedProductId = await resolveStockProductId(client, item.product_id || item.sku, order.branch_id);
+    console.log(`[TX ENGINE] Resolved product: ${item.product_id} → ${resolvedProductId}`);
+
     const productResult = await client.query(
-      `SELECT id
-       FROM products
-       WHERE id = $1
-       FOR UPDATE`,
+      `SELECT id, cost, name FROM products WHERE id = $1 FOR UPDATE`,
       [resolvedProductId]
     );
 
@@ -655,17 +663,23 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
       throw new Error(`Produto não encontrado para recepção: ${item.product_id || item.sku}`);
     }
 
+    const oldCost = parseFloat(productResult.rows[0].cost) || 0;
+
+    // UPDATE PRODUCT COST — freight is capitalized into unit cost
     await client.query(
-      'UPDATE products SET cost = $1 WHERE id = $2',
+      'UPDATE products SET cost = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       [newUnitCost, resolvedProductId]
     );
+    console.log(`[TX ENGINE] ✅ Product ${productResult.rows[0].name} cost: ${oldCost} → ${newUnitCost}`);
 
+    // STOCK MOVEMENT with landed cost (freight included)
     await recordStockMovement(client, {
       productId: resolvedProductId, warehouseId: order.branch_id,
       movementType: 'IN', quantity: receivedQty, unitCost: newUnitCost,
       referenceType: 'purchase', referenceId: orderId,
       referenceNumber: order.order_number, createdBy: receivedBy,
     });
+    console.log(`[TX ENGINE] ✅ Stock movement: ${receivedQty} units @ ${newUnitCost}`);
   }
 
   // Update PO status
@@ -674,7 +688,7 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
     [receivedBy, orderId]
   );
 
-  // Journal entry
+  // Journal entry — merchandise debit + freight debit + supplier credit
   const subtotal = parseFloat(order.subtotal || 0);
   const taxAmount = parseFloat(order.tax_amount || 0);
   const supplierAccountCode = await getEntityAccountCode(client, 'supplier', order.supplier_id, order.supplier_name);
@@ -689,6 +703,8 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
     journalLines.push({ accountCode: '3.3.1', description: `IVA compra ${order.order_number}`, debit: taxAmount, credit: 0 });
   }
   journalLines.push({ accountCode: supplierAccountCode, description: `Fornecedor ${order.supplier_name}`, debit: 0, credit: subtotal + freightCost + taxAmount });
+
+  console.log(`[TX ENGINE] Journal: subtotal=${subtotal}, freight=${freightCost}, tax=${taxAmount}, total=${subtotal + freightCost + taxAmount}`);
 
   await createJournalEntry(client, {
     description: `Compra ${order.order_number} - ${order.supplier_name}`,
@@ -709,11 +725,11 @@ async function processPurchaseReceive(client, orderId, receivedQuantities, recei
   await auditLog(client, {
     tableName: 'purchase_orders', recordId: orderId, action: 'status_change',
     userId: receivedBy, branchId: order.branch_id,
-    newValues: { orderNumber: order.order_number, total: subtotal + freightCost + taxAmount },
-    description: `Recepção ${order.order_number} - ${order.supplier_name}`,
+    newValues: { orderNumber: order.order_number, total: subtotal + freightCost + taxAmount, freightCost, totalLandingCosts },
+    description: `Recepção ${order.order_number} - ${order.supplier_name} (frete: ${freightCost})`,
   });
 
-  console.log(`[TX ENGINE] Purchase ${order.order_number} received ✓`);
+  console.log(`[TX ENGINE] ═══ Purchase ${order.order_number} received ✓ (freight=${freightCost} capitalized) ═══`);
   return order;
 }
 
