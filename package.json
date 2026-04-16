@@ -1,7 +1,7 @@
 {
   "name": "kwanza-erp",
   "private": true,
-  "version": "1.0.31",
+  "version": "v1.0.32",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
