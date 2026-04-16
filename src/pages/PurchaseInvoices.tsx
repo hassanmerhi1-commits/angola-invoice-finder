@@ -1891,7 +1891,7 @@ export default function PurchaseInvoices() {
 
   // ─── CREATE MODE ─── Smart ERP Dense Layout
   return (
-    <div className="flex flex-col h-[calc(100vh-48px)] overflow-hidden text-xs">
+    <div className="flex flex-col h-[calc(100vh-48px)] overflow-hidden text-xs animate-fade-in">
       {/* ═══ TOP BAR ═══ */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/60 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -1899,18 +1899,23 @@ export default function PurchaseInvoices() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <button
-            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent/60 transition-colors"
+            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent/60 transition-colors duration-150"
             onClick={() => void openSupplierPicker()}
           >
             <span className="font-mono text-[11px] text-muted-foreground">{form.supplierAccountCode || '---'}</span>
             <span className="font-semibold text-sm">{form.supplierName || 'Selecionar Fornecedor...'}</span>
-            {form.supplierBalance !== undefined && form.supplierBalance !== 0 && (
-              <span className="font-mono text-[10px] text-muted-foreground">
-                Saldo: {(form.supplierBalance || 0).toLocaleString('pt-AO')}
-              </span>
-            )}
             <Search className="h-3 w-3 text-muted-foreground" />
           </button>
+          {/* Supplier balance badge — always visible when supplier selected */}
+          {form.supplierName && (
+            <div className="flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded bg-accent/40 border border-border/50 transition-all duration-200">
+              <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Saldo</span>
+              <span className={`font-mono text-sm font-bold ${(form.supplierBalance || 0) > 0 ? 'text-destructive' : (form.supplierBalance || 0) < 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                {(form.supplierBalance || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 })}
+              </span>
+              <span className="text-[9px] text-muted-foreground">{form.currency || 'KZ'}</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-black tracking-tight text-destructive">COMPRA</h2>
