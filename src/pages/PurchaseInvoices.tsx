@@ -1872,51 +1872,46 @@ export default function PurchaseInvoices() {
 
   // ─── CREATE MODE ───
   return (
-    <div className="space-y-3">
-      {/* Top bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleCloseCreate}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
+    <div className="space-y-2">
+      {/* Top bar — Smart ERP style header */}
+      <div className="border border-border rounded-lg bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCloseCreate}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div className="flex items-center gap-2">
-              <span className="text-orange-600 font-bold text-xl">COMPRA</span>
-              <span className="font-mono text-sm text-muted-foreground">
-                {form.supplierAccountCode || '—'}
-              </span>
-              <span className="font-medium">{form.supplierName || '—'}</span>
+              <span className="font-mono text-xs text-muted-foreground">{form.supplierAccountCode || '—'}</span>
+              <span className="font-semibold text-sm">{form.supplierName || '—'}</span>
+              {form.supplierBalance !== undefined && form.supplierBalance !== 0 && (
+                <span className="font-mono text-xs text-muted-foreground ml-2">
+                  Saldo: {(form.supplierBalance || 0).toLocaleString('pt-AO')}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-black tracking-tight text-destructive">COMPRA</h2>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleCloseCreate}>
+                <X className="h-3.5 w-3.5" /> Cancelar
+              </Button>
+              <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
+                <Save className="h-3.5 w-3.5" /> Guardar
+              </Button>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleCloseCreate} className="gap-1">
-            <X className="h-4 w-4" /> Cancelar
-          </Button>
-          <Button size="sm" onClick={handleSave} className="gap-1">
-            <Save className="h-4 w-4" /> Guardar
-          </Button>
-        </div>
-      </div>
 
-      {saveError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Falha ao guardar</AlertTitle>
-          <AlertDescription>{saveError}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Supplier bar */}
-      {!form.supplierName && (
-        <Card className="border-orange-300 bg-orange-50 dark:bg-orange-950/30">
-          <CardContent className="py-4">
-            <Button variant="outline" onClick={() => void openSupplierPicker()} className="gap-2 w-full justify-start">
+        {/* Supplier selection prompt */}
+        {!form.supplierName && (
+          <div className="px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900">
+            <Button variant="outline" onClick={() => void openSupplierPicker()} className="gap-2 w-full justify-start h-9 text-sm">
               <Search className="h-4 w-4" /> Selecionar Fornecedor...
             </Button>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* Tabs: Fatura / Entrada do Diário */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
