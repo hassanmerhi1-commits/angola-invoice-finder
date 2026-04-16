@@ -47,6 +47,7 @@ import {
   Package, ArrowLeft, CheckCircle, Printer, AlertCircle,
   ShoppingCart, Filter, Calendar, Download,
 } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { saveDocument, getDocuments } from '@/lib/documentStorage';
 import type { ERPDocument } from '@/types/documents';
 import { usePurchaseOrders } from '@/hooks/useERP';
