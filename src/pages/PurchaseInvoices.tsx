@@ -2203,31 +2203,31 @@ export default function PurchaseInvoices() {
       </Tabs>
 
       {/* ═══ STICKY FOOTER TOTALS BAR ═══ */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-card border-t-2 border-primary/20 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 bg-card border-t-2 border-primary/30 shrink-0 shadow-[0_-2px_8px_-2px_hsl(var(--primary)/0.1)]">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
-          <span>Total Qtd: <strong className="text-foreground font-mono">{lines.reduce((s, l) => s + l.totalQty, 0)}</strong></span>
+          <span className="bg-muted px-2 py-0.5 rounded-full font-medium">{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
+          <span>Qtd: <strong className="text-foreground font-mono text-sm">{lines.reduce((s, l) => s + l.totalQty, 0)}</strong></span>
         </div>
         <div className="flex items-center gap-6 text-sm">
-          <div className="text-right">
-            <span className="text-[10px] text-muted-foreground block leading-none">Sub Total</span>
+          <div className="text-right transition-all duration-200">
+            <span className="text-[9px] text-muted-foreground block leading-none uppercase tracking-wider">Sub Total</span>
             <span className="font-mono font-semibold">{totals.subtotal.toLocaleString('pt-AO')}</span>
           </div>
           {totalLandingCosts > 0 && (
-            <div className="text-right">
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 block leading-none">Frete</span>
+            <div className="text-right animate-fade-in">
+              <span className="text-[9px] text-amber-600 dark:text-amber-400 block leading-none uppercase tracking-wider">Frete</span>
               <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">{totalLandingCosts.toLocaleString('pt-AO')}</span>
             </div>
           )}
           <div className="text-right">
-            <span className="text-[10px] text-destructive block leading-none">IVA</span>
+            <span className="text-[9px] text-destructive block leading-none uppercase tracking-wider">IVA</span>
             <span className="font-mono font-semibold text-destructive">{totals.ivaTotal.toLocaleString('pt-AO')}</span>
           </div>
-          <div className="text-right border-l border-border pl-4">
-            <span className="text-[10px] text-muted-foreground block leading-none">Líquido</span>
-            <span className="font-mono font-bold text-lg">{totals.total.toLocaleString('pt-AO')}</span>
+          <div className="text-right border-l-2 border-primary/20 pl-4">
+            <span className="text-[9px] text-muted-foreground block leading-none uppercase tracking-wider">Líquido</span>
+            <span className="font-mono font-bold text-lg tracking-tight">{totals.total.toLocaleString('pt-AO')}</span>
           </div>
-          <span className="text-xs text-muted-foreground">{form.currency || 'KZ'}</span>
+          <span className="text-[10px] text-muted-foreground font-semibold">{form.currency || 'KZ'}</span>
         </div>
       </div>
 
