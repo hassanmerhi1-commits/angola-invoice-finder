@@ -846,14 +846,20 @@ export default function PurchaseInvoices() {
    // Select supplier — auto-create CoA sub-account under 3.2 Fornecedores
   const handleSelectSupplier = useCallback(async (s: Supplier) => {
     const accountCode = await ensureSupplierAccount(s.id, s.name, s.nif);
+    // Fetch real supplier balance from open items
+    let balance = 0;
+    try {
+      const balRes = await api.payments.balance('supplier', s.id);
+      balance = parseFloat((balRes.data as any)?.balance) || 0;
+    } catch { /* balance stays 0 */ }
     setForm(prev => ({
       ...prev,
       supplierAccountCode: accountCode,
-      supplierId: s.id, // Real supplier DB ID for open items & balance updates
+      supplierId: s.id,
       supplierName: s.name,
       supplierNif: s.nif,
       supplierPhone: s.phone,
-      supplierBalance: 0,
+      supplierBalance: balance,
     }));
   }, []);
 
