@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Product } from '@/types/erp';
 import { useBranches, useCategories, useSuppliers } from '@/hooks/useERP';
+import { api } from '@/lib/api/client';
 import {
   Dialog,
   DialogContent,
@@ -89,6 +90,19 @@ export function ProductDetailDialog({
 
   const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
   const activeSuppliers = useMemo(() => suppliers.filter(s => s.isActive), [suppliers]);
+
+  // Fetch latest USD→AOA exchange rate for dual-currency cost display
+  const [usdRate, setUsdRate] = useState<number>(0);
+  useEffect(() => {
+    if (!open) return;
+    api.exchangeRates.latest()
+      .then(res => {
+        const rates = res.data as any[];
+        const usd = rates?.find((r: any) => (r.from_currency || r.fromCurrency) === 'USD' && (r.to_currency || r.toCurrency) === 'AOA');
+        if (usd) setUsdRate(parseFloat(usd.rate));
+      })
+      .catch(() => {});
+  }, [open]);
 
   const [formData, setFormData] = useState({
     id: '',
@@ -335,14 +349,32 @@ export function ProductDetailDialog({
                   <Input type="number" step="0.01" value={formData.price4} onChange={e => set('price4', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
                 <ReadOnlyRow label="Preço 4 c/IVA" value={(formData.price4 * (1 + formData.iva / 100)).toFixed(2)} />
-                <ReadOnlyRow label="Margem %" value={`${margin}%`} />
 
-                <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Custo</h4>
-                <Row label="Custo Actual (Kz)">
+                <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Custo (AKZ)</h4>
+                <Row label="Custo Actual">
                   <Input type="number" step="0.01" value={formData.cost} onChange={e => set('cost', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
+                <ReadOnlyRow label="Iniciar Custo" value={(product?.firstCost || formData.cost).toFixed(2)} />
                 <ReadOnlyRow label="Custo Médio" value={formData.avgCost.toFixed(2)} />
                 <ReadOnlyRow label="Último Custo" value={formData.lastCost.toFixed(2)} />
+
+                {usdRate > 0 && (
+                  <>
+                    <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Custo (USD)</h4>
+                    <ReadOnlyRow label="Custo Actual" value={(formData.cost / usdRate).toFixed(4)} />
+                    <ReadOnlyRow label="Iniciar Custo" value={((product?.firstCost || formData.cost) / usdRate).toFixed(4)} />
+                    <ReadOnlyRow label="Custo Médio" value={(formData.avgCost / usdRate).toFixed(4)} />
+                    <ReadOnlyRow label="Último Custo" value={(formData.lastCost / usdRate).toFixed(4)} />
+                  </>
+                )}
+
+                <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Margem & Embalagem</h4>
+                <ReadOnlyRow label="Markup %" value={`${margin}%`} />
+                <ReadOnlyRow label="Margem Líq." value={formData.price > 0 ? (((formData.price - formData.cost) / formData.price) * 100).toFixed(2) + '%' : '0.00%'} />
+                <ReadOnlyRow label="Custo Emb." value={(formData.cost * (formData.embalagem || 1)).toFixed(2)} />
+                {usdRate > 0 && (
+                  <ReadOnlyRow label="Custo Emb. USD" value={((formData.cost * (formData.embalagem || 1)) / usdRate).toFixed(4)} />
+                )}
               </div>
 
               {/* ── Column 3: Stock & Filial ── */}
