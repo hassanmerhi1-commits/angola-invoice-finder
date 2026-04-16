@@ -100,7 +100,7 @@ async function createJournalEntry(client, params) {
 
   // Generate entry number from centralized sequences
   const prefixMap = {
-    sale: 'VD', purchase: 'CP', transfer: 'TRF',
+    sale: 'VD', purchase: 'CP', purchase_invoice: 'CP', transfer: 'TRF',
     expense: 'DSP', adjustment: 'AJ', receipt: 'REC', payment: 'PAG',
   };
   const prefix = prefixMap[referenceType] || 'JE';
