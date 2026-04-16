@@ -480,6 +480,7 @@ export function PurchaseReturnsTab() {
               <TableRow className="text-[11px] h-8">
                 <TableHead className="w-[160px]">Nº Devolução</TableHead>
                 <TableHead>Fornecedor</TableHead>
+                <TableHead>Filial</TableHead>
                 <TableHead>Fatura Origem</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead className="text-right">Total</TableHead>
@@ -495,6 +496,7 @@ export function PurchaseReturnsTab() {
                   <TableRow key={ret.id} className="h-8 text-[11px]">
                     <TableCell className="font-mono font-medium">{ret.returnNumber}</TableCell>
                     <TableCell>{ret.supplierName}</TableCell>
+                    <TableCell className="text-muted-foreground">{ret.branchName || '—'}</TableCell>
                     <TableCell className="font-mono text-muted-foreground">{ret.purchaseOrderNumber}</TableCell>
                     <TableCell>{REASON_LABELS[ret.reason] || ret.reason}</TableCell>
                     <TableCell className="text-right font-mono">{fmtKz(ret.total)}</TableCell>
@@ -531,7 +533,7 @@ export function PurchaseReturnsTab() {
               })}
               {filteredReturns.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     <RotateCcw className="h-8 w-8 mx-auto mb-2 opacity-30" />
                     Nenhuma devolução encontrada
                   </TableCell>
