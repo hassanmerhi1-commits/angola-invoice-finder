@@ -911,43 +911,17 @@ export function usePurchaseOrders(branchId?: string) {
       supplierId, branchId, items, createdBy, notes, expectedDeliveryDate,
       freightCost, otherCosts, otherCostsDescription,
     });
-    if (result.data) {
-      await refreshOrders();
-      return mapPurchaseOrder(result.data);
+    if (!result.data) {
+      throw new Error(result.error || 'Falha ao criar encomenda');
     }
-    const suppliers = await storage.getSuppliers();
-    const branches = await storage.getBranches();
-    const supplier = suppliers.find(s => s.id === supplierId);
-    const branch = branches.find(b => b.id === branchId);
-    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-    const taxAmount = items.reduce((sum, item) => sum + (item.subtotal * item.taxRate / 100), 0);
-    const totalWithCosts = subtotal + taxAmount + (freightCost || 0) + (otherCosts || 0);
-    const order: PurchaseOrder = {
-      id: `po_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      orderNumber: storage.generatePurchaseOrderNumber(),
-      supplierId, supplierName: supplier?.name || '',
-      branchId, branchName: branch?.name || '',
-      items, subtotal, taxAmount, total: totalWithCosts,
-      freightCost, otherCosts, otherCostsDescription,
-      status: 'pending', notes, createdBy,
-      createdAt: new Date().toISOString(), expectedDeliveryDate,
-    };
-    await storage.savePurchaseOrder(order);
     await refreshOrders();
-    return order;
+    return mapPurchaseOrder(result.data);
   }, [refreshOrders]);
 
   const approveOrder = useCallback(async (orderId: string, userId: string) => {
     const result = await api.purchaseOrders.approve(orderId, userId);
     if (!result.data) {
-      const allOrders = await storage.getPurchaseOrders();
-      const order = allOrders.find(o => o.id === orderId);
-      if (order) {
-        order.status = 'approved';
-        order.approvedBy = userId;
-        order.approvedAt = new Date().toISOString();
-        await storage.savePurchaseOrder(order);
-      }
+      throw new Error(result.error || 'Falha ao aprovar encomenda');
     }
     await refreshOrders();
   }, [refreshOrders]);

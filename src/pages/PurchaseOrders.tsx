@@ -138,12 +138,12 @@ export default function PurchaseOrders() {
           items: [...orderForm.items, {
             productId: product.id,
             quantity: 1,
-            unitCost: product.cost,
+            unitCost: 0,
           }],
         });
         toast({
           title: 'Produto adicionado',
-          description: product.name,
+          description: `${product.name} — preencha o preço do fornecedor`,
         });
       }
     } else if (scanMode === 'receive' && selectedOrder) {
@@ -204,10 +204,10 @@ export default function PurchaseOrders() {
   }), [orders]);
 
   const handleAddItem = () => {
-    if (!newItemForm.productId || newItemForm.quantity <= 0) {
+    if (!newItemForm.productId || newItemForm.quantity <= 0 || newItemForm.unitCost <= 0) {
       toast({
         title: 'Erro',
-        description: 'Seleccione um produto e quantidade válida',
+        description: 'Seleccione um produto, quantidade válida e preço do fornecedor',
         variant: 'destructive',
       });
       return;
@@ -233,7 +233,7 @@ export default function PurchaseOrders() {
         {
           productId: newItemForm.productId,
           quantity: newItemForm.quantity,
-          unitCost: newItemForm.unitCost || product.cost,
+          unitCost: newItemForm.unitCost,
         },
       ],
     });
@@ -248,11 +248,20 @@ export default function PurchaseOrders() {
     });
   };
 
-  const handleCreateOrder = () => {
+  const handleCreateOrder = async () => {
     if (!orderForm.supplierId || !orderForm.branchId || orderForm.items.length === 0) {
       toast({
         title: 'Erro',
         description: 'Seleccione fornecedor, filial e adicione pelo menos um produto',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (orderForm.items.some(item => item.unitCost <= 0)) {
+      toast({
+        title: 'Preço do fornecedor em falta',
+        description: 'Preencha o preço do fornecedor em todas as linhas',
         variant: 'destructive',
       });
       return;
@@ -278,42 +287,58 @@ export default function PurchaseOrders() {
       };
     });
 
-    createOrder(
-      orderForm.supplierId,
-      orderForm.branchId,
-      items,
-      user?.id || '',
-      orderForm.notes || undefined,
-      orderForm.expectedDeliveryDate || undefined,
-      orderForm.freightCost || undefined,
-      orderForm.otherCosts || undefined,
-      orderForm.otherCostsDescription || undefined
-    );
+    try {
+      await createOrder(
+        orderForm.supplierId,
+        orderForm.branchId,
+        items,
+        user?.id || '',
+        orderForm.notes || undefined,
+        orderForm.expectedDeliveryDate || undefined,
+        orderForm.freightCost || undefined,
+        orderForm.otherCosts || undefined,
+        orderForm.otherCostsDescription || undefined
+      );
 
-    toast({
-      title: 'Encomenda criada',
-      description: 'A encomenda foi criada com sucesso',
-    });
+      toast({
+        title: 'Encomenda criada',
+        description: 'A encomenda foi criada com sucesso',
+      });
 
-    setCreateDialogOpen(false);
-    setOrderForm({
-      supplierId: '',
-      branchId: currentBranch?.id || '',
-      notes: '',
-      expectedDeliveryDate: '',
-      items: [],
-      freightCost: 0,
-      otherCosts: 0,
-      otherCostsDescription: '',
-    });
+      setCreateDialogOpen(false);
+      setOrderForm({
+        supplierId: '',
+        branchId: currentBranch?.id || '',
+        notes: '',
+        expectedDeliveryDate: '',
+        items: [],
+        freightCost: 0,
+        otherCosts: 0,
+        otherCostsDescription: '',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Falha ao criar encomenda',
+        description: error.message || 'Não foi possível criar a encomenda',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleApprove = (order: PurchaseOrder) => {
-    approveOrder(order.id, user?.id || '');
-    toast({
-      title: 'Encomenda aprovada',
-      description: `Encomenda ${order.orderNumber} foi aprovada`,
-    });
+  const handleApprove = async (order: PurchaseOrder) => {
+    try {
+      await approveOrder(order.id, user?.id || '');
+      toast({
+        title: 'Encomenda aprovada',
+        description: `Encomenda ${order.orderNumber} foi aprovada`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Falha ao aprovar',
+        description: error.message || 'Não foi possível aprovar a encomenda',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleOpenReceive = (order: PurchaseOrder) => {
@@ -326,16 +351,24 @@ export default function PurchaseOrders() {
     setReceiveDialogOpen(true);
   };
 
-  const handleReceive = () => {
+  const handleReceive = async () => {
     if (!selectedOrder) return;
 
-    receiveOrder(selectedOrder.id, user?.id || '', receivedQuantities);
-    toast({
-      title: 'Stock actualizado',
-      description: `Encomenda ${selectedOrder.orderNumber} foi recebida e stock actualizado`,
-    });
-    setReceiveDialogOpen(false);
-    setSelectedOrder(null);
+    try {
+      await receiveOrder(selectedOrder.id, user?.id || '', receivedQuantities);
+      toast({
+        title: 'Stock actualizado',
+        description: `Encomenda ${selectedOrder.orderNumber} foi recebida e stock actualizado`,
+      });
+      setReceiveDialogOpen(false);
+      setSelectedOrder(null);
+    } catch (error: any) {
+      toast({
+        title: 'Falha na recepção',
+        description: error.message || 'Não foi possível receber a encomenda',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleCancel = (order: PurchaseOrder) => {

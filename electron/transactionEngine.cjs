@@ -196,6 +196,29 @@ async function getEntityAccountCode(client, entityType, entityId, entityName) {
   return fallback;
 }
 
+async function ensureFreightExpenseAccount(client) {
+  const existing = await findAccountByCode(client, '6.2.6');
+  if (existing) return existing.code;
+
+  const parentResult = await client.query(
+    `SELECT id FROM chart_of_accounts WHERE code = '6.2' AND is_active = true LIMIT 1`
+  );
+
+  if (parentResult.rows.length === 0) {
+    throw new Error('Conta 6.2 não encontrada para lançar frete');
+  }
+
+  await client.query(
+    `INSERT INTO chart_of_accounts
+     (id, code, name, account_type, account_nature, parent_id, level, is_header, is_active, opening_balance, current_balance)
+     VALUES ($1, '6.2.6', 'Transporte sobre Compras', 'expense', 'debit', $2, 3, false, true, 0, 0)
+     ON CONFLICT (code) DO NOTHING`,
+    [randomUUID(), parentResult.rows[0].id]
+  );
+
+  return '6.2.6';
+}
+
 async function createOpenItem(client, params) {
   const { entityType, entityId, documentType, documentId, documentNumber, documentDate, dueDate, originalAmount, isDebit, branchId, currency } = params;
   const oiId = randomUUID();
@@ -299,19 +322,20 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
   const subtotal = parseFloat(order.subtotal || 0);
   const taxAmount = parseFloat(order.tax_amount || 0);
   const supplierAccountCode = await getEntityAccountCode(client, 'supplier', order.supplier_id, order.supplier_name);
+  const freightExpenseAccountCode = totalLandingCosts > 0 ? await ensureFreightExpenseAccount(client) : null;
 
   const journalLines = [
     { accountCode: '2.1.1', description: `Mercadoria ${order.order_number}`, debit: subtotal, credit: 0 },
   ];
-  if (freightCost > 0) {
-    journalLines.push({ accountCode: '6.2.6', description: `Frete ${order.order_number}`, debit: freightCost, credit: 0 });
+  if (totalLandingCosts > 0 && freightExpenseAccountCode) {
+    journalLines.push({ accountCode: freightExpenseAccountCode, description: `Frete ${order.order_number}`, debit: totalLandingCosts, credit: 0 });
   }
   if (taxAmount > 0) {
     journalLines.push({ accountCode: '3.3.1', description: `IVA compra ${order.order_number}`, debit: taxAmount, credit: 0 });
   }
-  journalLines.push({ accountCode: supplierAccountCode, description: `Fornecedor ${order.supplier_name}`, debit: 0, credit: subtotal + freightCost + taxAmount });
+  journalLines.push({ accountCode: supplierAccountCode, description: `Fornecedor ${order.supplier_name}`, debit: 0, credit: subtotal + totalLandingCosts + taxAmount });
 
-  console.log(`[TX ENGINE] Journal: subtotal=${subtotal}, freight=${freightCost}, tax=${taxAmount}, total=${subtotal + freightCost + taxAmount}`);
+  console.log(`[TX ENGINE] Journal: subtotal=${subtotal}, landedCosts=${totalLandingCosts}, tax=${taxAmount}, total=${subtotal + totalLandingCosts + taxAmount}`);
 
   await createJournalEntry(client, {
     description: `Compra ${order.order_number} - ${order.supplier_name}`,
@@ -324,7 +348,7 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
     await createOpenItem(client, {
       entityType: 'supplier', entityId: order.supplier_id, documentType: 'invoice',
       documentId: orderId, documentNumber: order.order_number, documentDate: today,
-      originalAmount: subtotal + freightCost + taxAmount, isDebit: true, branchId: order.branch_id,
+      originalAmount: subtotal + totalLandingCosts + taxAmount, isDebit: true, branchId: order.branch_id,
     });
   }
 
@@ -332,7 +356,7 @@ async function processPurchaseReceive(client, pool, orderId, receivedQuantities,
   await auditLog(client, {
     tableName: 'purchase_orders', recordId: orderId, action: 'status_change',
     userId: receivedBy, branchId: order.branch_id,
-    newValues: { orderNumber: order.order_number, total: subtotal + freightCost + taxAmount, freightCost, totalLandingCosts },
+    newValues: { orderNumber: order.order_number, total: subtotal + totalLandingCosts + taxAmount, freightCost, totalLandingCosts },
     description: `Recepção ${order.order_number} - ${order.supplier_name} (frete: ${freightCost})`,
   });
 

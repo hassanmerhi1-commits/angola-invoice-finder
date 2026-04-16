@@ -639,19 +639,29 @@ export const api = {
 
   // Purchase Orders
   purchaseOrders: {
-    list: (branchId?: string) => {
-      if (isElectronMode()) {
-        if (branchId) return ipcQuery<any>('SELECT * FROM purchase_orders WHERE branch_id = $1 ORDER BY created_at DESC', [branchId]);
-        return ipcQuery<any>('SELECT * FROM purchase_orders ORDER BY created_at DESC');
-      }
-      return apiFetch<any[]>(`/purchase-orders${branchId ? `?branchId=${branchId}` : ''}`);
+    list: async (branchId?: string) => {
+      const apiResult = await apiFetch<any[]>(`/purchase-orders${branchId ? `?branchId=${branchId}` : ''}`);
+      if (apiResult.data !== undefined || !isElectronMode()) return apiResult;
+
+      const ordersResult = branchId
+        ? await ipcQuery<any>('SELECT * FROM purchase_orders WHERE branch_id = $1 ORDER BY created_at DESC', [branchId])
+        : await ipcQuery<any>('SELECT * FROM purchase_orders ORDER BY created_at DESC');
+
+      if (!ordersResult.data) return ordersResult;
+
+      const ordersWithItems = await Promise.all(
+        ordersResult.data.map(async (order: any) => {
+          const itemsResult = await ipcQuery<any>('SELECT * FROM purchase_order_items WHERE order_id = $1 ORDER BY id ASC', [order.id]);
+          return { ...order, items: itemsResult.data || [] };
+        })
+      );
+
+      return { data: ordersWithItems };
     },
     create: (data: any) => {
-      if (isElectronMode()) return ipcInsert('purchase_orders', { id: generateId(), ...data, status: 'pending', created_at: new Date().toISOString() });
       return apiFetch<any>('/purchase-orders', { method: 'POST', body: JSON.stringify(data) });
     },
     approve: (id: string, approvedBy: string) => {
-      if (isElectronMode()) return ipcUpdate('purchase_orders', id, { status: 'approved', approved_by: approvedBy, approved_at: new Date().toISOString() });
       return apiFetch<any>(`/purchase-orders/${id}/approve`, { method: 'POST', body: JSON.stringify({ approvedBy }) });
     },
     receive: (id: string, receivedBy: string, receivedQuantities: Record<string, number>) => {
