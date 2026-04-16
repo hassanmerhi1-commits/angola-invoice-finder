@@ -1871,197 +1871,166 @@ export default function PurchaseInvoices() {
     );
   }
 
-  // ─── CREATE MODE ───
+  // ─── CREATE MODE ─── Smart ERP Dense Layout
   return (
-    <div className="space-y-2">
-      {/* Top bar — Smart ERP style header */}
-      <div className="border border-border rounded-lg bg-card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCloseCreate}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-muted-foreground">{form.supplierAccountCode || '—'}</span>
-              <span className="font-semibold text-sm">{form.supplierName || '—'}</span>
-              {form.supplierBalance !== undefined && form.supplierBalance !== 0 && (
-                <span className="font-mono text-xs text-muted-foreground ml-2">
-                  Saldo: {(form.supplierBalance || 0).toLocaleString('pt-AO')}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-black tracking-tight text-destructive">COMPRA</h2>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleCloseCreate}>
-                <X className="h-3.5 w-3.5" /> Cancelar
-              </Button>
-              <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
-                <Save className="h-3.5 w-3.5" /> Guardar
-              </Button>
-            </div>
-          </div>
+    <div className="flex flex-col h-[calc(100vh-48px)] overflow-hidden text-xs">
+      {/* ═══ TOP BAR ═══ */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-muted/60 border-b border-border shrink-0">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCloseCreate}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <button
+            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent/60 transition-colors"
+            onClick={() => void openSupplierPicker()}
+          >
+            <span className="font-mono text-[11px] text-muted-foreground">{form.supplierAccountCode || '---'}</span>
+            <span className="font-semibold text-sm">{form.supplierName || 'Selecionar Fornecedor...'}</span>
+            {form.supplierBalance !== undefined && form.supplierBalance !== 0 && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                Saldo: {(form.supplierBalance || 0).toLocaleString('pt-AO')}
+              </span>
+            )}
+            <Search className="h-3 w-3 text-muted-foreground" />
+          </button>
         </div>
-
-        {/* Supplier selection prompt */}
-        {!form.supplierName && (
-          <div className="px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900">
-            <Button variant="outline" onClick={() => void openSupplierPicker()} className="gap-2 w-full justify-start h-9 text-sm">
-              <Search className="h-4 w-4" /> Selecionar Fornecedor...
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-black tracking-tight text-destructive">COMPRA</h2>
+          <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleCloseCreate}>
+            <X className="h-3 w-3" /> Cancelar
+          </Button>
+          <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
+            <Save className="h-3 w-3" /> Guardar
+          </Button>
+        </div>
       </div>
 
-      {/* Tabs: Fatura / Entrada do Diário */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="fatura" className="gap-1"><FileText className="h-4 w-4" /> Fatura</TabsTrigger>
-          <TabsTrigger value="diario" className="gap-1"><BookOpen className="h-4 w-4" /> Entrada do Diário</TabsTrigger>
-        </TabsList>
+      {/* ═══ DENSE FORM BAR ═══ */}
+      <div className="grid grid-cols-12 gap-x-2 gap-y-0.5 px-3 py-1.5 bg-card border-b border-border shrink-0 items-end">
+        <div className="col-span-1">
+          <label className="text-[10px] text-muted-foreground leading-none">No</label>
+          <Input value={form.ref || ''} onChange={e => setForm(p => ({ ...p, ref: e.target.value }))} placeholder="Auto" className="h-7 text-xs px-1.5" />
+        </div>
+        <div className="col-span-2">
+          <label className="text-[10px] text-muted-foreground leading-none">Nº Fat. Fornecedor</label>
+          <Input value={(form as any).supplierInvoiceNo || ''} onChange={e => setForm(p => ({ ...p, supplierInvoiceNo: e.target.value }))} className="h-7 text-xs px-1.5" />
+        </div>
+        <div className="col-span-1">
+          <label className="text-[10px] text-muted-foreground leading-none">Ref</label>
+          <Input value={form.ref2 || ''} onChange={e => setForm(p => ({ ...p, ref2: e.target.value }))} className="h-7 text-xs px-1.5" />
+        </div>
+        <div className="col-span-1">
+          <label className="text-[10px] text-muted-foreground leading-none">Data</label>
+          <Input type="date" value={form.date || ''} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="h-7 text-xs px-1" />
+        </div>
+        <div className="col-span-1">
+          <label className="text-[10px] text-muted-foreground leading-none">Pagamento</label>
+          <Input type="date" value={form.paymentDate || ''} onChange={e => setForm(p => ({ ...p, paymentDate: e.target.value }))} className="h-7 text-xs px-1" />
+        </div>
+        <div className="col-span-1">
+          <label className="text-[10px] text-muted-foreground leading-none">Moeda</label>
+          <Select value={form.currency} onValueChange={v => setForm(p => ({ ...p, currency: v }))}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="KZ">KZ</SelectItem>
+              <SelectItem value="USD">USD</SelectItem>
+              <SelectItem value="EUR">EUR</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-2">
+          <label className="text-[10px] text-muted-foreground leading-none">Armazém</label>
+          <Select value={form.warehouseId} onValueChange={v => {
+            const br = branches.find(b => b.id === v);
+            setForm(p => ({ ...p, warehouseId: v, warehouseName: br?.name || v }));
+          }}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {branches.filter(b => b.id).map(b => (
+                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-1">
+          <label className="text-[10px] text-muted-foreground leading-none">Tipo Preço</label>
+          <Select value={form.priceType} onValueChange={v => setForm(p => ({ ...p, priceType: v as any }))}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="last_price">Last Price</SelectItem>
+              <SelectItem value="average_price">Avg Price</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-2 flex items-end gap-1">
+          <div className="flex items-center gap-1">
+            <Checkbox id="cp" checked={form.changePrice} onCheckedChange={v => setForm(p => ({ ...p, changePrice: !!v }))} className="h-3.5 w-3.5" />
+            <label htmlFor="cp" className="text-[10px]">Change Price</label>
+          </div>
+          <div className="flex items-center gap-1">
+            <Checkbox id="pend" checked={form.isPending} onCheckedChange={v => setForm(p => ({ ...p, isPending: !!v }))} className="h-3.5 w-3.5" />
+            <label htmlFor="pend" className="text-[10px]">Pendente</label>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ ACCOUNTING ROW (compact) ═══ */}
+      <div className="flex items-center gap-3 px-3 py-1 bg-muted/30 border-b border-border shrink-0 text-[10px]">
+        <span className="text-muted-foreground">Conta Compra:</span>
+        <Input value={form.purchaseAccountCode || ''} onChange={e => setForm(p => ({ ...p, purchaseAccountCode: e.target.value }))} className="h-6 w-16 text-[10px] font-mono px-1" />
+        <span className="text-muted-foreground">IVA:</span>
+        <Input value={form.ivaAccountCode || ''} onChange={e => setForm(p => ({ ...p, ivaAccountCode: e.target.value }))} className="h-6 w-16 text-[10px] font-mono px-1" />
+        <span className="text-muted-foreground">TX:</span>
+        <Input value={form.transactionType || ''} onChange={e => setForm(p => ({ ...p, transactionType: e.target.value }))} className="h-6 w-14 text-[10px] font-mono px-1" />
+        <span className="text-muted-foreground">Câmbio:</span>
+        <Input type="number" value={form.currencyRate || 1} onChange={e => setForm(p => ({ ...p, currencyRate: parseFloat(e.target.value) || 1 }))} className="h-6 w-16 text-[10px] font-mono px-1" />
+        <span className="text-muted-foreground">Taxa 2:</span>
+        <Input type="number" value={form.taxRate2 || 1000} onChange={e => setForm(p => ({ ...p, taxRate2: parseFloat(e.target.value) || 0 }))} className="h-6 w-16 text-[10px] font-mono px-1" />
+        <span className="text-muted-foreground">Ordem:</span>
+        <Input value={form.orderNo || ''} onChange={e => setForm(p => ({ ...p, orderNo: e.target.value }))} className="h-6 w-20 text-[10px] font-mono px-1" />
+        {/* Freight inline */}
+        <div className="ml-auto flex items-center gap-2 border-l border-border pl-3">
+          <span className="text-amber-600 dark:text-amber-400 font-semibold">🚚 Frete:</span>
+          <Input type="number" min="0" step="0.01" value={freightCost || ''} onChange={e => setFreightCost(parseFloat(e.target.value) || 0)} className="h-6 w-20 text-[10px] font-mono px-1" placeholder="0" />
+          <span className="text-muted-foreground">Outras:</span>
+          <Input type="number" min="0" step="0.01" value={freightOtherCosts || ''} onChange={e => setFreightOtherCosts(parseFloat(e.target.value) || 0)} className="h-6 w-20 text-[10px] font-mono px-1" placeholder="0" />
+          <span className="text-muted-foreground">Saída:</span>
+          <div className="flex items-center gap-0.5">
+            <Input value={freightSourceAccount} onChange={e => setFreightSourceAccount(e.target.value)} className="h-6 w-14 text-[10px] font-mono px-1" />
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { setFreightPickerOpen(true); setAccountPickerOpen(true); }}>
+              <Search className="h-2.5 w-2.5" />
+            </Button>
+          </div>
+          {totalLandingCosts > 0 && (
+            <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+              = {totalLandingCosts.toLocaleString('pt-AO')} Kz
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ═══ TABS: Fatura / Diário ═══ */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+        <div className="px-3 pt-1 shrink-0">
+          <TabsList className="h-7">
+            <TabsTrigger value="fatura" className="text-xs h-6 gap-1 px-3"><FileText className="h-3 w-3" /> Fatura</TabsTrigger>
+            <TabsTrigger value="diario" className="text-xs h-6 gap-1 px-3"><BookOpen className="h-3 w-3" /> Diário</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ──── FATURA TAB ──── */}
-        <TabsContent value="fatura" className="space-y-3 mt-2">
-          {/* Header form */}
-          <div className="grid grid-cols-12 gap-3">
-            {/* Left: main fields */}
-            <Card className="col-span-4">
-              <CardContent className="p-3 space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">No</Label>
-                    <Input value={form.ref || ''} onChange={e => setForm(p => ({ ...p, ref: e.target.value }))} placeholder="Auto" className="h-8 text-xs" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Nº Fatura Fornecedor</Label>
-                    <Input value={(form as any).supplierInvoiceNo || ''} onChange={e => setForm(p => ({ ...p, supplierInvoiceNo: e.target.value }))} placeholder="Nº da fatura do fornecedor" className="h-8 text-xs" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Ref</Label>
-                    <Input value={form.ref2 || ''} onChange={e => setForm(p => ({ ...p, ref2: e.target.value }))} className="h-8 text-xs" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Departamento</Label>
-                    <Input value={form.department || ''} onChange={e => setForm(p => ({ ...p, department: e.target.value }))} className="h-8 text-xs" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Data</Label>
-                    <Input type="date" value={form.date || ''} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="h-8 text-xs" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Data Pagamento</Label>
-                    <Input type="date" value={form.paymentDate || ''} onChange={e => setForm(p => ({ ...p, paymentDate: e.target.value }))} className="h-8 text-xs" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Moeda</Label>
-                    <Select value={form.currency} onValueChange={v => setForm(p => ({ ...p, currency: v }))}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="KZ">KZ</SelectItem>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="EUR">EUR</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Armazém</Label>
-                    <Select value={form.warehouseId} onValueChange={v => {
-                      const br = branches.find(b => b.id === v);
-                      setForm(p => ({ ...p, warehouseId: v, warehouseName: br?.name || v }));
-                    }}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {branches.filter(b => b.id).map(b => (
-                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs">Contacto</Label>
-                  <Input value={form.contact || ''} onChange={e => setForm(p => ({ ...p, contact: e.target.value }))} className="h-8 text-xs" placeholder={form.supplierPhone || '—'} />
-                </div>
-                <div>
-                  <Label className="text-xs">Tipo de Preço</Label>
-                  <Select value={form.priceType} onValueChange={v => setForm(p => ({ ...p, priceType: v as any }))}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="last_price">Last Price</SelectItem>
-                      <SelectItem value="average_price">Average Price</SelectItem>
-                      <SelectItem value="manual">Manual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {form.supplierName && (
-                  <Button variant="ghost" size="sm" className="text-xs w-full" onClick={() => void openSupplierPicker()}>
-                    Alterar Fornecedor
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+        <TabsContent value="fatura" className="flex-1 min-h-0 overflow-auto px-3 pb-1 mt-1">
+          {/* Save error */}
+          {saveError && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Erro</AlertTitle>
+              <AlertDescription>{saveError}</AlertDescription>
+            </Alert>
+          )}
 
-            {/* Center: options */}
-            <Card className="col-span-4">
-              <CardContent className="p-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="changePrice"
-                    checked={form.changePrice}
-                    onCheckedChange={v => setForm(p => ({ ...p, changePrice: !!v }))}
-                  />
-                  <Label htmlFor="changePrice" className="text-xs font-medium">Change Price</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="pending"
-                    checked={form.isPending}
-                    onCheckedChange={v => setForm(p => ({ ...p, isPending: !!v }))}
-                  />
-                  <Label htmlFor="pending" className="text-xs">Pendente</Label>
-                </div>
-                <div>
-                  <Label className="text-xs">Extra Note</Label>
-                  <Textarea
-                    value={form.extraNote || ''}
-                    onChange={e => setForm(p => ({ ...p, extraNote: e.target.value }))}
-                    className="text-xs h-16 resize-none"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Right: accounting codes */}
-            <Card className="col-span-4 border-red-200 dark:border-red-900">
-              <CardContent className="p-3 space-y-2">
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  <span className="text-muted-foreground">Conta de Fatura</span>
-                  <Input value={form.purchaseAccountCode || ''} onChange={e => setForm(p => ({ ...p, purchaseAccountCode: e.target.value }))} className="h-7 text-xs font-mono" />
-                  <span className="text-muted-foreground">IVA Conta</span>
-                  <Input value={form.ivaAccountCode || ''} onChange={e => setForm(p => ({ ...p, ivaAccountCode: e.target.value }))} className="h-7 text-xs font-mono" />
-                  <span className="text-muted-foreground">Transação</span>
-                  <Input value={form.transactionType || ''} onChange={e => setForm(p => ({ ...p, transactionType: e.target.value }))} className="h-7 text-xs font-mono" />
-                  <span className="text-muted-foreground">Moeda Valor</span>
-                  <Input type="number" value={form.currencyRate || 1} onChange={e => setForm(p => ({ ...p, currencyRate: parseFloat(e.target.value) || 1 }))} className="h-7 text-xs font-mono" />
-                  <span className="text-muted-foreground">Taxa 2</span>
-                  <Input type="number" value={form.taxRate2 || 1000} onChange={e => setForm(p => ({ ...p, taxRate2: parseFloat(e.target.value) || 0 }))} className="h-7 text-xs font-mono" />
-                  <span className="text-muted-foreground">Ordem NO.</span>
-                  <Input value={form.orderNo || ''} onChange={e => setForm(p => ({ ...p, orderNo: e.target.value }))} className="h-7 text-xs font-mono" />
-                  <span className="text-muted-foreground">Sobrecusto%</span>
-                  <Input type="number" value={form.surchargePercent || 0} onChange={e => setForm(p => ({ ...p, surchargePercent: parseFloat(e.target.value) || 0 }))} className="h-7 text-xs font-mono" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Inline Editable Grid — Smart ERP style */}
+          {/* Inline Editable Grid */}
           <InlineLineGrid
             lines={lines}
             onLinesChange={setLines}
@@ -2071,208 +2040,115 @@ export default function PurchaseInvoices() {
             warehouseName={form.warehouseName || currentBranch?.name || ''}
           />
 
-          {/* 🚚 Freight / Transport Costs */}
-          <Card className="border-amber-200 dark:border-amber-900">
-            <CardContent className="p-4 space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2">🚚 Frete e Despesas de Transporte</h4>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div>
-                  <Label className="text-xs">Frete (Transporte)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={freightCost || ''}
-                    onChange={e => setFreightCost(parseFloat(e.target.value) || 0)}
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Outras Despesas</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={freightOtherCosts || ''}
-                    onChange={e => setFreightOtherCosts(parseFloat(e.target.value) || 0)}
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Conta de Saída (Crédito)</Label>
-                  <div className="flex gap-1">
-                    <Input
-                      value={freightSourceAccount}
-                      onChange={e => setFreightSourceAccount(e.target.value)}
-                      className="h-8 text-xs font-mono flex-1"
-                      placeholder="4.1.1"
-                    />
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-                      setAccountPickerTarget('freight' as any);
-                      setFreightPickerOpen(true);
-                      setAccountPickerOpen(true);
-                    }}>
-                      <Search className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{freightSourceName}</p>
-                </div>
-                <div>
-                  <Label className="text-xs">Total Custos Adicionais</Label>
-                  <div className="h-8 flex items-center text-sm font-bold font-mono text-amber-700 dark:text-amber-400">
-                    {totalLandingCosts.toLocaleString('pt-AO')} Kz
-                  </div>
-                </div>
-              </div>
-
-              {/* Freight allocation preview */}
-              {totalLandingCosts > 0 && lines.length > 0 && (
-                <div className="border rounded p-2 bg-muted/30 space-y-1">
-                  <p className="text-[10px] font-medium text-muted-foreground">Distribuição proporcional do frete por produto:</p>
-                  {lines.filter(l => l.productId && l.totalQty > 0).map(l => {
-                    const perUnit = freightAllocations[l.productId] || 0;
-                    const effectiveCost = l.unitPrice + perUnit;
-                    return (
-                      <div key={l.productId} className="flex justify-between text-[11px]">
-                        <span className="truncate max-w-[200px]">{l.description}</span>
-                        <span className="font-mono text-muted-foreground">
-                          {l.unitPrice.toLocaleString('pt-AO')} + {perUnit.toFixed(2)} = <span className="font-bold text-foreground">{effectiveCost.toFixed(2)} Kz/un</span>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Totals summary — Smart ERP style footer */}
-          <div className="flex justify-end">
-            <div className="border border-border rounded-lg overflow-hidden bg-card min-w-[320px]">
-              <div className="grid grid-cols-2 gap-0 text-sm">
-                <div className="px-4 py-2 bg-muted/50 font-medium border-b border-r border-border">Sub Total</div>
-                <div className="px-4 py-2 text-right font-mono font-semibold border-b border-border">
-                  {totals.subtotal.toLocaleString('pt-AO')}
-                </div>
-                {totalLandingCosts > 0 && (
-                  <>
-                    <div className="px-4 py-1.5 bg-muted/50 text-xs text-amber-700 dark:text-amber-400 border-b border-r border-border">Frete</div>
-                    <div className="px-4 py-1.5 text-right font-mono text-xs text-amber-700 dark:text-amber-400 border-b border-border">
-                      {totalLandingCosts.toLocaleString('pt-AO')}
+          {/* Freight allocation preview */}
+          {totalLandingCosts > 0 && lines.length > 0 && (
+            <div className="border rounded px-2 py-1 bg-muted/30 mt-1">
+              <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Distribuição do frete:</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-0">
+                {lines.filter(l => l.productId && l.totalQty > 0).map(l => {
+                  const perUnit = freightAllocations[l.productId] || 0;
+                  const effectiveCost = l.unitPrice + perUnit;
+                  return (
+                    <div key={l.productId} className="flex justify-between text-[10px]">
+                      <span className="truncate max-w-[120px]">{l.description}</span>
+                      <span className="font-mono text-muted-foreground ml-1">
+                        {l.unitPrice.toLocaleString('pt-AO')}+{perUnit.toFixed(2)}=<strong className="text-foreground">{effectiveCost.toFixed(2)}</strong>
+                      </span>
                     </div>
-                  </>
-                )}
-                <div className="px-4 py-2 bg-muted/50 font-medium border-b border-r border-border">IVA</div>
-                <div className="px-4 py-2 text-right font-mono font-semibold text-destructive border-b border-border">
-                  {totals.ivaTotal.toLocaleString('pt-AO')}
-                </div>
-                <div className="px-4 py-2.5 bg-primary/5 font-bold border-r border-border text-base">Líquido</div>
-                <div className="px-4 py-2.5 text-right font-mono font-bold text-base bg-primary/5">
-                  {totals.total.toLocaleString('pt-AO')}
-                </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Extra Note */}
+          {form.extraNote !== undefined && form.extraNote !== '' && (
+            <div className="mt-1">
+              <Textarea
+                value={form.extraNote || ''}
+                onChange={e => setForm(p => ({ ...p, extraNote: e.target.value }))}
+                className="text-xs h-10 resize-none"
+                placeholder="Nota extra..."
+              />
+            </div>
+          )}
         </TabsContent>
 
         {/* ──── DIÁRIO TAB ──── */}
-        <TabsContent value="diario" className="space-y-3 mt-2">
+        <TabsContent value="diario" className="flex-1 min-h-0 overflow-auto px-3 pb-1 mt-1 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Entrada Diário de Fatura — Lançamentos adicionais</h3>
-            <Button variant="outline" size="sm" className="gap-1" onClick={addJournalLine}>
-              <Plus className="h-4 w-4" /> Adicionar Linha
+            <h3 className="text-xs font-semibold">Lançamentos automáticos + manuais</h3>
+            <Button variant="outline" size="sm" className="h-6 gap-1 text-[10px]" onClick={addJournalLine}>
+              <Plus className="h-3 w-3" /> Adicionar
             </Button>
           </div>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Pré-visualização do lançamento final</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="text-xs">
-                    <TableHead>Conta</TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Nota</TableHead>
-                    <TableHead className="w-28 text-right">Débito</TableHead>
-                    <TableHead className="w-28 text-right">Crédito</TableHead>
+          <div className="border border-border rounded overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="text-[10px] h-7">
+                  <TableHead className="py-1">Conta</TableHead>
+                  <TableHead className="py-1">Nome</TableHead>
+                  <TableHead className="py-1">Nota</TableHead>
+                  <TableHead className="py-1 w-24 text-right">Débito</TableHead>
+                  <TableHead className="py-1 w-24 text-right">Crédito</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {postedJournalPreview.map((line) => (
+                  <TableRow key={line.id} className="text-xs h-7">
+                    <TableCell className="font-mono py-0.5">{line.accountCode || '—'}</TableCell>
+                    <TableCell className="py-0.5">{line.accountName || '—'}</TableCell>
+                    <TableCell className="py-0.5 text-muted-foreground">{line.note || '—'}</TableCell>
+                    <TableCell className="text-right font-mono py-0.5">{line.debit > 0 ? line.debit.toLocaleString('pt-AO') : '—'}</TableCell>
+                    <TableCell className="text-right font-mono py-0.5">{line.credit > 0 ? line.credit.toLocaleString('pt-AO') : '—'}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {postedJournalPreview.map((line) => (
-                    <TableRow key={line.id} className="text-xs">
-                      <TableCell className="font-mono">{line.accountCode || '—'}</TableCell>
-                      <TableCell>{line.accountName || '—'}</TableCell>
-                      <TableCell>{line.note || '—'}</TableCell>
-                      <TableCell className="text-right font-mono">{line.debit > 0 ? line.debit.toLocaleString('pt-AO') : '—'}</TableCell>
-                      <TableCell className="text-right font-mono">{line.credit > 0 ? line.credit.toLocaleString('pt-AO') : '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex justify-end border-t px-4 py-3 text-sm">
-                <div className="w-80 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Débito:</span>
-                    <span className="font-mono">{postedJournalTotals.debit.toLocaleString('pt-AO')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Crédito:</span>
-                    <span className="font-mono">{postedJournalTotals.credit.toLocaleString('pt-AO')}</span>
-                  </div>
-                  <div className="flex justify-between font-bold border-t pt-1">
-                    <span>Diferença:</span>
-                    <span className={`font-mono ${Math.abs(postedJournalTotals.difference) > 0.01 ? 'text-destructive' : 'text-green-600'}`}>
-                      {postedJournalTotals.difference.toLocaleString('pt-AO')}
-                    </span>
-                  </div>
-                </div>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="flex justify-end border-t px-3 py-1.5 text-xs bg-muted/30">
+              <div className="flex gap-6">
+                <span>Débito: <strong className="font-mono">{postedJournalTotals.debit.toLocaleString('pt-AO')}</strong></span>
+                <span>Crédito: <strong className="font-mono">{postedJournalTotals.credit.toLocaleString('pt-AO')}</strong></span>
+                <span className={Math.abs(postedJournalTotals.difference) > 0.01 ? 'text-destructive font-bold' : 'text-green-600'}>
+                  Dif: <strong className="font-mono">{postedJournalTotals.difference.toLocaleString('pt-AO')}</strong>
+                </span>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className="p-0">
+          {/* Manual journal lines */}
+          {journalLines.length > 0 && (
+            <div className="border border-border rounded overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="text-xs">
-                    <TableHead>No. de Conta</TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Moeda</TableHead>
-                    <TableHead className="min-w-[180px]">Nota</TableHead>
-                    <TableHead className="w-28 text-right">Débito</TableHead>
-                    <TableHead className="w-28 text-right">Crédito</TableHead>
-                    <TableHead className="w-8" />
+                  <TableRow className="text-[10px] h-7">
+                    <TableHead className="py-1">Conta</TableHead>
+                    <TableHead className="py-1">Nome</TableHead>
+                    <TableHead className="py-1">Moeda</TableHead>
+                    <TableHead className="py-1 min-w-[120px]">Nota</TableHead>
+                    <TableHead className="py-1 w-24 text-right">Débito</TableHead>
+                    <TableHead className="py-1 w-24 text-right">Crédito</TableHead>
+                    <TableHead className="py-1 w-6" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {journalLines.map((jl, idx) => (
-                    <TableRow key={jl.id} className="text-xs">
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            value={jl.accountCode}
-                            onChange={e => updateJournalLine(idx, 'accountCode', e.target.value)}
-                            className="h-7 w-28 text-xs font-mono"
-                          />
-                          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => openAccountPicker(idx)}>
-                            <Search className="h-3 w-3" />
+                    <TableRow key={jl.id} className="text-xs h-7">
+                      <TableCell className="py-0.5">
+                        <div className="flex items-center gap-0.5">
+                          <Input value={jl.accountCode} onChange={e => updateJournalLine(idx, 'accountCode', e.target.value)} className="h-6 w-20 text-[10px] font-mono px-1" />
+                          <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => openAccountPicker(idx)}>
+                            <Search className="h-2.5 w-2.5" />
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Input
-                          value={jl.accountName}
-                          onChange={e => updateJournalLine(idx, 'accountName', e.target.value)}
-                          className="h-7 text-xs"
-                        />
+                      <TableCell className="py-0.5">
+                        <Input value={jl.accountName} onChange={e => updateJournalLine(idx, 'accountName', e.target.value)} className="h-6 text-[10px] px-1" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-0.5">
                         <Select value={jl.currency} onValueChange={v => updateJournalLine(idx, 'currency', v)}>
-                          <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-6 w-12 text-[10px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="KZ">KZ</SelectItem>
                             <SelectItem value="USD">USD</SelectItem>
@@ -2280,56 +2156,59 @@ export default function PurchaseInvoices() {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell>
-                        <Input
-                          value={jl.note}
-                          onChange={e => updateJournalLine(idx, 'note', e.target.value)}
-                          className="h-7 text-xs"
-                          placeholder="Descrição..."
-                        />
+                      <TableCell className="py-0.5">
+                        <Input value={jl.note} onChange={e => updateJournalLine(idx, 'note', e.target.value)} className="h-6 text-[10px] px-1" placeholder="Descrição..." />
                       </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={jl.debit || ''}
-                          onChange={e => updateJournalLine(idx, 'debit', parseFloat(e.target.value) || 0)}
-                          className="h-7 w-24 text-xs text-right font-mono"
-                        />
+                      <TableCell className="py-0.5">
+                        <Input type="number" value={jl.debit || ''} onChange={e => updateJournalLine(idx, 'debit', parseFloat(e.target.value) || 0)} className="h-6 w-20 text-[10px] text-right font-mono px-1" />
                       </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={jl.credit || ''}
-                          onChange={e => updateJournalLine(idx, 'credit', parseFloat(e.target.value) || 0)}
-                          className="h-7 w-24 text-xs text-right font-mono"
-                        />
+                      <TableCell className="py-0.5">
+                        <Input type="number" value={jl.credit || ''} onChange={e => updateJournalLine(idx, 'credit', parseFloat(e.target.value) || 0)} className="h-6 w-20 text-[10px] text-right font-mono px-1" />
                       </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeJournalLine(idx)}>
-                          <Trash2 className="h-3 w-3 text-destructive" />
+                      <TableCell className="py-0.5">
+                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeJournalLine(idx)}>
+                          <Trash2 className="h-2.5 w-2.5 text-destructive" />
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))}
-                  {journalLines.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        Os lançamentos automáticos acima já mostram Compra, IVA, Fornecedor e Frete.
-                        <br />
-                        Adicione linhas aqui apenas para ajustes extras.
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
-      {/* Dialogs */}
+      {/* ═══ STICKY FOOTER TOTALS BAR ═══ */}
+      <div className="flex items-center justify-between px-4 py-1.5 bg-card border-t-2 border-primary/20 shrink-0">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span>{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
+          <span>Total Qtd: <strong className="text-foreground font-mono">{lines.reduce((s, l) => s + l.totalQty, 0)}</strong></span>
+        </div>
+        <div className="flex items-center gap-6 text-sm">
+          <div className="text-right">
+            <span className="text-[10px] text-muted-foreground block leading-none">Sub Total</span>
+            <span className="font-mono font-semibold">{totals.subtotal.toLocaleString('pt-AO')}</span>
+          </div>
+          {totalLandingCosts > 0 && (
+            <div className="text-right">
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 block leading-none">Frete</span>
+              <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">{totalLandingCosts.toLocaleString('pt-AO')}</span>
+            </div>
+          )}
+          <div className="text-right">
+            <span className="text-[10px] text-destructive block leading-none">IVA</span>
+            <span className="font-mono font-semibold text-destructive">{totals.ivaTotal.toLocaleString('pt-AO')}</span>
+          </div>
+          <div className="text-right border-l border-border pl-4">
+            <span className="text-[10px] text-muted-foreground block leading-none">Líquido</span>
+            <span className="font-mono font-bold text-lg">{totals.total.toLocaleString('pt-AO')}</span>
+          </div>
+          <span className="text-xs text-muted-foreground">{form.currency || 'KZ'}</span>
+        </div>
+      </div>
+
+      {/* ═══ DIALOGS ═══ */}
       <SupplierPickerDialog
         open={supplierPickerOpen}
         onClose={() => setSupplierPickerOpen(false)}
