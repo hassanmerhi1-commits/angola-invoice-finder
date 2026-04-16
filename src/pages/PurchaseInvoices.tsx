@@ -20,6 +20,7 @@ import { processTransaction } from '@/lib/transactionEngine';
 import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
+import { InlineLineGrid } from '@/components/purchase/InlineLineGrid';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1871,51 +1872,46 @@ export default function PurchaseInvoices() {
 
   // ─── CREATE MODE ───
   return (
-    <div className="space-y-3">
-      {/* Top bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleCloseCreate}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
+    <div className="space-y-2">
+      {/* Top bar — Smart ERP style header */}
+      <div className="border border-border rounded-lg bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCloseCreate}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div className="flex items-center gap-2">
-              <span className="text-orange-600 font-bold text-xl">COMPRA</span>
-              <span className="font-mono text-sm text-muted-foreground">
-                {form.supplierAccountCode || '—'}
-              </span>
-              <span className="font-medium">{form.supplierName || '—'}</span>
+              <span className="font-mono text-xs text-muted-foreground">{form.supplierAccountCode || '—'}</span>
+              <span className="font-semibold text-sm">{form.supplierName || '—'}</span>
+              {form.supplierBalance !== undefined && form.supplierBalance !== 0 && (
+                <span className="font-mono text-xs text-muted-foreground ml-2">
+                  Saldo: {(form.supplierBalance || 0).toLocaleString('pt-AO')}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-black tracking-tight text-destructive">COMPRA</h2>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleCloseCreate}>
+                <X className="h-3.5 w-3.5" /> Cancelar
+              </Button>
+              <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
+                <Save className="h-3.5 w-3.5" /> Guardar
+              </Button>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleCloseCreate} className="gap-1">
-            <X className="h-4 w-4" /> Cancelar
-          </Button>
-          <Button size="sm" onClick={handleSave} className="gap-1">
-            <Save className="h-4 w-4" /> Guardar
-          </Button>
-        </div>
-      </div>
 
-      {saveError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Falha ao guardar</AlertTitle>
-          <AlertDescription>{saveError}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Supplier bar */}
-      {!form.supplierName && (
-        <Card className="border-orange-300 bg-orange-50 dark:bg-orange-950/30">
-          <CardContent className="py-4">
-            <Button variant="outline" onClick={() => void openSupplierPicker()} className="gap-2 w-full justify-start">
+        {/* Supplier selection prompt */}
+        {!form.supplierName && (
+          <div className="px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900">
+            <Button variant="outline" onClick={() => void openSupplierPicker()} className="gap-2 w-full justify-start h-9 text-sm">
               <Search className="h-4 w-4" /> Selecionar Fornecedor...
             </Button>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* Tabs: Fatura / Entrada do Diário */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -2064,125 +2060,15 @@ export default function PurchaseInvoices() {
             </Card>
           </div>
 
-          {/* Product lines toolbar */}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1" onClick={handleOpenProductPicker}>
-              <Plus className="h-4 w-4" /> Inserir Produto
-            </Button>
-            <Button variant="ghost" size="sm" className="gap-1" onClick={handleOpenProductPicker}>
-              <Search className="h-4 w-4" /> Encontrar
-            </Button>
-            <span className="text-xs text-muted-foreground ml-auto">F2 para pesquisar</span>
-          </div>
-
-          {/* Product lines grid */}
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                     <TableRow className="text-xs">
-                       <TableHead className="w-8">#</TableHead>
-                       <TableHead>Produto</TableHead>
-                       <TableHead className="min-w-[200px]">Descrição</TableHead>
-                       <TableHead className="w-20 text-right">Qtd</TableHead>
-                       <TableHead className="w-16 text-right">Emb.</TableHead>
-                       <TableHead className="w-24 text-right">Preço (s/IVA)</TableHead>
-                       <TableHead className="w-16 text-right">Desc %</TableHead>
-                       <TableHead className="w-16 text-right">% 2</TableHead>
-                       <TableHead className="w-20 text-right">Total QTD</TableHead>
-                       <TableHead className="w-28 text-right">Base Trib.</TableHead>
-                       <TableHead className="w-16 text-right">IVA%</TableHead>
-                       <TableHead className="w-20 text-right">Valor IVA</TableHead>
-                       <TableHead className="w-24">Armazém</TableHead>
-                       <TableHead className="w-20 text-right">Qtd Atual</TableHead>
-                       <TableHead className="w-28 text-right">Total c/IVA</TableHead>
-                       <TableHead className="w-16">Unidade</TableHead>
-                       <TableHead className="w-8" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lines.map((line, idx) => (
-                      <TableRow key={line.id} className="text-xs">
-                        <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                        <TableCell className="font-mono">{line.productCode}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{line.description}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={line.quantity}
-                            onChange={e => updateLineField(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="h-7 w-16 text-xs text-right font-mono"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={line.packaging}
-                            onChange={e => updateLineField(idx, 'packaging', parseFloat(e.target.value) || 1)}
-                            className="h-7 w-14 text-xs text-right font-mono"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={line.unitPrice}
-                            onChange={e => updateLineField(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="h-7 w-20 text-xs text-right font-mono"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={line.discountPct}
-                            onChange={e => updateLineField(idx, 'discountPct', parseFloat(e.target.value) || 0)}
-                            className="h-7 w-14 text-xs text-right font-mono"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={line.discountPct2}
-                            onChange={e => updateLineField(idx, 'discountPct2', parseFloat(e.target.value) || 0)}
-                            className="h-7 w-14 text-xs text-right font-mono"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right font-mono">{line.totalQty}</TableCell>
-                        <TableCell className="text-right font-mono font-medium">{line.total.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={line.ivaRate}
-                            onChange={e => updateLineField(idx, 'ivaRate', parseFloat(e.target.value) || 0)}
-                            className="h-7 w-14 text-xs text-right font-mono"
-                            onWheel={e => (e.target as HTMLInputElement).blur()}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-muted-foreground">{line.ivaAmount.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell className="text-xs">{line.warehouseName}</TableCell>
-                        <TableCell className="text-right font-mono">{line.currentStock}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{line.totalWithIva.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell>{line.unit}</TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeLine(idx)}>
-                            <Trash2 className="h-3 w-3 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {lines.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={18} className="text-center py-8 text-muted-foreground">
-                          <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          Clique em "Inserir Produto" ou pressione F2 para adicionar produtos
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Inline Editable Grid — Smart ERP style */}
+          <InlineLineGrid
+            lines={lines}
+            onLinesChange={setLines}
+            onOpenProductPicker={handleOpenProductPicker}
+            onRemoveLine={removeLine}
+            freightAllocations={freightAllocations}
+            warehouseName={form.warehouseName || currentBranch?.name || ''}
+          />
 
           {/* 🚚 Freight / Transport Costs */}
           <Card className="border-amber-200 dark:border-amber-900">
@@ -2261,35 +2147,32 @@ export default function PurchaseInvoices() {
             </CardContent>
           </Card>
 
-          {/* Totals bar */}
+          {/* Totals summary — Smart ERP style footer */}
           <div className="flex justify-end">
-            <Card className="w-80">
-              <CardContent className="p-3 space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Sub Total</span>
-                  <span className="font-mono font-medium">{totals.subtotal.toLocaleString('pt-AO')}</span>
+            <div className="border border-border rounded-lg overflow-hidden bg-card min-w-[320px]">
+              <div className="grid grid-cols-2 gap-0 text-sm">
+                <div className="px-4 py-2 bg-muted/50 font-medium border-b border-r border-border">Sub Total</div>
+                <div className="px-4 py-2 text-right font-mono font-semibold border-b border-border">
+                  {totals.subtotal.toLocaleString('pt-AO')}
                 </div>
                 {totalLandingCosts > 0 && (
                   <>
-                    <div className="flex justify-between text-sm text-amber-600">
-                      <span>Frete / Transporte</span>
-                      <span className="font-mono font-medium">{totalLandingCosts.toLocaleString('pt-AO')}</span>
+                    <div className="px-4 py-1.5 bg-muted/50 text-xs text-amber-700 dark:text-amber-400 border-b border-r border-border">Frete</div>
+                    <div className="px-4 py-1.5 text-right font-mono text-xs text-amber-700 dark:text-amber-400 border-b border-border">
+                      {totalLandingCosts.toLocaleString('pt-AO')}
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Rateado ao custo dos produtos, sem alterar o valor da fatura do fornecedor.
-                    </p>
                   </>
                 )}
-                <div className="flex justify-between text-sm text-orange-600">
-                  <span>IVA</span>
-                  <span className="font-mono font-medium">{totals.ivaTotal.toLocaleString('pt-AO')}</span>
+                <div className="px-4 py-2 bg-muted/50 font-medium border-b border-r border-border">IVA</div>
+                <div className="px-4 py-2 text-right font-mono font-semibold text-destructive border-b border-border">
+                  {totals.ivaTotal.toLocaleString('pt-AO')}
                 </div>
-                <div className="flex justify-between text-lg font-bold border-t pt-1">
-                  <span>Total da Fatura</span>
-                  <span className="font-mono">{totals.total.toLocaleString('pt-AO')}</span>
+                <div className="px-4 py-2.5 bg-primary/5 font-bold border-r border-border text-base">Líquido</div>
+                <div className="px-4 py-2.5 text-right font-mono font-bold text-base bg-primary/5">
+                  {totals.total.toLocaleString('pt-AO')}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
