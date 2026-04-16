@@ -22,6 +22,7 @@ const MIGRATIONS = [
   '014_chart_of_accounts_children_count.sql',
   '015_products_supplier.sql',
   '016_freight_expense_account.sql',
+  '017_multi_price_levels.sql',
 ];
 
 /**
