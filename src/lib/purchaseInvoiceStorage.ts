@@ -28,6 +28,13 @@ export interface PurchaseInvoiceLine {
   currentStock: number;
   unit: string;
   barcode?: string;
+  // Multi-price levels (read-only from product master)
+  price1?: number;
+  price2?: number;
+  price3?: number;
+  price4?: number;
+  lastCost?: number;
+  avgCost?: number;
 }
 
 export interface PurchaseInvoiceJournalLine {
