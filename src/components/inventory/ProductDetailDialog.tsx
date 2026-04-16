@@ -91,6 +91,18 @@ export function ProductDetailDialog({
   const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
   const activeSuppliers = useMemo(() => suppliers.filter(s => s.isActive), [suppliers]);
 
+  // Fetch latest USD→AOA exchange rate for dual-currency cost display
+  const [usdRate, setUsdRate] = useState<number>(0);
+  useEffect(() => {
+    if (!open) return;
+    api.get('/api/exchange-rates/latest')
+      .then(res => {
+        const usd = (res.data as any[])?.find((r: any) => r.from_currency === 'USD' && r.to_currency === 'AOA');
+        if (usd) setUsdRate(parseFloat(usd.rate));
+      })
+      .catch(() => {});
+  }, [open]);
+
   const [formData, setFormData] = useState({
     id: '',
     sku: '',
