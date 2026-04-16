@@ -874,6 +874,12 @@ export default function PurchaseInvoices() {
       currentStock: p.stock,
       unit: p.unit || 'UN',
       barcode: p.barcode,
+      price1: p.price || 0,
+      price2: p.price2 || 0,
+      price3: p.price3 || 0,
+      price4: p.price4 || 0,
+      lastCost: p.lastCost || p.cost || 0,
+      avgCost: p.avgCost || p.cost || 0,
     });
     setLines(prev => [...prev, newLine]);
   }, [form.warehouseId, form.warehouseName, currentBranch]);
