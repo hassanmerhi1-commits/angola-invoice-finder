@@ -1072,10 +1072,11 @@ export default function PurchaseInvoices() {
       return;
     }
 
-    const resolvedBranchId = currentBranch?.id || form.warehouseId || '';
-    const resolvedBranchName = currentBranch?.name || form.warehouseName || '';
+    // Warehouse selected in the form takes priority over BranchContext
     const resolvedWarehouseId = form.warehouseId || currentBranch?.id || '';
     const resolvedWarehouseName = form.warehouseName || currentBranch?.name || '';
+    const resolvedBranchId = resolvedWarehouseId;
+    const resolvedBranchName = resolvedWarehouseName;
 
     if (!resolvedBranchId) {
       setSaveError('Nenhuma filial activa foi encontrada. Selecione o armazém/filial antes de guardar.');
@@ -1204,18 +1205,15 @@ export default function PurchaseInvoices() {
             warehouseId: l.warehouseId || invoice.warehouseId, // BRANCH-SCOPED
           })),
 
-        // Phase 2: Price updates (WAC) — ALWAYS includes freight allocation
-        // If changePrice is on, use invoice unitPrice + freight; otherwise just freight on top of existing cost
-        priceUpdates: (invoice.changePrice || totalLandingCosts > 0)
-          ? invoice.lines
-              .filter(l => l.productId && l.totalQty > 0)
-              .map(l => ({
-                productId: l.productId,
-                newUnitCost: l.unitPrice + (freightAllocations[l.productId] || 0),
-                quantityReceived: l.totalQty,
-                updateAvgCost: true,
-              }))
-          : undefined,
+        // Phase 2: Price updates (WAC) — ALWAYS update product cost on purchase invoice
+        priceUpdates: invoice.lines
+          .filter(l => l.productId && l.totalQty > 0)
+          .map(l => ({
+            productId: l.productId,
+            newUnitCost: l.unitPrice + (freightAllocations[l.productId] || 0),
+            quantityReceived: l.totalQty,
+            updateAvgCost: true,
+          })),
 
         // Phase 3: Journal entries
         journalLines: invoice.journalLines.map((line) => ({
