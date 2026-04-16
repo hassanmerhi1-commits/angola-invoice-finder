@@ -6,6 +6,30 @@ const { randomUUID } = require('crypto');
 const { recordStockMovement, createOpenItem, linkDocuments, validatePeriod, auditLog } = require('../transactionEngine');
 const { createJournalEntry } = require('../accounting');
 
+async function ensureFreightExpenseAccount(client) {
+  const existing = await client.query(
+    `SELECT id FROM chart_of_accounts WHERE code = '6.2.6' AND is_active = true LIMIT 1`
+  );
+
+  if (existing.rows.length > 0) return;
+
+  const parentResult = await client.query(
+    `SELECT id FROM chart_of_accounts WHERE code = '6.2' AND is_active = true LIMIT 1`
+  );
+
+  if (parentResult.rows.length === 0) {
+    throw new Error('Conta 6.2 não encontrada para lançar frete');
+  }
+
+  await client.query(
+    `INSERT INTO chart_of_accounts
+     (id, code, name, account_type, account_nature, parent_id, level, is_header, is_active, opening_balance, current_balance)
+     VALUES ($1, '6.2.6', 'Transporte sobre Compras', 'expense', 'debit', $2, 3, false, true, 0, 0)
+     ON CONFLICT (code) DO NOTHING`,
+    [randomUUID(), parentResult.rows[0].id]
+  );
+}
+
 module.exports = function(broadcastTable) {
   const router = express.Router();
 
@@ -131,6 +155,10 @@ module.exports = function(broadcastTable) {
         priceUpdates, entityBalanceUpdate
       } = req.body;
 
+      const effectivePriceUpdates = new Map(
+        (priceUpdates || []).map((pu) => [pu.productId, Number(pu.newUnitCost || 0)])
+      );
+
       // Input validation
       if (!branchId) throw new Error('branchId é obrigatório');
       if (!transactionType) throw new Error('transactionType é obrigatório');
@@ -150,12 +178,21 @@ module.exports = function(broadcastTable) {
       // Phase 1: Stock Movements (through engine)
       if (stockEntries && stockEntries.length > 0) {
         for (const entry of stockEntries) {
+          const effectiveUnitCost = effectivePriceUpdates.get(entry.productId) ?? entry.unitCost ?? 0;
+
+          if (transactionType === 'purchase_invoice' && Number(effectiveUnitCost) !== Number(entry.unitCost || 0)) {
+            console.log(
+              `[TX API] purchase_invoice ${documentNumber}: landed cost applied for ${entry.productId} ` +
+              `base=${Number(entry.unitCost || 0)} final=${Number(effectiveUnitCost)}`
+            );
+          }
+
           const movement = await recordStockMovement(client, {
             productId: entry.productId,
             warehouseId: entry.warehouseId,
             movementType: entry.direction,
             quantity: entry.quantity,
-            unitCost: entry.unitCost || 0,
+            unitCost: effectiveUnitCost,
             referenceType: transactionType,
             referenceId: documentId,
             referenceNumber: documentNumber,
@@ -188,6 +225,10 @@ module.exports = function(broadcastTable) {
 
       // Phase 3: Journal Entry (through accounting engine — validates balance)
       if (journalLines && journalLines.length > 0) {
+        if (journalLines.some((line) => line.accountCode === '6.2.6')) {
+          await ensureFreightExpenseAccount(client);
+        }
+
         const entry = await createJournalEntry(client, {
           description,
           referenceType: transactionType,
