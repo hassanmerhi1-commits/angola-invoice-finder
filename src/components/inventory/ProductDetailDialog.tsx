@@ -349,7 +349,6 @@ export function ProductDetailDialog({
                   <Input type="number" step="0.01" value={formData.price4} onChange={e => set('price4', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
                 <ReadOnlyRow label="Preço 4 c/IVA" value={(formData.price4 * (1 + formData.iva / 100)).toFixed(2)} />
-                <ReadOnlyRow label="Margem %" value={`${margin}%`} />
 
                 <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Custo (AKZ)</h4>
                 <Row label="Custo Actual">
