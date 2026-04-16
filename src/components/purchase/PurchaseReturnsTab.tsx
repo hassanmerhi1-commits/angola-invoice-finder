@@ -275,19 +275,32 @@ export function PurchaseReturnsTab() {
           documentId: returnDoc.id,
           documentNumber: returnNumber,
           branchId,
-          supplierId: selectedInvoice.supplierAccountCode,
-          supplierName: selectedInvoice.supplierName,
-          lines: items.map(item => ({
+          branchName: currentBranch?.name || '',
+          userId: returnDoc.createdBy,
+          userName: returnDoc.createdBy,
+          date: new Date().toISOString().slice(0, 10),
+          description: `Devolução de compra - ${returnNumber}`,
+          entityBalanceUpdate: {
+            entityType: 'supplier',
+            entityId: selectedInvoice.supplierAccountCode,
+            entityName: selectedInvoice.supplierName,
+            entityNif: selectedInvoice.supplierNif,
+            amount: -total, // reduce supplier balance
+          },
+          stockEntries: items.map(item => ({
             productId: item.productId,
             sku: item.sku,
-            description: item.productName,
-            quantity: item.quantity,
-            unitPrice: item.unitCost,
-            taxRate: item.taxRate,
+            productName: item.productName,
             warehouseId: branchId,
+            warehouseName: currentBranch?.name || '',
+            movementType: 'OUT' as const,
+            quantity: item.quantity,
+            unitCost: item.unitCost,
+            totalCost: item.subtotal,
+            referenceType: 'credit_note',
+            referenceId: returnDoc.id,
+            referenceNumber: returnNumber,
           })),
-          userId: returnDoc.createdBy,
-          notes: `Devolução de compra - ${returnNumber}`,
         });
       } catch (err) {
         console.warn('Transaction engine fallback for purchase return:', err);
