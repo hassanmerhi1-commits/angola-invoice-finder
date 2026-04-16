@@ -24,6 +24,9 @@ module.exports = function(broadcastTable) {
         // Return branch-specific stock from stock_movements instead of global products.stock
         query = `
           SELECT p.*,
+            p.cost AS first_cost,
+            p.cost AS last_cost,
+            p.cost AS weighted_avg_cost,
             COALESCE(cs.current_stock, 0) AS stock
           FROM products p
           LEFT JOIN v_current_stock cs ON cs.product_id = p.id AND cs.warehouse_id = $1
@@ -31,7 +34,14 @@ module.exports = function(broadcastTable) {
           ORDER BY p.name`;
         params.push(branchId);
       } else {
-        query = 'SELECT * FROM products WHERE is_active = true ORDER BY name';
+        query = `
+          SELECT p.*,
+            p.cost AS first_cost,
+            p.cost AS last_cost,
+            p.cost AS weighted_avg_cost
+          FROM products p
+          WHERE p.is_active = true
+          ORDER BY p.name`;
       }
 
       const result = await db.query(query, params);

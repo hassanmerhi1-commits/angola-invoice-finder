@@ -218,7 +218,22 @@ module.exports = function(broadcastTable) {
             const newTotal = pu.quantityReceived * pu.newUnitCost;
             const totalStock = previousStock + pu.quantityReceived;
             const newAvg = totalStock > 0 ? (prevTotal + newTotal) / totalStock : pu.newUnitCost;
-            await client.query('UPDATE products SET cost = $1 WHERE id = $2', [newAvg.toFixed(2), pu.productId]);
+
+            const nextAvgCost = Number(newAvg.toFixed(2));
+            const nextLastCost = Number(Number(pu.newUnitCost || 0).toFixed(2));
+
+            await client.query(
+              `UPDATE products
+               SET cost = $1,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [nextAvgCost, pu.productId]
+            );
+
+            console.log(
+              `[TX API] price update ${transactionType} ${documentNumber}: product=${pu.productId} ` +
+              `prevStock=${previousStock} received=${pu.quantityReceived} avgCost=${nextAvgCost} lastCost=${nextLastCost}`
+            );
           }
         }
       }

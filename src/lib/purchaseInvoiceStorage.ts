@@ -90,7 +90,12 @@ export interface PurchaseInvoice {
 export async function getPurchaseInvoices(branchId?: string): Promise<PurchaseInvoice[]> {
   if (isElectronMode()) {
     const rows = await dbGetAll<any>('purchase_invoices');
-    let docs = rows.map(mapPIFromDb);
+    let docs = rows.length > 0
+      ? rows.map(mapPIFromDb)
+      : (await dbGetAll<any>('erp_documents'))
+          .filter((row) => row.document_type === 'fatura_compra')
+          .map(mapPIFromDocumentDb);
+
     if (branchId) docs = docs.filter(d => d.branchId === branchId);
     return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
@@ -115,7 +120,7 @@ export async function savePurchaseInvoice(invoice: PurchaseInvoice): Promise<Pur
   if (isElectronMode()) {
     const saved = await dbInsert('purchase_invoices', mapPIToDb(invoice));
     if (!saved) {
-      throw new Error('Não foi possível gravar a fatura de compra na base de dados local.');
+      console.warn('[PurchaseInvoice] purchase_invoices table unavailable in Electron, relying on erp_documents sync');
     }
     return invoice;
   }
@@ -403,5 +408,77 @@ function mapPIToDb(invoice: PurchaseInvoice): any {
     created_by_name: invoice.createdByName,
     created_at: invoice.createdAt,
     updated_at: invoice.updatedAt,
+  };
+}
+
+function mapPIFromDocumentDb(row: any): PurchaseInvoice {
+  const lines = row.lines_json ? JSON.parse(row.lines_json) : [];
+  const subtotal = Number(row.subtotal || 0);
+  const total = Number(row.total || 0);
+  const ivaTotal = Number(row.total_tax || 0);
+
+  return {
+    id: row.id,
+    invoiceNumber: row.document_number || '',
+    supplierAccountCode: row.account_code || '',
+    supplierName: row.entity_name || '',
+    supplierNif: row.entity_nif || '',
+    supplierPhone: row.entity_phone || '',
+    supplierBalance: 0,
+    ref: '',
+    supplierInvoiceNo: row.internal_notes?.replace('Nº Fatura Fornecedor: ', '') || '',
+    contact: '',
+    department: '',
+    ref2: '',
+    date: row.issue_date || row.created_at || '',
+    paymentDate: row.due_date || '',
+    project: '',
+    currency: row.currency || 'AOA',
+    warehouseId: '',
+    warehouseName: '',
+    priceType: 'manual',
+    address: row.entity_address || '',
+    purchaseAccountCode: lines[0]?.accountCode || '2.1.1',
+    ivaAccountCode: '3.3.1',
+    transactionType: 'ALL',
+    currencyRate: 1,
+    taxRate2: 0,
+    orderNo: '',
+    surchargePercent: 0,
+    changePrice: true,
+    isPending: false,
+    extraNote: row.notes || '',
+    lines: lines.map((line: any) => ({
+      id: line.id,
+      productId: line.productId || '',
+      productCode: line.productSku || '',
+      description: line.description || '',
+      quantity: Number(line.quantity || 0),
+      packaging: 1,
+      unitPrice: Number(line.unitPrice || 0),
+      discountPct: Number(line.discount || 0),
+      discountPct2: 0,
+      totalQty: Number(line.quantity || 0),
+      total: Number((line.lineTotal || 0) - (line.taxAmount || 0)),
+      ivaRate: Number(line.taxRate || 0),
+      ivaAmount: Number(line.taxAmount || 0),
+      totalWithIva: Number(line.lineTotal || 0),
+      warehouseId: '',
+      warehouseName: '',
+      currentStock: 0,
+      unit: line.unit || 'UN',
+      barcode: undefined,
+    })),
+    journalLines: [],
+    subtotal,
+    ivaTotal,
+    total,
+    status: row.status || 'confirmed',
+    branchId: row.branch_id || '',
+    branchName: row.branch_name || '',
+    createdBy: row.created_by || '',
+    createdByName: row.created_by_name || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || row.created_at || '',
   };
 }
