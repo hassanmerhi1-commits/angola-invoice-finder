@@ -351,15 +351,31 @@ export function ProductDetailDialog({
                 <ReadOnlyRow label="Preço 4 c/IVA" value={(formData.price4 * (1 + formData.iva / 100)).toFixed(2)} />
                 <ReadOnlyRow label="Margem %" value={`${margin}%`} />
 
-                <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Custo</h4>
-                <Row label="Custo Actual (Kz)">
+                <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Custo (AKZ)</h4>
+                <Row label="Custo Actual">
                   <Input type="number" step="0.01" value={formData.cost} onChange={e => set('cost', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
                 </Row>
+                <ReadOnlyRow label="Iniciar Custo" value={(product?.firstCost || formData.cost).toFixed(2)} />
                 <ReadOnlyRow label="Custo Médio" value={formData.avgCost.toFixed(2)} />
                 <ReadOnlyRow label="Último Custo" value={formData.lastCost.toFixed(2)} />
-              </div>
 
-              {/* ── Column 3: Stock & Filial ── */}
+                {usdRate > 0 && (
+                  <>
+                    <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Custo (USD)</h4>
+                    <ReadOnlyRow label="Custo Actual" value={(formData.cost / usdRate).toFixed(4)} />
+                    <ReadOnlyRow label="Iniciar Custo" value={((product?.firstCost || formData.cost) / usdRate).toFixed(4)} />
+                    <ReadOnlyRow label="Custo Médio" value={(formData.avgCost / usdRate).toFixed(4)} />
+                    <ReadOnlyRow label="Último Custo" value={(formData.lastCost / usdRate).toFixed(4)} />
+                  </>
+                )}
+
+                <h4 className="text-[11px] font-semibold border-b pb-1 mb-1 pt-2">Margem & Embalagem</h4>
+                <ReadOnlyRow label="Markup %" value={`${margin}%`} />
+                <ReadOnlyRow label="Margem Líq." value={formData.price > 0 ? (((formData.price - formData.cost) / formData.price) * 100).toFixed(2) + '%' : '0.00%'} />
+                <ReadOnlyRow label="Custo Emb." value={(formData.cost * (formData.embalagem || 1)).toFixed(2)} />
+                {usdRate > 0 && (
+                  <ReadOnlyRow label="Custo Emb. USD" value={((formData.cost * (formData.embalagem || 1)) / usdRate).toFixed(4)} />
+                )}
               <div className="p-3 space-y-1">
                 <h4 className="text-[11px] font-semibold border-b pb-1 mb-1">Stock & Filial</h4>
                 <Row label="Stock">
