@@ -290,7 +290,17 @@ module.exports = function(broadcastTable) {
       res.status(201).json(result);
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('[TX API ERROR]', error);
+      console.error('[TX API ERROR]', error.message);
+      console.error('[TX API ERROR STACK]', error.stack);
+      console.error('[TX API ERROR PAYLOAD]', JSON.stringify({
+        transactionType: req.body.transactionType,
+        documentNumber: req.body.documentNumber,
+        branchId: req.body.branchId,
+        userId: req.body.userId,
+        stockEntriesCount: req.body.stockEntries?.length,
+        journalLinesCount: req.body.journalLines?.length,
+        journalLines: req.body.journalLines?.map(l => ({ code: l.accountCode, d: l.debit, c: l.credit })),
+      }, null, 2));
       res.status(500).json({
         success: false,
         error: error.message || 'Transaction failed',

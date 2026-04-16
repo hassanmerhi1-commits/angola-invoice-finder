@@ -1125,7 +1125,7 @@ export default function PurchaseInvoices() {
       warehouseName: resolvedWarehouseName,
       priceType: form.priceType || 'last_price',
       address: form.address,
-      purchaseAccountCode: form.purchaseAccountCode || '2.1',
+      purchaseAccountCode: form.purchaseAccountCode || '2.1.1',
       ivaAccountCode: form.ivaAccountCode || '3.3.1',
       transactionType: form.transactionType || 'ALL',
       currencyRate: form.currencyRate || 1,

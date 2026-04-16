@@ -3,6 +3,12 @@
 const db = require('./db');
 const { randomUUID } = require('crypto');
 
+function normalizeUuid(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed) ? trimmed : null;
+}
+
 /**
  * Generate a unique document number from document_sequences (with row-level locking).
  * Falls back to COUNT-based generation if the table doesn't exist yet.
@@ -94,7 +100,7 @@ async function createJournalEntry(client, params) {
 
   // Generate entry number from centralized sequences
   const prefixMap = {
-    sale: 'VD', purchase: 'CP', transfer: 'TRF',
+    sale: 'VD', purchase: 'CP', purchase_invoice: 'CP', transfer: 'TRF',
     expense: 'DSP', adjustment: 'AJ', receipt: 'REC', payment: 'PAG',
   };
   const prefix = prefixMap[referenceType] || 'JE';
@@ -121,9 +127,9 @@ async function createJournalEntry(client, params) {
      (id, entry_number, entry_date, description, reference_type, reference_id, 
       total_debit, total_credit, is_posted, posted_at, branch_id, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, CURRENT_TIMESTAMP, $9, $10)`,
-    [entryId, entryNumber, entryDate || new Date().toISOString().split('T')[0],
-     description, referenceType, referenceId,
-     totalDebit, totalCredit, branchId, createdBy]
+     [entryId, entryNumber, entryDate || new Date().toISOString().split('T')[0],
+      description, referenceType, normalizeUuid(referenceId),
+      totalDebit, totalCredit, normalizeUuid(branchId), normalizeUuid(createdBy)]
   );
 
   // Insert journal entry lines
@@ -165,4 +171,5 @@ module.exports = {
   createJournalEntry,
   findAccountByCode,
   generateSequenceNumber,
+  normalizeUuid,
 };
