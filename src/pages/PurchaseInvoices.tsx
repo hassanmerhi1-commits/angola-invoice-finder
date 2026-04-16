@@ -22,6 +22,7 @@ import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { InlineLineGrid } from '@/components/purchase/InlineLineGrid';
+import { PurchaseReturnsTab } from '@/components/purchase/PurchaseReturnsTab';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1358,6 +1359,9 @@ export default function PurchaseInvoices() {
             <TabsTrigger value="encomendas" className="gap-1">
               <ShoppingCart className="h-4 w-4" /> Encomendas
               <Badge variant="secondary" className="ml-1 text-[10px]">{orders.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="devolucoes" className="gap-1">
+              <RotateCcw className="h-4 w-4" /> Devoluções
             </TabsTrigger>
           </TabsList>
 
