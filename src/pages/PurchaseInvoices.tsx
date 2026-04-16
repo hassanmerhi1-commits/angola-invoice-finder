@@ -1314,7 +1314,7 @@ export default function PurchaseInvoices() {
     };
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 animate-fade-in">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -1391,54 +1391,59 @@ export default function PurchaseInvoices() {
               )}
             </div>
 
-            {/* Summary */}
-            <div className="flex gap-4 text-sm">
-              <span className="text-muted-foreground">{invoiceTotals.count} facturas</span>
-              <span>Sub Total: <strong className="font-mono">{invoiceTotals.subtotal.toLocaleString('pt-AO')} Kz</strong></span>
-              <span>IVA: <strong className="font-mono">{invoiceTotals.iva.toLocaleString('pt-AO')} Kz</strong></span>
-              <span>Total: <strong className="font-mono">{invoiceTotals.total.toLocaleString('pt-AO')} Kz</strong></span>
+            {/* Summary Bar */}
+            <div className="flex gap-4 text-xs items-center px-3 py-2 rounded-md bg-muted/50 border border-border/50">
+              <span className="text-muted-foreground font-medium">{invoiceTotals.count} facturas</span>
+              <div className="h-4 w-px bg-border" />
+              <span>Sub Total: <strong className="font-mono text-sm">{invoiceTotals.subtotal.toLocaleString('pt-AO')}</strong></span>
+              <span className="text-destructive">IVA: <strong className="font-mono text-sm">{invoiceTotals.iva.toLocaleString('pt-AO')}</strong></span>
+              <span>Total: <strong className="font-mono text-sm font-bold">{invoiceTotals.total.toLocaleString('pt-AO')} Kz</strong></span>
             </div>
 
             <Card>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Nº Fatura</TableHead>
-                      <TableHead>Nº Fat. Fornecedor</TableHead>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Armazém</TableHead>
-                      <TableHead className="text-right">Sub Total</TableHead>
-                      <TableHead className="text-right">IVA</TableHead>
-                      <TableHead className="text-right">Líquido</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead className="text-right">Acções</TableHead>
+                    <TableRow className="text-[11px]">
+                      <TableHead className="py-2">Nº Fatura</TableHead>
+                      <TableHead className="py-2">Nº Fat. Fornecedor</TableHead>
+                      <TableHead className="py-2">Fornecedor</TableHead>
+                      <TableHead className="py-2">Data</TableHead>
+                      <TableHead className="py-2">Armazém</TableHead>
+                      <TableHead className="py-2 text-right">Sub Total</TableHead>
+                      <TableHead className="py-2 text-right">IVA</TableHead>
+                      <TableHead className="py-2 text-right">Líquido</TableHead>
+                      <TableHead className="py-2">Estado</TableHead>
+                      <TableHead className="py-2 text-right">Acções</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filtered.map(inv => (
-                      <TableRow key={inv.id} className="cursor-pointer hover:bg-accent/50" onClick={() => setViewInvoice(inv)}>
-                        <TableCell className="font-mono text-xs font-medium">{inv.invoiceNumber}</TableCell>
-                        <TableCell className="text-xs">{inv.supplierInvoiceNo || '—'}</TableCell>
-                        <TableCell>{inv.supplierName}</TableCell>
-                        <TableCell className="text-sm">{format(new Date(inv.date), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell className="text-sm">{inv.warehouseName}</TableCell>
-                        <TableCell className="text-right font-mono">{inv.subtotal.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell className="text-right font-mono text-destructive">{inv.ivaTotal.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{inv.total.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell>
-                          <Badge variant={getPurchaseInvoiceStatusBadge(inv.status).variant}>
+                      <TableRow
+                        key={inv.id}
+                        className="cursor-pointer hover:bg-accent/50 h-8 transition-colors duration-100"
+                        onClick={() => setViewInvoice(inv)}
+                      >
+                        <TableCell className="font-mono text-[11px] font-medium py-1">{inv.invoiceNumber}</TableCell>
+                        <TableCell className="text-[11px] py-1">{inv.supplierInvoiceNo || '—'}</TableCell>
+                        <TableCell className="text-[11px] py-1 font-medium">{inv.supplierName}</TableCell>
+                        <TableCell className="text-[11px] py-1">{format(new Date(inv.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-[11px] py-1">{inv.warehouseName}</TableCell>
+                        <TableCell className="text-right font-mono text-[11px] py-1">{inv.subtotal.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="text-right font-mono text-[11px] py-1 text-destructive">{inv.ivaTotal.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="text-right font-mono text-[11px] py-1 font-bold">{inv.total.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="py-1">
+                          <Badge variant={getPurchaseInvoiceStatusBadge(inv.status).variant} className="text-[9px] px-1.5 py-0">
                             {getPurchaseInvoiceStatusBadge(inv.status).label}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
-                              <Eye className="h-4 w-4" />
+                        <TableCell className="text-right py-1">
+                          <div className="flex gap-0.5 justify-end">
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
+                              <Eye className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
-                              <Printer className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
+                              <Printer className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>
