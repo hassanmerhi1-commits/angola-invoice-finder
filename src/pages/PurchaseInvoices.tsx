@@ -655,6 +655,7 @@ export default function PurchaseInvoices() {
   const [saveError, setSaveError] = useState<string | null>(null);
   // List mode state
   const [listTab, setListTab] = useState<'faturas' | 'encomendas' | 'devolucoes'>('faturas');
+  const [returnCount, setReturnCount] = useState(0);
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
@@ -771,6 +772,18 @@ export default function PurchaseInvoices() {
       setInvoices([...piInvoices, ...docOnlyInvoices]);
     };
     loadAll();
+  }, [currentBranch?.id]);
+
+  // Load return count for badge
+  useEffect(() => {
+    const loadReturnCount = async () => {
+      try {
+        const { getSupplierReturns } = await import('@/lib/supplierReturns');
+        const returns = await getSupplierReturns(currentBranch?.id);
+        setReturnCount(returns.length);
+      } catch { setReturnCount(0); }
+    };
+    loadReturnCount();
   }, [currentBranch?.id]);
 
   // Filtered list with date range and supplier filters
@@ -1362,6 +1375,7 @@ export default function PurchaseInvoices() {
             </TabsTrigger>
             <TabsTrigger value="devolucoes" className="gap-1">
               <RotateCcw className="h-4 w-4" /> Devoluções
+              <Badge variant="secondary" className="ml-1 text-[10px]">{returnCount}</Badge>
             </TabsTrigger>
           </TabsList>
 

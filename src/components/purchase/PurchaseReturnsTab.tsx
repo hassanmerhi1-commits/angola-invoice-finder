@@ -176,6 +176,27 @@ export function PurchaseReturnsTab() {
       const taxAmount = items.reduce((s, i) => s + i.taxAmount, 0);
       const total = subtotal + taxAmount;
 
+      // Resolve real supplier ID from suppliers list by matching name/NIF
+      let resolvedSupplierId = '';
+      try {
+        const suppliersResp = await api.suppliers.list();
+        const allSuppliers = suppliersResp.data || [];
+        const matched = allSuppliers.find((s: any) =>
+          s.name === selectedInvoice.supplierName ||
+          (selectedInvoice.supplierNif && s.nif === selectedInvoice.supplierNif)
+        );
+        resolvedSupplierId = matched?.id || '';
+      } catch {
+        // fallback: try localStorage
+        const raw = localStorage.getItem('kwanzaerp_suppliers');
+        const suppliers = raw ? JSON.parse(raw) : [];
+        const matched = suppliers.find((s: any) =>
+          s.name === selectedInvoice.supplierName ||
+          (selectedInvoice.supplierNif && s.nif === selectedInvoice.supplierNif)
+        );
+        resolvedSupplierId = matched?.id || '';
+      }
+
       const returnDoc: SupplierReturn = {
         id: generateId(),
         returnNumber,
@@ -183,7 +204,7 @@ export function PurchaseReturnsTab() {
         branchName: currentBranch?.name || '',
         purchaseOrderId: selectedInvoice.id,
         purchaseOrderNumber: selectedInvoice.invoiceNumber,
-        supplierId: '', // supplier ID from invoice context
+        supplierId: resolvedSupplierId,
         supplierName: selectedInvoice.supplierName,
         reason,
         reasonDescription,
@@ -200,26 +221,7 @@ export function PurchaseReturnsTab() {
       // Save the return document
       await saveSupplierReturn(returnDoc);
 
-      // Stock OUT movements (decrease inventory)
-      for (const item of items) {
-        try {
-          await api.transactions.createStockMovement({
-            productId: item.productId,
-            warehouseId: branchId,
-            movementType: 'OUT',
-            quantity: item.quantity,
-            referenceType: 'return',
-            referenceId: returnDoc.id,
-            referenceNumber: returnNumber,
-            notes: `Devolução de compra: ${reasonDescription}`,
-            createdBy: returnDoc.createdBy,
-          });
-        } catch {
-          try {
-            await api.products.updateStock(item.productId, -item.quantity);
-          } catch { /* fallback silently */ }
-        }
-      }
+      // NOTE: Stock OUT is handled by processTransaction below — no duplicate movements
 
       // Create linked Nota de Débito document
       const debitNoteDoc: ERPDocument = {
@@ -268,7 +270,11 @@ export function PurchaseReturnsTab() {
 
       await saveDocument(debitNoteDoc);
 
-      // Reverse accounting — debit supplier (reduce payable), credit purchase
+      // Reverse accounting — debit supplier (reduce payable), credit purchase account + IVA
+      const purchaseAccountCode = selectedInvoice.purchaseAccountCode || '2.1.1';
+      const ivaAccountCode = selectedInvoice.ivaAccountCode || '3.3.1';
+      const supplierAccountCode = selectedInvoice.supplierAccountCode || '3.2.1';
+
       try {
         await processTransaction({
           transactionType: 'credit_note',
@@ -276,17 +282,13 @@ export function PurchaseReturnsTab() {
           documentNumber: returnNumber,
           branchId,
           branchName: currentBranch?.name || '',
-          userId: returnDoc.createdBy,
-          userName: returnDoc.createdBy,
+          userId: user?.id || '',
+          userName: user?.name || user?.username || 'Sistema',
           date: new Date().toISOString().slice(0, 10),
-          description: `Devolução de compra - ${returnNumber}`,
-          entityBalanceUpdate: {
-            entityType: 'supplier',
-            entityId: selectedInvoice.supplierAccountCode,
-            entityName: selectedInvoice.supplierName,
-            entityNif: selectedInvoice.supplierNif,
-            amount: -total, // reduce supplier balance
-          },
+          description: `Devolução de compra - ${returnNumber} — ${selectedInvoice.supplierName}`,
+          amount: total,
+
+          // Phase 1: Stock OUT entries
           stockEntries: items.map(item => ({
             productId: item.productId,
             productName: item.productName,
@@ -296,6 +298,63 @@ export function PurchaseReturnsTab() {
             direction: 'OUT' as const,
             warehouseId: branchId,
           })),
+
+          // Phase 3: Reverse journal entries (mirror of purchase invoice)
+          // Purchase invoice: Debit 2.1.1 (Purchase) + Debit 3.3.1 (IVA) / Credit Supplier
+          // Return reversal: Debit Supplier / Credit 2.1.1 (Purchase) + Credit 3.3.1 (IVA)
+          journalLines: [
+            {
+              accountCode: supplierAccountCode,
+              accountName: `Fornecedor ${selectedInvoice.supplierName}`,
+              debit: total,
+              credit: 0,
+              note: `Devolução ${returnNumber}`,
+            },
+            {
+              accountCode: purchaseAccountCode,
+              accountName: 'Compra de Mercadorias',
+              debit: 0,
+              credit: subtotal,
+              note: `Devolução ${returnNumber} — base`,
+            },
+            ...(taxAmount > 0 ? [{
+              accountCode: ivaAccountCode,
+              accountName: 'IVA Dedutível',
+              debit: 0,
+              credit: taxAmount,
+              note: `Devolução ${returnNumber} — IVA`,
+            }] : []),
+          ],
+
+          // Phase 4: Open item (credit note reduces supplier payable)
+          openItem: {
+            entityType: 'supplier' as const,
+            entityId: resolvedSupplierId,
+            entityName: selectedInvoice.supplierName,
+            documentType: 'credit_note' as const,
+            originalAmount: total,
+            isDebit: false,
+            currency: selectedInvoice.currency === 'KZ' ? 'AOA' : selectedInvoice.currency,
+          },
+
+          // Phase 5: Document link (return → original invoice)
+          documentLinks: [{
+            sourceType: 'nota_debito',
+            sourceId: returnDoc.id,
+            sourceNumber: returnNumber,
+            targetType: 'fatura_compra',
+            targetId: selectedInvoice.id,
+            targetNumber: selectedInvoice.invoiceNumber,
+          }],
+
+          // Phase 6: Update supplier balance (decrease)
+          entityBalanceUpdate: {
+            entityType: 'supplier',
+            entityId: resolvedSupplierId,
+            entityName: selectedInvoice.supplierName,
+            entityNif: selectedInvoice.supplierNif,
+            amount: -total,
+          },
         });
       } catch (err) {
         console.warn('Transaction engine fallback for purchase return:', err);
@@ -402,6 +461,7 @@ export function PurchaseReturnsTab() {
               <TableRow className="text-[11px] h-8">
                 <TableHead className="w-[160px]">Nº Devolução</TableHead>
                 <TableHead>Fornecedor</TableHead>
+                <TableHead>Filial</TableHead>
                 <TableHead>Fatura Origem</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead className="text-right">Total</TableHead>
@@ -417,6 +477,7 @@ export function PurchaseReturnsTab() {
                   <TableRow key={ret.id} className="h-8 text-[11px]">
                     <TableCell className="font-mono font-medium">{ret.returnNumber}</TableCell>
                     <TableCell>{ret.supplierName}</TableCell>
+                    <TableCell className="text-muted-foreground">{ret.branchName || '—'}</TableCell>
                     <TableCell className="font-mono text-muted-foreground">{ret.purchaseOrderNumber}</TableCell>
                     <TableCell>{REASON_LABELS[ret.reason] || ret.reason}</TableCell>
                     <TableCell className="text-right font-mono">{fmtKz(ret.total)}</TableCell>
@@ -453,7 +514,7 @@ export function PurchaseReturnsTab() {
               })}
               {filteredReturns.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     <RotateCcw className="h-8 w-8 mx-auto mb-2 opacity-30" />
                     Nenhuma devolução encontrada
                   </TableCell>
@@ -474,6 +535,13 @@ export function PurchaseReturnsTab() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Branch info */}
+            <div className="flex items-center gap-2 text-sm px-3 py-2 bg-muted/50 rounded-md border">
+              <Package className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Filial:</span>
+              <span className="font-medium">{currentBranch?.name || '—'}</span>
+            </div>
+
             {/* Source invoice selection */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -688,6 +756,10 @@ export function PurchaseReturnsTab() {
                 <div>
                   <Label className="text-muted-foreground text-xs">Fatura Origem</Label>
                   <p className="font-mono">{viewReturn.purchaseOrderNumber}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Filial</Label>
+                  <p className="font-medium">{viewReturn.branchName || '—'}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground text-xs">Estado</Label>
