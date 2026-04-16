@@ -45,9 +45,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Search, Plus, Save, X, Trash2, Eye, FileText, BookOpen,
   Package, ArrowLeft, CheckCircle, Printer, AlertCircle,
-  ShoppingCart, Filter, Calendar, Download,
+  ShoppingCart, Filter, Calendar, Download, RotateCcw,
 } from 'lucide-react';
-import { RotateCcw } from 'lucide-react';
 import { saveDocument, getDocuments } from '@/lib/documentStorage';
 import type { ERPDocument } from '@/types/documents';
 import { usePurchaseOrders } from '@/hooks/useERP';
