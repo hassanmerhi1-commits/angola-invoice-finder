@@ -3,6 +3,7 @@ import { generateId } from '@/lib/utils';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useProducts, useSuppliers, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
+import { api } from '@/lib/api/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -846,14 +847,20 @@ export default function PurchaseInvoices() {
    // Select supplier — auto-create CoA sub-account under 3.2 Fornecedores
   const handleSelectSupplier = useCallback(async (s: Supplier) => {
     const accountCode = await ensureSupplierAccount(s.id, s.name, s.nif);
+    // Fetch real supplier balance from open items
+    let balance = 0;
+    try {
+      const balRes = await api.payments.balance('supplier', s.id);
+      balance = parseFloat((balRes.data as any)?.balance) || 0;
+    } catch { /* balance stays 0 */ }
     setForm(prev => ({
       ...prev,
       supplierAccountCode: accountCode,
-      supplierId: s.id, // Real supplier DB ID for open items & balance updates
+      supplierId: s.id,
       supplierName: s.name,
       supplierNif: s.nif,
       supplierPhone: s.phone,
-      supplierBalance: 0,
+      supplierBalance: balance,
     }));
   }, []);
 
@@ -1314,7 +1321,7 @@ export default function PurchaseInvoices() {
     };
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 animate-fade-in">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -1391,54 +1398,59 @@ export default function PurchaseInvoices() {
               )}
             </div>
 
-            {/* Summary */}
-            <div className="flex gap-4 text-sm">
-              <span className="text-muted-foreground">{invoiceTotals.count} facturas</span>
-              <span>Sub Total: <strong className="font-mono">{invoiceTotals.subtotal.toLocaleString('pt-AO')} Kz</strong></span>
-              <span>IVA: <strong className="font-mono">{invoiceTotals.iva.toLocaleString('pt-AO')} Kz</strong></span>
-              <span>Total: <strong className="font-mono">{invoiceTotals.total.toLocaleString('pt-AO')} Kz</strong></span>
+            {/* Summary Bar */}
+            <div className="flex gap-4 text-xs items-center px-3 py-2 rounded-md bg-muted/50 border border-border/50">
+              <span className="text-muted-foreground font-medium">{invoiceTotals.count} facturas</span>
+              <div className="h-4 w-px bg-border" />
+              <span>Sub Total: <strong className="font-mono text-sm">{invoiceTotals.subtotal.toLocaleString('pt-AO')}</strong></span>
+              <span className="text-destructive">IVA: <strong className="font-mono text-sm">{invoiceTotals.iva.toLocaleString('pt-AO')}</strong></span>
+              <span>Total: <strong className="font-mono text-sm font-bold">{invoiceTotals.total.toLocaleString('pt-AO')} Kz</strong></span>
             </div>
 
             <Card>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Nº Fatura</TableHead>
-                      <TableHead>Nº Fat. Fornecedor</TableHead>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Armazém</TableHead>
-                      <TableHead className="text-right">Sub Total</TableHead>
-                      <TableHead className="text-right">IVA</TableHead>
-                      <TableHead className="text-right">Líquido</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead className="text-right">Acções</TableHead>
+                    <TableRow className="text-[11px]">
+                      <TableHead className="py-2">Nº Fatura</TableHead>
+                      <TableHead className="py-2">Nº Fat. Fornecedor</TableHead>
+                      <TableHead className="py-2">Fornecedor</TableHead>
+                      <TableHead className="py-2">Data</TableHead>
+                      <TableHead className="py-2">Armazém</TableHead>
+                      <TableHead className="py-2 text-right">Sub Total</TableHead>
+                      <TableHead className="py-2 text-right">IVA</TableHead>
+                      <TableHead className="py-2 text-right">Líquido</TableHead>
+                      <TableHead className="py-2">Estado</TableHead>
+                      <TableHead className="py-2 text-right">Acções</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filtered.map(inv => (
-                      <TableRow key={inv.id} className="cursor-pointer hover:bg-accent/50" onClick={() => setViewInvoice(inv)}>
-                        <TableCell className="font-mono text-xs font-medium">{inv.invoiceNumber}</TableCell>
-                        <TableCell className="text-xs">{inv.supplierInvoiceNo || '—'}</TableCell>
-                        <TableCell>{inv.supplierName}</TableCell>
-                        <TableCell className="text-sm">{format(new Date(inv.date), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell className="text-sm">{inv.warehouseName}</TableCell>
-                        <TableCell className="text-right font-mono">{inv.subtotal.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell className="text-right font-mono text-destructive">{inv.ivaTotal.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{inv.total.toLocaleString('pt-AO')}</TableCell>
-                        <TableCell>
-                          <Badge variant={getPurchaseInvoiceStatusBadge(inv.status).variant}>
+                      <TableRow
+                        key={inv.id}
+                        className="cursor-pointer hover:bg-accent/50 h-8 transition-colors duration-100"
+                        onClick={() => setViewInvoice(inv)}
+                      >
+                        <TableCell className="font-mono text-[11px] font-medium py-1">{inv.invoiceNumber}</TableCell>
+                        <TableCell className="text-[11px] py-1">{inv.supplierInvoiceNo || '—'}</TableCell>
+                        <TableCell className="text-[11px] py-1 font-medium">{inv.supplierName}</TableCell>
+                        <TableCell className="text-[11px] py-1">{format(new Date(inv.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-[11px] py-1">{inv.warehouseName}</TableCell>
+                        <TableCell className="text-right font-mono text-[11px] py-1">{inv.subtotal.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="text-right font-mono text-[11px] py-1 text-destructive">{inv.ivaTotal.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="text-right font-mono text-[11px] py-1 font-bold">{inv.total.toLocaleString('pt-AO')}</TableCell>
+                        <TableCell className="py-1">
+                          <Badge variant={getPurchaseInvoiceStatusBadge(inv.status).variant} className="text-[9px] px-1.5 py-0">
                             {getPurchaseInvoiceStatusBadge(inv.status).label}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
-                              <Eye className="h-4 w-4" />
+                        <TableCell className="text-right py-1">
+                          <div className="flex gap-0.5 justify-end">
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
+                              <Eye className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
-                              <Printer className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={e => { e.stopPropagation(); setViewInvoice(inv); }}>
+                              <Printer className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>
@@ -1879,7 +1891,7 @@ export default function PurchaseInvoices() {
 
   // ─── CREATE MODE ─── Smart ERP Dense Layout
   return (
-    <div className="flex flex-col h-[calc(100vh-48px)] overflow-hidden text-xs">
+    <div className="flex flex-col h-[calc(100vh-48px)] overflow-hidden text-xs animate-fade-in">
       {/* ═══ TOP BAR ═══ */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/60 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -1887,18 +1899,23 @@ export default function PurchaseInvoices() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <button
-            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent/60 transition-colors"
+            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent/60 transition-colors duration-150"
             onClick={() => void openSupplierPicker()}
           >
             <span className="font-mono text-[11px] text-muted-foreground">{form.supplierAccountCode || '---'}</span>
             <span className="font-semibold text-sm">{form.supplierName || 'Selecionar Fornecedor...'}</span>
-            {form.supplierBalance !== undefined && form.supplierBalance !== 0 && (
-              <span className="font-mono text-[10px] text-muted-foreground">
-                Saldo: {(form.supplierBalance || 0).toLocaleString('pt-AO')}
-              </span>
-            )}
             <Search className="h-3 w-3 text-muted-foreground" />
           </button>
+          {/* Supplier balance badge — always visible when supplier selected */}
+          {form.supplierName && (
+            <div className="flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded bg-accent/40 border border-border/50 transition-all duration-200">
+              <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Saldo</span>
+              <span className={`font-mono text-sm font-bold ${(form.supplierBalance || 0) > 0 ? 'text-destructive' : (form.supplierBalance || 0) < 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                {(form.supplierBalance || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 })}
+              </span>
+              <span className="text-[9px] text-muted-foreground">{form.currency || 'KZ'}</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-black tracking-tight text-destructive">COMPRA</h2>
@@ -2186,31 +2203,31 @@ export default function PurchaseInvoices() {
       </Tabs>
 
       {/* ═══ STICKY FOOTER TOTALS BAR ═══ */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-card border-t-2 border-primary/20 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 bg-card border-t-2 border-primary/30 shrink-0 shadow-[0_-2px_8px_-2px_hsl(var(--primary)/0.1)]">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
-          <span>Total Qtd: <strong className="text-foreground font-mono">{lines.reduce((s, l) => s + l.totalQty, 0)}</strong></span>
+          <span className="bg-muted px-2 py-0.5 rounded-full font-medium">{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
+          <span>Qtd: <strong className="text-foreground font-mono text-sm">{lines.reduce((s, l) => s + l.totalQty, 0)}</strong></span>
         </div>
         <div className="flex items-center gap-6 text-sm">
-          <div className="text-right">
-            <span className="text-[10px] text-muted-foreground block leading-none">Sub Total</span>
+          <div className="text-right transition-all duration-200">
+            <span className="text-[9px] text-muted-foreground block leading-none uppercase tracking-wider">Sub Total</span>
             <span className="font-mono font-semibold">{totals.subtotal.toLocaleString('pt-AO')}</span>
           </div>
           {totalLandingCosts > 0 && (
-            <div className="text-right">
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 block leading-none">Frete</span>
+            <div className="text-right animate-fade-in">
+              <span className="text-[9px] text-amber-600 dark:text-amber-400 block leading-none uppercase tracking-wider">Frete</span>
               <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">{totalLandingCosts.toLocaleString('pt-AO')}</span>
             </div>
           )}
           <div className="text-right">
-            <span className="text-[10px] text-destructive block leading-none">IVA</span>
+            <span className="text-[9px] text-destructive block leading-none uppercase tracking-wider">IVA</span>
             <span className="font-mono font-semibold text-destructive">{totals.ivaTotal.toLocaleString('pt-AO')}</span>
           </div>
-          <div className="text-right border-l border-border pl-4">
-            <span className="text-[10px] text-muted-foreground block leading-none">Líquido</span>
-            <span className="font-mono font-bold text-lg">{totals.total.toLocaleString('pt-AO')}</span>
+          <div className="text-right border-l-2 border-primary/20 pl-4">
+            <span className="text-[9px] text-muted-foreground block leading-none uppercase tracking-wider">Líquido</span>
+            <span className="font-mono font-bold text-lg tracking-tight">{totals.total.toLocaleString('pt-AO')}</span>
           </div>
-          <span className="text-xs text-muted-foreground">{form.currency || 'KZ'}</span>
+          <span className="text-[10px] text-muted-foreground font-semibold">{form.currency || 'KZ'}</span>
         </div>
       </div>
 

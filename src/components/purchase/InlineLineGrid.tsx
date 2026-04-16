@@ -135,16 +135,16 @@ export function InlineLineGrid({
   };
 
   return (
-    <div className="border border-border rounded overflow-hidden bg-card flex flex-col">
+    <div className="border border-border rounded-md overflow-hidden bg-card flex flex-col shadow-sm">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-0.5 bg-muted/40 border-b border-border/50 shrink-0">
-        <Button variant="outline" size="sm" className="h-5 gap-1 text-[9px] px-2" onClick={onOpenProductPicker}>
-          <Plus className="h-2.5 w-2.5" /> Inserir
+      <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/50 border-b border-border/50 shrink-0">
+        <Button variant="outline" size="sm" className="h-6 gap-1 text-[10px] px-2.5 hover:bg-primary/10 transition-colors duration-150" onClick={onOpenProductPicker}>
+          <Plus className="h-3 w-3" /> Inserir
         </Button>
-        <Button variant="ghost" size="sm" className="h-5 gap-1 text-[9px] px-2" onClick={onOpenProductPicker}>
-          <Search className="h-2.5 w-2.5" /> Encontrar
+        <Button variant="ghost" size="sm" className="h-6 gap-1 text-[10px] px-2.5 hover:bg-accent/60 transition-colors duration-150" onClick={onOpenProductPicker}>
+          <Search className="h-3 w-3" /> Encontrar
         </Button>
-        <span className="text-[8px] text-muted-foreground ml-auto">F2 pesquisar | Tab navegar | Enter próxima linha</span>
+        <span className="text-[8px] text-muted-foreground ml-auto font-mono">F2 pesquisar | Tab navegar | Enter próxima linha</span>
       </div>
 
       {/* Grid */}
@@ -244,9 +244,9 @@ export function InlineLineGrid({
 
       {/* Bottom info */}
       {lines.length > 0 && (
-        <div className="flex items-center justify-between px-2 py-0.5 bg-muted/30 border-t border-border/50 text-[9px] font-mono text-muted-foreground shrink-0">
-          <span>{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
-          <div className="flex gap-3">
+        <div className="flex items-center justify-between px-2 py-1 bg-muted/40 border-t border-border/50 text-[10px] font-mono text-muted-foreground shrink-0">
+          <span className="bg-accent/40 px-1.5 py-0.5 rounded text-[9px]">{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
+          <div className="flex gap-4">
             <span>Qtd: <strong className="text-foreground">{lines.reduce((s, l) => s + l.totalQty, 0)}</strong></span>
             <span>Base: <strong className="text-foreground">{fmt(lines.reduce((s, l) => s + l.total, 0))}</strong></span>
             <span>c/IVA: <strong className="text-foreground">{fmt(lines.reduce((s, l) => s + l.totalWithIva, 0))}</strong></span>
