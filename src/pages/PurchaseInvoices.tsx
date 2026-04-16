@@ -774,6 +774,18 @@ export default function PurchaseInvoices() {
     loadAll();
   }, [currentBranch?.id]);
 
+  // Load return count for badge
+  useEffect(() => {
+    const loadReturnCount = async () => {
+      try {
+        const { getSupplierReturns } = await import('@/lib/supplierReturns');
+        const returns = await getSupplierReturns(currentBranch?.id);
+        setReturnCount(returns.length);
+      } catch { setReturnCount(0); }
+    };
+    loadReturnCount();
+  }, [currentBranch?.id]);
+
   // Filtered list with date range and supplier filters
   const filtered = useMemo(() => {
     let result = invoices;
