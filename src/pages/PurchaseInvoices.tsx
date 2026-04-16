@@ -1073,11 +1073,12 @@ export default function PurchaseInvoices() {
       return;
     }
 
-    // Warehouse selected in the form takes priority over BranchContext
+    // Warehouse is for stock movements; Branch is the current operating branch
     const resolvedWarehouseId = form.warehouseId || currentBranch?.id || '';
     const resolvedWarehouseName = form.warehouseName || currentBranch?.name || '';
-    const resolvedBranchId = resolvedWarehouseId;
-    const resolvedBranchName = resolvedWarehouseName;
+    // branchId = current branch context (for document ownership / filtering)
+    const resolvedBranchId = currentBranch?.id || resolvedWarehouseId;
+    const resolvedBranchName = currentBranch?.name || resolvedWarehouseName;
 
     if (!resolvedBranchId) {
       setSaveError('Nenhuma filial activa foi encontrada. Selecione o armazém/filial antes de guardar.');
@@ -1274,7 +1275,7 @@ export default function PurchaseInvoices() {
         description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
       });
 
-      getPurchaseInvoices(currentBranch?.id).then(setInvoices);
+      getPurchaseInvoices(resolvedBranchId).then(setInvoices);
       // Show the saved invoice immediately for printing
       setViewInvoice(invoice);
       setMode('list');
@@ -1287,7 +1288,7 @@ export default function PurchaseInvoices() {
         variant: 'destructive',
       });
     }
-  }, [activeSuppliers, form, lines, journalLines, totals, currentBranch, user, toast, refreshProducts, refreshSuppliers]);
+  }, [activeSuppliers, form, lines, journalLines, totals, currentBranch, user, toast, refreshProducts, refreshSuppliers, freightAllocations, totalLandingCosts, freightSourceAccount, freightSourceName, freightCost, freightOtherCosts]);
 
   // ═══════════════ RENDER ═══════════════
 
