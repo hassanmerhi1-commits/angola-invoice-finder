@@ -376,6 +376,9 @@ export function ProductDetailDialog({
                 {usdRate > 0 && (
                   <ReadOnlyRow label="Custo Emb. USD" value={((formData.cost * (formData.embalagem || 1)) / usdRate).toFixed(4)} />
                 )}
+              </div>
+
+              {/* ── Column 3: Stock & Filial ── */}
               <div className="p-3 space-y-1">
                 <h4 className="text-[11px] font-semibold border-b pb-1 mb-1">Stock & Filial</h4>
                 <Row label="Stock">
