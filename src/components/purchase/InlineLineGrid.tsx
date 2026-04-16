@@ -244,9 +244,9 @@ export function InlineLineGrid({
 
       {/* Bottom info */}
       {lines.length > 0 && (
-        <div className="flex items-center justify-between px-2 py-0.5 bg-muted/30 border-t border-border/50 text-[9px] font-mono text-muted-foreground shrink-0">
-          <span>{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
-          <div className="flex gap-3">
+        <div className="flex items-center justify-between px-2 py-1 bg-muted/40 border-t border-border/50 text-[10px] font-mono text-muted-foreground shrink-0">
+          <span className="bg-accent/40 px-1.5 py-0.5 rounded text-[9px]">{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
+          <div className="flex gap-4">
             <span>Qtd: <strong className="text-foreground">{lines.reduce((s, l) => s + l.totalQty, 0)}</strong></span>
             <span>Base: <strong className="text-foreground">{fmt(lines.reduce((s, l) => s + l.total, 0))}</strong></span>
             <span>c/IVA: <strong className="text-foreground">{fmt(lines.reduce((s, l) => s + l.totalWithIva, 0))}</strong></span>
