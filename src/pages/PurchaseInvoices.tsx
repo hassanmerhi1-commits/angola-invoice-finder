@@ -22,6 +22,7 @@ import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 import { Supplier, Product } from '@/types/erp';
 import { ProductDetailDialog } from '@/components/inventory/ProductDetailDialog';
 import { InlineLineGrid } from '@/components/purchase/InlineLineGrid';
+import { PurchaseReturnsTab } from '@/components/purchase/PurchaseReturnsTab';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,7 +45,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Search, Plus, Save, X, Trash2, Eye, FileText, BookOpen,
   Package, ArrowLeft, CheckCircle, Printer, AlertCircle,
-  ShoppingCart, Filter, Calendar, Download,
+  ShoppingCart, Filter, Calendar, Download, RotateCcw,
 } from 'lucide-react';
 import { saveDocument, getDocuments } from '@/lib/documentStorage';
 import type { ERPDocument } from '@/types/documents';
@@ -653,7 +654,7 @@ export default function PurchaseInvoices() {
   const [newSupplierForm, setNewSupplierForm] = useState({ name: '', nif: '', email: '', phone: '', address: '', city: '', country: 'Angola', contactPerson: '', notes: '' });
   const [saveError, setSaveError] = useState<string | null>(null);
   // List mode state
-  const [listTab, setListTab] = useState<'faturas' | 'encomendas'>('faturas');
+  const [listTab, setListTab] = useState<'faturas' | 'encomendas' | 'devolucoes'>('faturas');
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
@@ -1359,6 +1360,9 @@ export default function PurchaseInvoices() {
               <ShoppingCart className="h-4 w-4" /> Encomendas
               <Badge variant="secondary" className="ml-1 text-[10px]">{orders.length}</Badge>
             </TabsTrigger>
+            <TabsTrigger value="devolucoes" className="gap-1">
+              <RotateCcw className="h-4 w-4" /> Devoluções
+            </TabsTrigger>
           </TabsList>
 
           {/* ═══ FATURAS TAB ═══ */}
@@ -1560,6 +1564,11 @@ export default function PurchaseInvoices() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ═══ DEVOLUÇÕES TAB ═══ */}
+          <TabsContent value="devolucoes" className="space-y-3 mt-2">
+            <PurchaseReturnsTab />
           </TabsContent>
         </Tabs>
 
