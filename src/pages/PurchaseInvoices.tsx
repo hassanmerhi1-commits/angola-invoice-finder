@@ -1362,6 +1362,7 @@ export default function PurchaseInvoices() {
             </TabsTrigger>
             <TabsTrigger value="devolucoes" className="gap-1">
               <RotateCcw className="h-4 w-4" /> Devoluções
+              <Badge variant="secondary" className="ml-1 text-[10px]">{returnCount}</Badge>
             </TabsTrigger>
           </TabsList>
 

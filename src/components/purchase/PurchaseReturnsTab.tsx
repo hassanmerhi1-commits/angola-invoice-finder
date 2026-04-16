@@ -221,26 +221,7 @@ export function PurchaseReturnsTab() {
       // Save the return document
       await saveSupplierReturn(returnDoc);
 
-      // Stock OUT movements (decrease inventory)
-      for (const item of items) {
-        try {
-          await api.transactions.createStockMovement({
-            productId: item.productId,
-            warehouseId: branchId,
-            movementType: 'OUT',
-            quantity: item.quantity,
-            referenceType: 'return',
-            referenceId: returnDoc.id,
-            referenceNumber: returnNumber,
-            notes: `Devolução de compra: ${reasonDescription}`,
-            createdBy: returnDoc.createdBy,
-          });
-        } catch {
-          try {
-            await api.products.updateStock(item.productId, -item.quantity);
-          } catch { /* fallback silently */ }
-        }
-      }
+      // NOTE: Stock OUT is handled by processTransaction below — no duplicate movements
 
       // Create linked Nota de Débito document
       const debitNoteDoc: ERPDocument = {
