@@ -1,4 +1,4 @@
-// Products API routes — with Optimistic Locking (Phase 3)
+// Products API routes — with Optimistic Locking (Phase 3) + Multi-Price Levels
 const express = require('express');
 const db = require('../db');
 const { checkOptimisticLock } = require('../middleware/security');
@@ -21,12 +21,11 @@ module.exports = function(broadcastTable) {
       let query;
 
       if (branchId) {
-        // Return branch-specific stock from stock_movements instead of global products.stock
         query = `
           SELECT p.*,
-            p.cost AS first_cost,
-            p.cost AS last_cost,
-            p.cost AS weighted_avg_cost,
+            COALESCE(p.first_cost, p.cost) AS first_cost,
+            COALESCE(p.last_cost, p.cost) AS last_cost,
+            COALESCE(p.avg_cost, p.cost) AS avg_cost,
             COALESCE(cs.current_stock, 0) AS stock
           FROM products p
           LEFT JOIN v_current_stock cs ON cs.product_id = p.id AND cs.warehouse_id = $1
@@ -36,9 +35,9 @@ module.exports = function(broadcastTable) {
       } else {
         query = `
           SELECT p.*,
-            p.cost AS first_cost,
-            p.cost AS last_cost,
-            p.cost AS weighted_avg_cost
+            COALESCE(p.first_cost, p.cost) AS first_cost,
+            COALESCE(p.last_cost, p.cost) AS last_cost,
+            COALESCE(p.avg_cost, p.cost) AS avg_cost
           FROM products p
           WHERE p.is_active = true
           ORDER BY p.name`;
@@ -55,18 +54,16 @@ module.exports = function(broadcastTable) {
   // Create product
   router.post('/', async (req, res) => {
     try {
-      const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, supplierId, supplierName } = req.body;
+      const { name, sku, barcode, category, price, price2, price3, price4, cost, stock, unit, taxRate, branchId, isActive, supplierId, supplierName } = req.body;
       
       const result = await db.query(
-        `INSERT INTO products (name, sku, barcode, category, price, cost, stock, unit, tax_rate, branch_id, is_active, supplier_id, supplier_name)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `INSERT INTO products (name, sku, barcode, category, price, price2, price3, price4, cost, first_cost, last_cost, avg_cost, stock, unit, tax_rate, branch_id, is_active, supplier_id, supplier_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $9, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING *`,
-        [name, sku, barcode, category, price, cost, stock || 0, unit || 'un', taxRate || 14, sanitizeUuid(branchId), isActive !== false, sanitizeUuid(supplierId), supplierName || null]
+        [name, sku, barcode, category, price, price2 || 0, price3 || 0, price4 || 0, cost, stock || 0, unit || 'un', taxRate || 14, sanitizeUuid(branchId), isActive !== false, sanitizeUuid(supplierId), supplierName || null]
       );
       
-      // Broadcast to ALL clients
       await broadcastTable('products');
-      
       res.status(201).json(result.rows[0]);
     } catch (error) {
       console.error('[PRODUCTS ERROR]', error);
@@ -78,29 +75,43 @@ module.exports = function(broadcastTable) {
   router.put('/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, sku, barcode, category, price, cost, stock, unit, taxRate, branchId, isActive, version, supplierId, supplierName } = req.body;
+      const { name, sku, barcode, category, price, price2, price3, price4, cost, stock, unit, taxRate, branchId, isActive, version, supplierId, supplierName, lastCost, avgCost } = req.body;
       
       let result;
+      const baseFields = `name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
+               stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
+               price2 = $16, price3 = $17, price4 = $18,
+               supplier_id = $19, supplier_name = $20`;
+      
+      // Update last_cost and avg_cost if provided
+      const costUpdates = lastCost != null ? `, last_cost = $21, avg_cost = $22` : '';
+      const costParams = lastCost != null ? [lastCost, avgCost || cost] : [];
+
       if (version != null) {
+        const paramOffset = lastCost != null ? 23 : 21;
         result = await db.query(
           `UPDATE products 
-           SET name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
-               stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
-               version = version + 1, supplier_id = $14, supplier_name = $15
-           WHERE id = $12 AND version = $13
+           SET ${baseFields}, version = version + 1${costUpdates}
+           WHERE id = $${paramOffset - 8} AND version = $${paramOffset - 7}
            RETURNING *`,
-          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id, version, sanitizeUuid(supplierId), supplierName || null]
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive,
+           id, version, sanitizeUuid(supplierId), supplierName || null,
+           price2 || 0, price3 || 0, price4 || 0,
+           sanitizeUuid(supplierId), supplierName || null,
+           ...costParams]
         );
         if (!checkOptimisticLock(result, res, 'Product')) return;
       } else {
         result = await db.query(
           `UPDATE products 
-           SET name = $1, sku = $2, barcode = $3, category = $4, price = $5, cost = $6, 
-               stock = $7, unit = $8, tax_rate = $9, branch_id = $10, is_active = $11,
-               supplier_id = $13, supplier_name = $14
+           SET ${baseFields}${costUpdates}
            WHERE id = $12
            RETURNING *`,
-          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id, sanitizeUuid(supplierId), supplierName || null]
+          [name, sku, barcode, category, price, cost, stock, unit, taxRate, sanitizeUuid(branchId), isActive, id,
+           sanitizeUuid(supplierId), supplierName || null, null,
+           price2 || 0, price3 || 0, price4 || 0,
+           sanitizeUuid(supplierId), supplierName || null,
+           ...costParams]
         );
         if (result.rowCount === 0) {
           return res.status(404).json({ error: 'Product not found' });
@@ -126,9 +137,7 @@ module.exports = function(broadcastTable) {
         [quantityChange, id]
       );
       
-      // Broadcast to ALL clients
       await broadcastTable('products');
-      
       res.json(result.rows[0]);
     } catch (error) {
       console.error('[PRODUCTS ERROR]', error);
@@ -155,17 +164,18 @@ module.exports = function(broadcastTable) {
           }
 
           await db.query(
-            `INSERT INTO products (name, sku, barcode, category, price, cost, stock, unit, tax_rate, branch_id, is_active)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            `INSERT INTO products (name, sku, barcode, category, price, price2, price3, price4, cost, first_cost, last_cost, avg_cost, stock, unit, tax_rate, branch_id, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $9, $9, $10, $11, $12, $13, $14)
              ON CONFLICT (sku, branch_id) DO UPDATE SET
-               name = EXCLUDED.name, price = EXCLUDED.price, cost = EXCLUDED.cost,
+               name = EXCLUDED.name, price = EXCLUDED.price, price2 = EXCLUDED.price2, price3 = EXCLUDED.price3, price4 = EXCLUDED.price4,
+               cost = EXCLUDED.cost, last_cost = EXCLUDED.cost,
                stock = EXCLUDED.stock, unit = EXCLUDED.unit, tax_rate = EXCLUDED.tax_rate,
-                barcode = EXCLUDED.barcode, category = EXCLUDED.category,
-                is_active = EXCLUDED.is_active
-             `,
+               barcode = EXCLUDED.barcode, category = EXCLUDED.category,
+               is_active = EXCLUDED.is_active`,
             [
               p.name, p.sku, p.barcode || '', p.category || 'GERAL',
-              Number(p.price) || 0, Number(p.cost) || 0, Number(p.stock) || 0, p.unit || 'UN',
+              Number(p.price) || 0, Number(p.price2) || 0, Number(p.price3) || 0, Number(p.price4) || 0,
+              Number(p.cost) || 0, Number(p.stock) || 0, p.unit || 'UN',
               Number(p.taxRate) || 14, sanitizeUuid(p.branchId), p.isActive !== false
             ]
           );
@@ -191,9 +201,7 @@ module.exports = function(broadcastTable) {
       
       await db.query('UPDATE products SET is_active = false WHERE id = $1', [id]);
       
-      // Broadcast to ALL clients
       await broadcastTable('products');
-      
       res.json({ success: true });
     } catch (error) {
       console.error('[PRODUCTS ERROR]', error);
