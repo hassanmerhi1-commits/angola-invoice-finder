@@ -176,6 +176,9 @@ export function PurchaseReturnsTab() {
       const taxAmount = items.reduce((s, i) => s + i.taxAmount, 0);
       const total = subtotal + taxAmount;
 
+      // Resolve real supplier ID
+      const resolvedSupplierId = selectedInvoice.supplierId || '';
+
       const returnDoc: SupplierReturn = {
         id: generateId(),
         returnNumber,
@@ -183,7 +186,7 @@ export function PurchaseReturnsTab() {
         branchName: currentBranch?.name || '',
         purchaseOrderId: selectedInvoice.id,
         purchaseOrderNumber: selectedInvoice.invoiceNumber,
-        supplierId: '', // supplier ID from invoice context
+        supplierId: resolvedSupplierId,
         supplierName: selectedInvoice.supplierName,
         reason,
         reasonDescription,
@@ -268,7 +271,11 @@ export function PurchaseReturnsTab() {
 
       await saveDocument(debitNoteDoc);
 
-      // Reverse accounting — debit supplier (reduce payable), credit purchase
+      // Reverse accounting — debit supplier (reduce payable), credit purchase account + IVA
+      const purchaseAccountCode = selectedInvoice.purchaseAccountCode || '2.1.1';
+      const ivaAccountCode = selectedInvoice.ivaAccountCode || '3.3.1';
+      const supplierAccountCode = selectedInvoice.supplierAccountCode || '3.2.1';
+
       try {
         await processTransaction({
           transactionType: 'credit_note',
@@ -276,17 +283,13 @@ export function PurchaseReturnsTab() {
           documentNumber: returnNumber,
           branchId,
           branchName: currentBranch?.name || '',
-          userId: returnDoc.createdBy,
-          userName: returnDoc.createdBy,
+          userId: user?.id || '',
+          userName: user?.name || user?.username || 'Sistema',
           date: new Date().toISOString().slice(0, 10),
-          description: `Devolução de compra - ${returnNumber}`,
-          entityBalanceUpdate: {
-            entityType: 'supplier',
-            entityId: selectedInvoice.supplierAccountCode,
-            entityName: selectedInvoice.supplierName,
-            entityNif: selectedInvoice.supplierNif,
-            amount: -total, // reduce supplier balance
-          },
+          description: `Devolução de compra - ${returnNumber} — ${selectedInvoice.supplierName}`,
+          amount: total,
+
+          // Phase 1: Stock OUT entries
           stockEntries: items.map(item => ({
             productId: item.productId,
             productName: item.productName,
@@ -296,6 +299,63 @@ export function PurchaseReturnsTab() {
             direction: 'OUT' as const,
             warehouseId: branchId,
           })),
+
+          // Phase 3: Reverse journal entries (mirror of purchase invoice)
+          // Purchase invoice: Debit 2.1.1 (Purchase) + Debit 3.3.1 (IVA) / Credit Supplier
+          // Return reversal: Debit Supplier / Credit 2.1.1 (Purchase) + Credit 3.3.1 (IVA)
+          journalLines: [
+            {
+              accountCode: supplierAccountCode,
+              accountName: `Fornecedor ${selectedInvoice.supplierName}`,
+              debit: total,
+              credit: 0,
+              note: `Devolução ${returnNumber}`,
+            },
+            {
+              accountCode: purchaseAccountCode,
+              accountName: 'Compra de Mercadorias',
+              debit: 0,
+              credit: subtotal,
+              note: `Devolução ${returnNumber} — base`,
+            },
+            ...(taxAmount > 0 ? [{
+              accountCode: ivaAccountCode,
+              accountName: 'IVA Dedutível',
+              debit: 0,
+              credit: taxAmount,
+              note: `Devolução ${returnNumber} — IVA`,
+            }] : []),
+          ],
+
+          // Phase 4: Open item (credit note reduces supplier payable)
+          openItem: {
+            entityType: 'supplier' as const,
+            entityId: resolvedSupplierId,
+            entityName: selectedInvoice.supplierName,
+            documentType: 'credit_note' as const,
+            originalAmount: total,
+            isDebit: false,
+            currency: selectedInvoice.currency === 'KZ' ? 'AOA' : selectedInvoice.currency,
+          },
+
+          // Phase 5: Document link (return → original invoice)
+          documentLinks: [{
+            sourceType: 'nota_debito',
+            sourceId: returnDoc.id,
+            sourceNumber: returnNumber,
+            targetType: 'fatura_compra',
+            targetId: selectedInvoice.id,
+            targetNumber: selectedInvoice.invoiceNumber,
+          }],
+
+          // Phase 6: Update supplier balance (decrease)
+          entityBalanceUpdate: {
+            entityType: 'supplier',
+            entityId: resolvedSupplierId,
+            entityName: selectedInvoice.supplierName,
+            entityNif: selectedInvoice.supplierNif,
+            amount: -total,
+          },
         });
       } catch (err) {
         console.warn('Transaction engine fallback for purchase return:', err);
