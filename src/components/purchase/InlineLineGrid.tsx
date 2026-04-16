@@ -114,7 +114,7 @@ export function InlineLineGrid({
             value={editValue}
             onChange={e => setEditValue(e.target.value)}
             onBlur={commitEdit}
-            className="w-full h-[24px] px-1 text-right text-[11px] font-mono bg-primary/10 border border-primary rounded-sm outline-none"
+            className="w-full h-[22px] px-1 text-right text-[11px] font-mono bg-primary/10 border border-primary rounded-sm outline-none"
           />
         </td>
       );
@@ -137,38 +137,47 @@ export function InlineLineGrid({
   return (
     <div className="border border-border rounded overflow-hidden bg-card flex flex-col">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1 bg-muted/40 border-b border-border/50 shrink-0">
-        <Button variant="outline" size="sm" className="h-6 gap-1 text-[10px]" onClick={onOpenProductPicker}>
-          <Plus className="h-3 w-3" /> Inserir
+      <div className="flex items-center gap-1 px-2 py-0.5 bg-muted/40 border-b border-border/50 shrink-0">
+        <Button variant="outline" size="sm" className="h-5 gap-1 text-[9px] px-2" onClick={onOpenProductPicker}>
+          <Plus className="h-2.5 w-2.5" /> Inserir
         </Button>
-        <Button variant="ghost" size="sm" className="h-6 gap-1 text-[10px]" onClick={onOpenProductPicker}>
-          <Search className="h-3 w-3" /> Encontrar
+        <Button variant="ghost" size="sm" className="h-5 gap-1 text-[9px] px-2" onClick={onOpenProductPicker}>
+          <Search className="h-2.5 w-2.5" /> Encontrar
         </Button>
-        <span className="text-[9px] text-muted-foreground ml-auto">F2 pesquisar | Tab navegar | Enter próxima linha</span>
+        <span className="text-[8px] text-muted-foreground ml-auto">F2 pesquisar | Tab navegar | Enter próxima linha</span>
       </div>
 
       {/* Grid */}
       <div className="overflow-auto flex-1">
-        <table className="w-full border-collapse text-[11px]">
+        <table className="w-full border-collapse text-[10px]">
           <thead className="sticky top-0 z-10">
-            <tr className="bg-muted/80 text-muted-foreground font-semibold text-[10px]">
-              <th className="w-6 px-0.5 py-1 text-center border-r border-border/50">#</th>
-              <th className="w-20 px-1 py-1 text-left border-r border-border/50">Produto</th>
-              <th className="min-w-[140px] px-1 py-1 text-left border-r border-border/50">Descrição</th>
-              <th className="w-14 px-0.5 py-1 text-right border-r border-border/50">Qtd</th>
-              <th className="w-10 px-0.5 py-1 text-right border-r border-border/50">Emb</th>
-              <th className="w-20 px-0.5 py-1 text-right border-r border-border/50">Preço</th>
-              <th className="w-12 px-0.5 py-1 text-right border-r border-border/50">Desc%</th>
-              <th className="w-10 px-0.5 py-1 text-right border-r border-border/50">%2</th>
-              <th className="w-14 px-0.5 py-1 text-right border-r border-border/50">TotQtd</th>
-              <th className="w-24 px-0.5 py-1 text-right border-r border-border/50">Total</th>
-              <th className="w-10 px-0.5 py-1 text-right border-r border-border/50">IVA</th>
-              <th className="w-20 px-0.5 py-1 text-right border-r border-border/50">Preço IVA</th>
-              <th className="w-16 px-0.5 py-1 text-left border-r border-border/50">Armaz</th>
-              <th className="w-12 px-0.5 py-1 text-right border-r border-border/50">Stock</th>
-              <th className="w-10 px-0.5 py-1 text-center border-r border-border/50">Un</th>
-              <th className="w-20 px-0.5 py-1 text-left border-r border-border/50">Barcode</th>
-              <th className="w-5 px-0 py-1" />
+            <tr className="bg-muted/80 text-muted-foreground font-semibold text-[9px]">
+              <th className="w-5 px-0.5 py-0.5 text-center border-r border-border/50">#</th>
+              <th className="w-16 px-1 py-0.5 text-left border-r border-border/50">Código</th>
+              <th className="min-w-[120px] px-1 py-0.5 text-left border-r border-border/50">Descrição</th>
+              <th className="w-12 px-0.5 py-0.5 text-right border-r border-border/50">Qtd</th>
+              <th className="w-8 px-0.5 py-0.5 text-right border-r border-border/50">Emb</th>
+              <th className="w-16 px-0.5 py-0.5 text-right border-r border-border/50">Preço</th>
+              <th className="w-10 px-0.5 py-0.5 text-right border-r border-border/50">D%</th>
+              <th className="w-8 px-0.5 py-0.5 text-right border-r border-border/50">D2%</th>
+              <th className="w-12 px-0.5 py-0.5 text-right border-r border-border/50">TotQtd</th>
+              <th className="w-20 px-0.5 py-0.5 text-right border-r border-border/50">Total</th>
+              <th className="w-8 px-0.5 py-0.5 text-right border-r border-border/50">IVA</th>
+              <th className="w-18 px-0.5 py-0.5 text-right border-r border-border/50">Preço IVA</th>
+              {/* Price levels */}
+              <th className="w-16 px-0.5 py-0.5 text-right border-r border-border/50">Preço 1</th>
+              <th className="w-16 px-0.5 py-0.5 text-right border-r border-border/50">Preço 2</th>
+              <th className="w-16 px-0.5 py-0.5 text-right border-r border-border/50">Preço 3</th>
+              <th className="w-16 px-0.5 py-0.5 text-right border-r border-border/50">Preço 4</th>
+              {/* Costs */}
+              <th className="w-16 px-0.5 py-0.5 text-right border-r border-border/50">Últ.Custo</th>
+              <th className="w-16 px-0.5 py-0.5 text-right border-r border-border/50">C.Médio</th>
+              {/* Info */}
+              <th className="w-12 px-0.5 py-0.5 text-left border-r border-border/50">Armaz</th>
+              <th className="w-10 px-0.5 py-0.5 text-right border-r border-border/50">Stock</th>
+              <th className="w-8 px-0.5 py-0.5 text-center border-r border-border/50">Un</th>
+              <th className="w-16 px-0.5 py-0.5 text-left border-r border-border/50">Barcode</th>
+              <th className="w-5 px-0 py-0.5" />
             </tr>
           </thead>
           <tbody>
@@ -180,15 +189,15 @@ export function InlineLineGrid({
                 <tr
                   key={line.id}
                   className={cn(
-                    'h-[24px] border-b border-border/30 transition-colors duration-50 cursor-default',
+                    'h-[22px] border-b border-border/30 transition-colors duration-50 cursor-default',
                     isSelected ? 'bg-primary/10' : 'hover:bg-accent/20',
                     idx % 2 === 1 && !isSelected && 'bg-muted/10'
                   )}
                   onClick={() => setSelectedRow(idx)}
                 >
-                  <td className="px-0.5 text-center text-muted-foreground border-r border-border/50 font-mono text-[10px]">{idx + 1}</td>
-                  <td className="px-1 font-mono border-r border-border/50 truncate text-[10px]">{line.productCode}</td>
-                  <td className="px-1 border-r border-border/50 truncate max-w-[140px]" title={line.description}>{line.description}</td>
+                  <td className="px-0.5 text-center text-muted-foreground border-r border-border/50 font-mono text-[9px]">{idx + 1}</td>
+                  <td className="px-1 font-mono border-r border-border/50 truncate text-[9px]">{line.productCode}</td>
+                  <td className="px-1 border-r border-border/50 truncate max-w-[120px] text-[10px]" title={line.description}>{line.description}</td>
                   {renderCell(idx, 'quantity', line.quantity)}
                   {renderCell(idx, 'packaging', line.packaging)}
                   {renderCell(idx, 'unitPrice', line.unitPrice)}
@@ -198,10 +207,19 @@ export function InlineLineGrid({
                   <td className="px-1 text-right font-mono font-semibold border-r border-border/50">{fmt(line.total)}</td>
                   {renderCell(idx, 'ivaRate', line.ivaRate)}
                   <td className="px-1 text-right font-mono border-r border-border/50">{fmt(priceIVA)}</td>
-                  <td className="px-0.5 border-r border-border/50 text-[9px] truncate">{line.warehouseName || warehouseName}</td>
+                  {/* Price levels — read-only */}
+                  <td className="px-1 text-right font-mono border-r border-border/50 text-muted-foreground">{fmt(line.price1 || 0)}</td>
+                  <td className="px-1 text-right font-mono border-r border-border/50 text-muted-foreground">{fmt(line.price2 || 0)}</td>
+                  <td className="px-1 text-right font-mono border-r border-border/50 text-muted-foreground">{fmt(line.price3 || 0)}</td>
+                  <td className="px-1 text-right font-mono border-r border-border/50 text-muted-foreground">{fmt(line.price4 || 0)}</td>
+                  {/* Costs — read-only */}
+                  <td className="px-1 text-right font-mono border-r border-border/50 text-amber-500/80">{fmt(line.lastCost || 0)}</td>
+                  <td className="px-1 text-right font-mono border-r border-border/50 text-amber-500/80">{fmt(line.avgCost || 0)}</td>
+                  {/* Info */}
+                  <td className="px-0.5 border-r border-border/50 text-[8px] truncate">{line.warehouseName || warehouseName}</td>
                   <td className="px-1 text-right font-mono border-r border-border/50">{line.currentStock ?? 0}</td>
-                  <td className="px-0.5 text-center border-r border-border/50 text-[10px]">{line.unit || 'UN'}</td>
-                  <td className="px-0.5 border-r border-border/50 font-mono text-[9px] truncate">{line.barcode || '—'}</td>
+                  <td className="px-0.5 text-center border-r border-border/50 text-[9px]">{line.unit || 'UN'}</td>
+                  <td className="px-0.5 border-r border-border/50 font-mono text-[8px] truncate">{line.barcode || '—'}</td>
                   <td className="px-0 text-center">
                     <button
                       className="p-0.5 rounded hover:bg-destructive/10"
@@ -215,7 +233,7 @@ export function InlineLineGrid({
             })}
             {lines.length === 0 && (
               <tr>
-                <td colSpan={17} className="text-center py-8 text-muted-foreground text-xs">
+                <td colSpan={23} className="text-center py-6 text-muted-foreground text-xs">
                   Clique em "Inserir" ou pressione <kbd className="px-1 py-0.5 bg-muted rounded text-[10px] font-mono border">F2</kbd> para adicionar produtos
                 </td>
               </tr>
@@ -226,7 +244,7 @@ export function InlineLineGrid({
 
       {/* Bottom info */}
       {lines.length > 0 && (
-        <div className="flex items-center justify-between px-2 py-1 bg-muted/30 border-t border-border/50 text-[10px] font-mono text-muted-foreground shrink-0">
+        <div className="flex items-center justify-between px-2 py-0.5 bg-muted/30 border-t border-border/50 text-[9px] font-mono text-muted-foreground shrink-0">
           <span>{lines.length} produto{lines.length !== 1 ? 's' : ''}</span>
           <div className="flex gap-3">
             <span>Qtd: <strong className="text-foreground">{lines.reduce((s, l) => s + l.totalQty, 0)}</strong></span>
