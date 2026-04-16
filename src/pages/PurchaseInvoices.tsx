@@ -1275,7 +1275,7 @@ export default function PurchaseInvoices() {
         description: `${invoice.invoiceNumber} — ${invoice.supplierName} — ${invoice.total.toLocaleString('pt-AO')} ${invoice.currency}`,
       });
 
-      getPurchaseInvoices(currentBranch?.id).then(setInvoices);
+      getPurchaseInvoices(resolvedBranchId).then(setInvoices);
       // Show the saved invoice immediately for printing
       setViewInvoice(invoice);
       setMode('list');
