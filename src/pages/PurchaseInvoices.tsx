@@ -3,6 +3,7 @@ import { generateId } from '@/lib/utils';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useProducts, useSuppliers, useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
+import { api } from '@/lib/api/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
