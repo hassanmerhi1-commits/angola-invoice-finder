@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { isDemoMode } from '@/lib/api/config';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -8,6 +9,7 @@ import {
 // ==================== DATA HELPERS ====================
 
 function getSalesFromStorage() {
+  if (!isDemoMode()) return [];
   try {
     const stored = localStorage.getItem('kwanzaerp_sales');
     return stored ? JSON.parse(stored) : [];
@@ -15,6 +17,7 @@ function getSalesFromStorage() {
 }
 
 function getExpensesFromStorage() {
+  if (!isDemoMode()) return [];
   try {
     const stored = localStorage.getItem('kwanzaerp_expenses');
     return stored ? JSON.parse(stored) : [];
@@ -22,6 +25,7 @@ function getExpensesFromStorage() {
 }
 
 function getProductsFromStorage() {
+  if (!isDemoMode()) return [];
   try {
     const stored = localStorage.getItem('kwanzaerp_products');
     return stored ? JSON.parse(stored) : [];
@@ -29,6 +33,7 @@ function getProductsFromStorage() {
 }
 
 function getPaymentsFromStorage() {
+  if (!isDemoMode()) return [];
   try {
     const stored = localStorage.getItem('kwanzaerp_payments');
     return stored ? JSON.parse(stored) : [];
