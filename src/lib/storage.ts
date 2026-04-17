@@ -255,7 +255,7 @@ async function shouldIncludeSharedProducts(branchId?: string): Promise<boolean> 
 
   const branches = isElectronMode()
     ? (await dbGetAll<any>('branches')).map(mapBranchFromDb)
-    : lsGet<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
+    : lsGet<Branch[]>(STORAGE_KEYS.branches, getDemoDefault(getDefaultBranches, []));
 
   return branches.find(branch => branch.id === branchId)?.isMain ?? false;
 }
