@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Branch } from '@/types/erp';
 import { api } from '@/lib/api/client';
+import { isDemoMode } from '@/lib/api/config';
 
 interface BranchContextType {
   branches: Branch[];
@@ -54,6 +55,12 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         throw new Error('No branches from API');
       }
     } catch {
+      if (!isDemoMode()) {
+        setBranches([]);
+        setCurrentBranchState(null);
+        return;
+      }
+
       try {
         const raw = localStorage.getItem('kwanzaerp_branches');
         const data: Branch[] = raw ? JSON.parse(raw) : [];

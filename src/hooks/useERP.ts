@@ -8,18 +8,27 @@
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { Branch, Product, Sale, User, CartItem, SaleItem, DailySummary, Client, StockTransfer, Supplier, PurchaseOrder, PurchaseOrderItem, Category } from '@/types/erp';
 import { api, setAuthToken } from '@/lib/api/client';
+import { isDemoMode } from '@/lib/api/config';
 import * as storage from '@/lib/storage';
 import { ensureSupplierAccount } from '@/lib/chartOfAccountsEngine';
 
-// Helper: try API, fallback to storage only on network errors
+// Helper: only use local demo storage in explicit demo mode.
+// In real web localhost/API mode, never silently revive stale browser data.
 async function apiFallback<T>(apiFn: () => Promise<{ data?: T; error?: string }>, storageFn: () => Promise<T> | T): Promise<T> {
+  const allowDemoFallback = isDemoMode();
+
   try {
     const result = await apiFn();
     if (result.data !== undefined) return result.data;
-    // API returned error — silently fall back for reads (no spam in demo mode)
+    if (!allowDemoFallback) {
+      throw new Error(result.error || 'API returned no data');
+    }
   } catch (e) {
-    // API unreachable
+    if (!allowDemoFallback) {
+      throw e;
+    }
   }
+
   return await storageFn();
 }
 
