@@ -81,8 +81,6 @@ async function ipcDelete(table: string, id: string): Promise<ApiResponse<any>> {
   }
 }
 
-import { isDemoMode } from './config';
-
 // ==================== HTTP FALLBACK (web preview/demo) ====================
 async function apiFetch<T>(
   endpoint: string,
