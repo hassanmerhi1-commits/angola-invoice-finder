@@ -3,7 +3,7 @@ import { generateId } from '@/lib/utils';
 // Transactional writes always use the backend HTTP API so browser and desktop share the same execution path
 // Electron IPC stays available only for desktop-only utilities and non-transactional reads
 
-import { getApiUrl } from './config';
+import { getApiUrl, isDemoMode } from './config';
 
 export interface ApiResponse<T> {
   data?: T;
@@ -80,8 +80,6 @@ async function ipcDelete(table: string, id: string): Promise<ApiResponse<any>> {
     return { error: e.message || 'IPC delete error' };
   }
 }
-
-import { isDemoMode } from './config';
 
 // ==================== HTTP FALLBACK (web preview/demo) ====================
 async function apiFetch<T>(
@@ -824,6 +822,12 @@ export const api = {
         "SELECT * FROM open_items WHERE entity_type = $1 AND entity_id = $2 AND status != 'cleared' ORDER BY document_date ASC",
         [entityType, entityId]
       );
+      if (isDemoMode()) {
+        const items = JSON.parse(localStorage.getItem('kwanzaerp_open_items') || '[]')
+          .filter((oi: any) => oi.entityType === entityType && oi.entityId === entityId && oi.status !== 'cleared')
+          .sort((a: any, b: any) => `${a.documentDate || ''}${a.createdAt || ''}`.localeCompare(`${b.documentDate || ''}${b.createdAt || ''}`));
+        return Promise.resolve({ data: items }) as Promise<ApiResponse<any[]>>;
+      }
       return apiFetch<any[]>(`/payments/open-items/${entityType}/${entityId}`);
     },
     balance: (entityType: string, entityId: string) => {
@@ -833,6 +837,15 @@ export const api = {
            FROM open_items WHERE entity_type = $1 AND entity_id = $2 AND status != 'cleared'`,
           [entityType, entityId]
         ).then(r => ({ data: r.data?.[0] }));
+      }
+      if (isDemoMode()) {
+        const items = JSON.parse(localStorage.getItem('kwanzaerp_open_items') || '[]')
+          .filter((oi: any) => oi.entityType === entityType && oi.entityId === entityId && oi.status !== 'cleared');
+        const balance = items.reduce((sum: number, oi: any) => {
+          const remaining = Number(oi.remainingAmount ?? oi.originalAmount ?? 0);
+          return sum + (oi.isDebit ? remaining : -remaining);
+        }, 0);
+        return Promise.resolve({ data: { balance, open_items_count: items.length } }) as Promise<ApiResponse<any>>;
       }
       return apiFetch<any>(`/payments/balance/${entityType}/${entityId}`);
     },
@@ -865,6 +878,32 @@ export const api = {
 
           return { data: { openItems: oiRes.data || [], payments: pRes.data || [], balance: balRes.data?.[0] || { balance: 0 } } } as ApiResponse<any>;
         })();
+      }
+      if (isDemoMode()) {
+        const openItems = JSON.parse(localStorage.getItem('kwanzaerp_open_items') || '[]')
+          .filter((oi: any) => oi.entityType === entityType && oi.entityId === entityId)
+          .filter((oi: any) => !dateFrom || oi.documentDate >= dateFrom)
+          .filter((oi: any) => !dateTo || oi.documentDate <= dateTo)
+          .sort((a: any, b: any) => `${a.documentDate || ''}${a.createdAt || ''}`.localeCompare(`${b.documentDate || ''}${b.createdAt || ''}`));
+
+        const payments = JSON.parse(localStorage.getItem('kwanzaerp_payments') || '[]')
+          .filter((payment: any) => payment.entityType === entityType && payment.entityId === entityId)
+          .filter((payment: any) => !dateFrom || payment.createdAt >= dateFrom)
+          .filter((payment: any) => !dateTo || payment.createdAt <= `${dateTo}T23:59:59`)
+          .sort((a: any, b: any) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+
+        const balance = openItems.reduce((sum: number, oi: any) => {
+          const remaining = Number(oi.remainingAmount ?? oi.originalAmount ?? 0);
+          return sum + (oi.isDebit ? remaining : -remaining);
+        }, 0);
+
+        return Promise.resolve({
+          data: {
+            openItems,
+            payments,
+            balance: { balance, open_items_count: openItems.filter((oi: any) => oi.status !== 'cleared').length },
+          },
+        }) as Promise<ApiResponse<any>>;
       }
       const sp = new URLSearchParams();
       if (dateFrom) sp.append('dateFrom', dateFrom);

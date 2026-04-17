@@ -5,7 +5,7 @@
  */
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { generateId } from '@/lib/utils';
-import { useProducts, useSuppliers, useAuth } from '@/hooks/useERP';
+import { useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +44,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Search, Plus, Save, Eye, RotateCcw, CheckCircle, XCircle,
-  Truck, Package, AlertCircle,
+  Package,
 } from 'lucide-react';
 
 const RETURN_STATUS_BADGES: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -76,9 +76,14 @@ interface ReturnLineForm {
 
 export function PurchaseReturnsTab() {
   const { toast } = useToast();
-  const { currentBranch } = useBranchContext();
+  const { currentBranch, branches } = useBranchContext();
   const { user } = useAuth();
-  const branchId = currentBranch?.id;
+  const [selectedBranchId, setSelectedBranchId] = useState('');
+  const branchId = selectedBranchId || currentBranch?.id;
+  const selectedBranch = useMemo(
+    () => branches.find(branch => branch.id === branchId) || currentBranch || null,
+    [branches, branchId, currentBranch]
+  );
 
   // Data
   const [returns, setReturns] = useState<SupplierReturn[]>([]);
@@ -98,6 +103,20 @@ export function PurchaseReturnsTab() {
 
   // View dialog
   const [viewReturn, setViewReturn] = useState<SupplierReturn | null>(null);
+
+  useEffect(() => {
+    if (currentBranch?.id && !selectedBranchId) {
+      setSelectedBranchId(currentBranch.id);
+    }
+  }, [currentBranch?.id, selectedBranchId]);
+
+  const getAlreadyReturnedQty = useCallback((invoiceId: string, productId: string) => {
+    return returns
+      .filter(ret => ret.purchaseOrderId === invoiceId && ret.status !== 'cancelled')
+      .reduce((sum, ret) => sum + ret.items
+        .filter(item => item.productId === productId)
+        .reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+  }, [returns]);
 
   // Load data
   const loadData = useCallback(async () => {
@@ -133,27 +152,41 @@ export function PurchaseReturnsTab() {
       productId: line.productId,
       productName: line.description,
       sku: line.productCode,
-      maxQty: line.totalQty,
-      quantity: line.totalQty,
+      maxQty: Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.productId), 0),
+      quantity: Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.productId), 0),
       unitCost: line.unitPrice,
       taxRate: line.ivaRate,
-      selected: true,
+      selected: Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.productId), 0) > 0,
     })));
     setInvoicePickerOpen(false);
-  }, []);
+  }, [getAlreadyReturnedQty]);
 
   // Create return
   const handleCreate = useCallback(async () => {
     if (!selectedInvoice || !branchId || !user) return;
+    if (!selectedBranch) {
+      toast({ title: 'Erro', description: 'Seleccione a filial da devolução', variant: 'destructive' });
+      return;
+    }
     const selectedLines = returnLines.filter(l => l.selected && l.quantity > 0);
     if (selectedLines.length === 0) {
       toast({ title: 'Erro', description: 'Seleccione pelo menos uma linha', variant: 'destructive' });
       return;
     }
 
+    const exceededLine = selectedLines.find(line => line.quantity > line.maxQty);
+    if (exceededLine) {
+      toast({
+        title: 'Erro',
+        description: `A quantidade da linha ${exceededLine.sku} excede o saldo devolvível.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
-      const branchCode = currentBranch?.code || currentBranch?.name?.substring(0, 4).toUpperCase() || 'SEDE';
+      const branchCode = selectedBranch.code || selectedBranch.name?.substring(0, 4).toUpperCase() || 'SEDE';
       const returnNumber = generateSupplierReturnNumber(branchCode);
 
       const items: SupplierReturnItem[] = selectedLines.map(line => {
@@ -201,7 +234,7 @@ export function PurchaseReturnsTab() {
         id: generateId(),
         returnNumber,
         branchId,
-        branchName: currentBranch?.name || '',
+        branchName: selectedBranch.name || '',
         purchaseOrderId: selectedInvoice.id,
         purchaseOrderNumber: selectedInvoice.invoiceNumber,
         supplierId: resolvedSupplierId,
@@ -218,19 +251,15 @@ export function PurchaseReturnsTab() {
         notes,
       };
 
-      // Save the return document
-      await saveSupplierReturn(returnDoc);
-
-      // NOTE: Stock OUT is handled by processTransaction below — no duplicate movements
-
       // Create linked Nota de Débito document
       const debitNoteDoc: ERPDocument = {
         id: generateId(),
         documentType: 'nota_debito',
         documentNumber: returnNumber,
         branchId,
-        branchName: currentBranch?.name || '',
+        branchName: selectedBranch.name || '',
         entityType: 'supplier',
+        entityId: resolvedSupplierId,
         entityName: selectedInvoice.supplierName,
         entityNif: selectedInvoice.supplierNif,
         entityCode: selectedInvoice.supplierAccountCode,
@@ -268,20 +297,17 @@ export function PurchaseReturnsTab() {
         confirmedAt: new Date().toISOString(),
       };
 
-      await saveDocument(debitNoteDoc);
-
       // Reverse accounting — debit supplier (reduce payable), credit purchase account + IVA
       const purchaseAccountCode = selectedInvoice.purchaseAccountCode || '2.1.1';
       const ivaAccountCode = selectedInvoice.ivaAccountCode || '3.3.1';
       const supplierAccountCode = selectedInvoice.supplierAccountCode || '3.2.1';
 
-      try {
-        await processTransaction({
+      const txResult = await processTransaction({
           transactionType: 'credit_note',
           documentId: returnDoc.id,
           documentNumber: returnNumber,
           branchId,
-          branchName: currentBranch?.name || '',
+          branchName: selectedBranch.name || '',
           userId: user?.id || '',
           userName: user?.name || user?.username || 'Sistema',
           date: new Date().toISOString().slice(0, 10),
@@ -356,9 +382,13 @@ export function PurchaseReturnsTab() {
             amount: -total,
           },
         });
-      } catch (err) {
-        console.warn('Transaction engine fallback for purchase return:', err);
+
+      if (!txResult.success) {
+        throw new Error(txResult.errors.join('; ') || 'Falha ao actualizar stock, conta corrente e contabilidade.');
       }
+
+      await saveSupplierReturn(returnDoc);
+      await saveDocument(debitNoteDoc);
 
       toast({ title: 'Devolução criada', description: `${returnNumber} — ${selectedLines.length} linha(s)` });
       setCreateOpen(false);
@@ -369,7 +399,7 @@ export function PurchaseReturnsTab() {
     } finally {
       setSaving(false);
     }
-  }, [selectedInvoice, branchId, user, returnLines, reason, reasonDescription, notes, currentBranch, loadData, toast]);
+  }, [selectedInvoice, branchId, user, returnLines, reason, reasonDescription, notes, selectedBranch, loadData, toast]);
 
   const resetForm = () => {
     setSelectedInvoice(null);
@@ -377,6 +407,7 @@ export function PurchaseReturnsTab() {
     setReason('damaged');
     setReasonDescription('');
     setNotes('');
+    setSelectedBranchId(currentBranch?.id || '');
   };
 
   // Status actions
@@ -539,7 +570,20 @@ export function PurchaseReturnsTab() {
             <div className="flex items-center gap-2 text-sm px-3 py-2 bg-muted/50 rounded-md border">
               <Package className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">Filial:</span>
-              <span className="font-medium">{currentBranch?.name || '—'}</span>
+              <div className="min-w-[260px] ml-2">
+                <Select value={branchId || ''} onValueChange={setSelectedBranchId}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Seleccione a filial" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map(branch => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Source invoice selection */}
@@ -711,7 +755,7 @@ export function PurchaseReturnsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map(inv => (
+                 {invoices.filter(inv => inv.branchId === branchId).map(inv => (
                   <TableRow
                     key={inv.id}
                     className="cursor-pointer hover:bg-accent h-8 text-[11px]"
@@ -724,10 +768,10 @@ export function PurchaseReturnsTab() {
                     <TableCell className="text-right">{inv.lines.length}</TableCell>
                   </TableRow>
                 ))}
-                {invoices.length === 0 && (
+                 {invoices.filter(inv => inv.branchId === branchId).length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      Nenhuma fatura confirmada disponível
+                       Nenhuma fatura confirmada disponível para esta filial
                     </TableCell>
                   </TableRow>
                 )}

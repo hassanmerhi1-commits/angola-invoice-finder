@@ -12,6 +12,7 @@
  */
 
 import { api } from '@/lib/api/client';
+import { isDemoMode } from '@/lib/api/config';
 import { OpenItem, DocumentLink } from '@/types/erp';
 import { updateCoABalancesFromJournal } from '@/lib/chartOfAccountsEngine';
 import { logTransaction, TransactionCategory, TransactionAction } from '@/lib/transactionHistory';
@@ -109,6 +110,10 @@ export async function processTransaction(request: TransactionRequest): Promise<T
   if (!request.branchId) {
     result.errors.push('branchId é obrigatório — todas as transações devem ser associadas a uma filial');
     return result;
+  }
+
+  if (isDemoMode()) {
+    return processTransactionLocal(request);
   }
 
   try {
@@ -407,7 +412,7 @@ function logTransactionAudit(request: TransactionRequest): void {
     stock_transfer: 'stock_transfer',
     adjustment: 'inventory',
     expense: 'purchase',
-    credit_note: 'sales',
+    credit_note: request.openItem?.entityType === 'supplier' ? 'purchase' : 'sales',
   };
 
   const actionMap: Record<string, TransactionAction> = {
@@ -418,7 +423,7 @@ function logTransactionAudit(request: TransactionRequest): void {
     stock_transfer: 'transfer_requested',
     adjustment: 'stock_adjusted',
     expense: 'purchase_created',
-    credit_note: 'sale_refunded',
+    credit_note: request.openItem?.entityType === 'supplier' ? 'supplier_return' : 'sale_refunded',
   };
 
   logTransaction({
