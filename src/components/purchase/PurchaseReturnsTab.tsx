@@ -3,7 +3,7 @@
  * Lives inside the Compras page as a third tab.
  * Linked to existing Fatura de Compra documents.
  */
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { generateId } from '@/lib/utils';
 import { useAuth } from '@/hooks/useERP';
 import { useBranchContext } from '@/contexts/BranchContext';
@@ -74,16 +74,16 @@ interface ReturnLineForm {
   selected: boolean;
 }
 
-export function PurchaseReturnsTab() {
+interface PurchaseReturnsTabProps {
+  openCreateSignal?: number;
+}
+
+export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabProps) {
   const { toast } = useToast();
   const { currentBranch, branches } = useBranchContext();
   const { user } = useAuth();
-  const [selectedBranchId, setSelectedBranchId] = useState('');
-  const branchId = selectedBranchId || currentBranch?.id;
-  const selectedBranch = useMemo(
-    () => branches.find(branch => branch.id === branchId) || currentBranch || null,
-    [branches, branchId, currentBranch]
-  );
+  const openCreateRef = useRef(openCreateSignal);
+  const branchId = currentBranch?.id;
 
   // Data
   const [returns, setReturns] = useState<SupplierReturn[]>([]);
@@ -103,12 +103,18 @@ export function PurchaseReturnsTab() {
 
   // View dialog
   const [viewReturn, setViewReturn] = useState<SupplierReturn | null>(null);
+  const selectedBranch = useMemo(
+    () => branches.find(branch => branch.id === (selectedInvoice?.branchId || currentBranch?.id)) || currentBranch || null,
+    [branches, currentBranch, selectedInvoice?.branchId]
+  );
 
   useEffect(() => {
-    if (currentBranch?.id && !selectedBranchId) {
-      setSelectedBranchId(currentBranch.id);
+    if (openCreateSignal > 0 && openCreateSignal !== openCreateRef.current) {
+      resetForm();
+      setCreateOpen(true);
+      openCreateRef.current = openCreateSignal;
     }
-  }, [currentBranch?.id, selectedBranchId]);
+  }, [openCreateSignal]);
 
   const getAlreadyReturnedQty = useCallback((invoiceId: string, productId: string) => {
     return returns
@@ -163,9 +169,11 @@ export function PurchaseReturnsTab() {
 
   // Create return
   const handleCreate = useCallback(async () => {
-    if (!selectedInvoice || !branchId || !user) return;
+    if (!selectedInvoice || !user) return;
+    const invoiceBranchId = selectedInvoice.branchId;
+    const invoiceBranchName = selectedInvoice.branchName || selectedBranch?.name || '';
     if (!selectedBranch) {
-      toast({ title: 'Erro', description: 'Seleccione a filial da devolução', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'A filial da fatura de compra não foi encontrada', variant: 'destructive' });
       return;
     }
     const selectedLines = returnLines.filter(l => l.selected && l.quantity > 0);
@@ -233,8 +241,8 @@ export function PurchaseReturnsTab() {
       const returnDoc: SupplierReturn = {
         id: generateId(),
         returnNumber,
-        branchId,
-        branchName: selectedBranch.name || '',
+        branchId: invoiceBranchId,
+        branchName: invoiceBranchName,
         purchaseOrderId: selectedInvoice.id,
         purchaseOrderNumber: selectedInvoice.invoiceNumber,
         supplierId: resolvedSupplierId,
@@ -256,8 +264,8 @@ export function PurchaseReturnsTab() {
         id: generateId(),
         documentType: 'nota_debito',
         documentNumber: returnNumber,
-        branchId,
-        branchName: selectedBranch.name || '',
+        branchId: invoiceBranchId,
+        branchName: invoiceBranchName,
         entityType: 'supplier',
         entityId: resolvedSupplierId,
         entityName: selectedInvoice.supplierName,
@@ -306,8 +314,8 @@ export function PurchaseReturnsTab() {
           transactionType: 'credit_note',
           documentId: returnDoc.id,
           documentNumber: returnNumber,
-          branchId,
-          branchName: selectedBranch.name || '',
+          branchId: invoiceBranchId,
+          branchName: invoiceBranchName,
           userId: user?.id || '',
           userName: user?.name || user?.username || 'Sistema',
           date: new Date().toISOString().slice(0, 10),
@@ -322,7 +330,7 @@ export function PurchaseReturnsTab() {
             quantity: item.quantity,
             unitCost: item.unitCost,
             direction: 'OUT' as const,
-            warehouseId: branchId,
+            warehouseId: invoiceBranchId,
           })),
 
           // Phase 3: Reverse journal entries (mirror of purchase invoice)
@@ -399,7 +407,7 @@ export function PurchaseReturnsTab() {
     } finally {
       setSaving(false);
     }
-  }, [selectedInvoice, branchId, user, returnLines, reason, reasonDescription, notes, selectedBranch, loadData, toast]);
+  }, [selectedInvoice, user, returnLines, reason, reasonDescription, notes, selectedBranch, loadData, toast]);
 
   const resetForm = () => {
     setSelectedInvoice(null);
@@ -407,7 +415,6 @@ export function PurchaseReturnsTab() {
     setReason('damaged');
     setReasonDescription('');
     setNotes('');
-    setSelectedBranchId(currentBranch?.id || '');
   };
 
   // Status actions
@@ -525,7 +532,7 @@ export function PurchaseReturnsTab() {
                         </Button>
                         {ret.status === 'pending' && (
                           <>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-green-600" onClick={() => handleApprove(ret)} title="Aprovar">
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={() => handleApprove(ret)} title="Aprovar">
                               <CheckCircle className="h-3 w-3" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleCancel(ret)} title="Anular">
@@ -534,7 +541,7 @@ export function PurchaseReturnsTab() {
                           </>
                         )}
                         {(ret.status === 'approved' || ret.status === 'shipped') && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-600" onClick={() => handleComplete(ret)} title="Concluir">
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={() => handleComplete(ret)} title="Concluir">
                             <CheckCircle className="h-3 w-3" />
                           </Button>
                         )}
@@ -566,23 +573,16 @@ export function PurchaseReturnsTab() {
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Branch info */}
-            <div className="flex items-center gap-2 text-sm px-3 py-2 bg-muted/50 rounded-md border">
-              <Package className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Filial:</span>
-              <div className="min-w-[260px] ml-2">
-                <Select value={branchId || ''} onValueChange={setSelectedBranchId}>
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder="Seleccione a filial" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map(branch => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Branch / supplier info locked to source invoice */}
+            <div className="grid grid-cols-1 gap-3 rounded-md border bg-muted/50 px-3 py-2 text-sm md:grid-cols-2">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Filial:</span>
+                <span className="font-medium">{selectedInvoice?.branchName || currentBranch?.name || 'Selecione a fatura de compra'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Conta fornecedor:</span>
+                <span className="font-mono font-medium">{selectedInvoice?.supplierAccountCode || '—'}</span>
               </div>
             </div>
 

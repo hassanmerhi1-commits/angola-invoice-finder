@@ -653,6 +653,7 @@ export default function PurchaseInvoices() {
   const [showCreateSupplier, setShowCreateSupplier] = useState(false);
   const [newSupplierForm, setNewSupplierForm] = useState({ name: '', nif: '', email: '', phone: '', address: '', city: '', country: 'Angola', contactPerson: '', notes: '' });
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [openReturnCreateSignal, setOpenReturnCreateSignal] = useState(0);
   // List mode state
   const [listTab, setListTab] = useState<'faturas' | 'encomendas' | 'devolucoes'>('faturas');
   const [returnCount, setReturnCount] = useState(0);
@@ -1359,6 +1360,26 @@ export default function PurchaseInvoices() {
             <Button onClick={() => setSearchParams({ mode: "create" })} className="gap-2">
               <Plus className="h-4 w-4" /> Nova Fatura de Compra
             </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                setListTab('devolucoes');
+                setOpenReturnCreateSignal(prev => prev + 1);
+              }}
+            >
+              <RotateCcw className="h-4 w-4" /> Devolução
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                setNewSupplierForm({ name: '', nif: '', email: '', phone: '', address: '', city: '', country: 'Angola', contactPerson: '', notes: '' });
+                setShowCreateSupplier(true);
+              }}
+            >
+              <Plus className="h-4 w-4" /> Gerir Novo Fornecedor
+            </Button>
           </div>
         </div>
 
@@ -1582,7 +1603,7 @@ export default function PurchaseInvoices() {
 
           {/* ═══ DEVOLUÇÕES TAB ═══ */}
           <TabsContent value="devolucoes" className="space-y-3 mt-2">
-            <PurchaseReturnsTab />
+            <PurchaseReturnsTab openCreateSignal={openReturnCreateSignal} />
           </TabsContent>
         </Tabs>
 
