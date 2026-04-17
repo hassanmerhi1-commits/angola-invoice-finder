@@ -64,6 +64,7 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 interface ReturnLineForm {
+  sourceLineId: string;
   productId: string;
   productName: string;
   sku: string;
@@ -116,11 +117,11 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
     }
   }, [openCreateSignal]);
 
-  const getAlreadyReturnedQty = useCallback((invoiceId: string, productId: string) => {
+  const getAlreadyReturnedQty = useCallback((invoiceId: string, sourceLineId: string, productId: string) => {
     return returns
       .filter(ret => ret.purchaseOrderId === invoiceId && ret.status !== 'cancelled')
       .reduce((sum, ret) => sum + ret.items
-        .filter(item => item.productId === productId)
+        .filter(item => (item.sourceLineId ? item.sourceLineId === sourceLineId : item.productId === productId))
         .reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
   }, [returns]);
 
@@ -154,16 +155,20 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
   // Select invoice → populate lines
   const handleSelectInvoice = useCallback((inv: PurchaseInvoice) => {
     setSelectedInvoice(inv);
-    setReturnLines(inv.lines.map(line => ({
-      productId: line.productId,
-      productName: line.description,
-      sku: line.productCode,
-      maxQty: Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.productId), 0),
-      quantity: Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.productId), 0),
-      unitCost: line.unitPrice,
-      taxRate: line.ivaRate,
-      selected: Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.productId), 0) > 0,
-    })));
+    setReturnLines(inv.lines.map(line => {
+      const remainingQty = Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.id, line.productId), 0);
+      return {
+        sourceLineId: line.id,
+        productId: line.productId,
+        productName: line.description,
+        sku: line.productCode,
+        maxQty: remainingQty,
+        quantity: remainingQty,
+        unitCost: line.unitPrice,
+        taxRate: line.ivaRate,
+        selected: remainingQty > 0,
+      };
+    }));
     setInvoicePickerOpen(false);
   }, [getAlreadyReturnedQty]);
 
@@ -176,7 +181,33 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
       toast({ title: 'Erro', description: 'A filial da fatura de compra não foi encontrada', variant: 'destructive' });
       return;
     }
-    const selectedLines = returnLines.filter(l => l.selected && l.quantity > 0);
+      const recalculatedLines = selectedInvoice.lines.map((invoiceLine) => {
+        const formLine = returnLines.find(line => line.sourceLineId === invoiceLine.id);
+        const remainingQty = Math.max(
+          invoiceLine.totalQty - getAlreadyReturnedQty(selectedInvoice.id, invoiceLine.id, invoiceLine.productId),
+          0,
+        );
+
+        return {
+          invoiceLine,
+          formLine,
+          remainingQty,
+        };
+      });
+
+      const selectedLines = recalculatedLines
+        .filter(({ formLine }) => formLine?.selected && (formLine.quantity || 0) > 0)
+        .map(({ invoiceLine, formLine, remainingQty }) => ({
+          sourceLineId: invoiceLine.id,
+          productId: invoiceLine.productId,
+          productName: invoiceLine.description,
+          sku: invoiceLine.productCode,
+          quantity: formLine?.quantity || 0,
+          unitCost: formLine?.unitCost || invoiceLine.unitPrice,
+          taxRate: formLine?.taxRate ?? invoiceLine.ivaRate,
+          maxQty: remainingQty,
+        }));
+
     if (selectedLines.length === 0) {
       toast({ title: 'Erro', description: 'Seleccione pelo menos uma linha', variant: 'destructive' });
       return;
@@ -201,6 +232,7 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
         const subtotal = line.quantity * line.unitCost;
         const taxAmount = subtotal * (line.taxRate / 100);
         return {
+          sourceLineId: line.sourceLineId,
           productId: line.productId,
           productName: line.productName,
           sku: line.sku,
@@ -634,14 +666,14 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
             {selectedInvoice && returnLines.length > 0 && (
               <div>
                 <Label className="mb-2 block">Linhas da Fatura — seleccione as que pretende devolver</Label>
-                <div className="border rounded-lg overflow-hidden">
+                 <div className="border rounded-lg overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow className="text-[11px] h-8 bg-muted/50">
                         <TableHead className="w-[40px]">✓</TableHead>
                         <TableHead>SKU</TableHead>
                         <TableHead>Descrição</TableHead>
-                        <TableHead className="text-right">Qtd. Max</TableHead>
+                        <TableHead className="text-right">Qtd. Restante</TableHead>
                         <TableHead className="text-right w-[100px]">Qtd. Devolver</TableHead>
                         <TableHead className="text-right">Preço Unit.</TableHead>
                         <TableHead className="text-right">IVA %</TableHead>
@@ -666,7 +698,7 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
                             </TableCell>
                             <TableCell className="font-mono">{line.sku}</TableCell>
                             <TableCell>{line.productName}</TableCell>
-                            <TableCell className="text-right font-mono">{line.maxQty}</TableCell>
+                             <TableCell className="text-right font-mono">{line.maxQty}</TableCell>
                             <TableCell className="text-right">
                               <Input
                                 type="number"
@@ -755,7 +787,7 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
                 </TableRow>
               </TableHeader>
               <TableBody>
-                 {invoices.filter(inv => inv.branchId === branchId).map(inv => (
+                  {invoices.filter(inv => inv.branchId === branchId).filter(inv => inv.lines.some(line => Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.id, line.productId), 0) > 0)).map(inv => (
                   <TableRow
                     key={inv.id}
                     className="cursor-pointer hover:bg-accent h-8 text-[11px]"
@@ -768,10 +800,10 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
                     <TableCell className="text-right">{inv.lines.length}</TableCell>
                   </TableRow>
                 ))}
-                 {invoices.filter(inv => inv.branchId === branchId).length === 0 && (
+                 {invoices.filter(inv => inv.branchId === branchId).filter(inv => inv.lines.some(line => Math.max(line.totalQty - getAlreadyReturnedQty(inv.id, line.id, line.productId), 0) > 0)).length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                       Nenhuma fatura confirmada disponível para esta filial
+                       Nenhuma fatura confirmada com saldo devolvível disponível para esta filial
                     </TableCell>
                   </TableRow>
                 )}
