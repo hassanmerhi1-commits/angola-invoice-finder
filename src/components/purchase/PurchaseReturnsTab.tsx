@@ -84,10 +84,6 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
   const { user } = useAuth();
   const openCreateRef = useRef(openCreateSignal);
   const branchId = currentBranch?.id;
-  const selectedBranch = useMemo(
-    () => branches.find(branch => branch.id === selectedInvoice?.branchId) || currentBranch || null,
-    [branches, currentBranch, selectedInvoice?.branchId]
-  );
 
   // Data
   const [returns, setReturns] = useState<SupplierReturn[]>([]);
@@ -107,6 +103,10 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
 
   // View dialog
   const [viewReturn, setViewReturn] = useState<SupplierReturn | null>(null);
+  const selectedBranch = useMemo(
+    () => branches.find(branch => branch.id === (selectedInvoice?.branchId || currentBranch?.id)) || currentBranch || null,
+    [branches, currentBranch, selectedInvoice?.branchId]
+  );
 
   useEffect(() => {
     if (openCreateSignal > 0 && openCreateSignal !== openCreateRef.current) {
@@ -532,7 +532,7 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
                         </Button>
                         {ret.status === 'pending' && (
                           <>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-green-600" onClick={() => handleApprove(ret)} title="Aprovar">
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={() => handleApprove(ret)} title="Aprovar">
                               <CheckCircle className="h-3 w-3" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleCancel(ret)} title="Anular">
@@ -541,7 +541,7 @@ export function PurchaseReturnsTab({ openCreateSignal = 0 }: PurchaseReturnsTabP
                           </>
                         )}
                         {(ret.status === 'approved' || ret.status === 'shipped') && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-600" onClick={() => handleComplete(ret)} title="Concluir">
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={() => handleComplete(ret)} title="Concluir">
                             <CheckCircle className="h-3 w-3" />
                           </Button>
                         )}
