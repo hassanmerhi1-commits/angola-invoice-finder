@@ -10,6 +10,7 @@
 
 import { Branch, Product, Sale, User, DailySummary, Client, StockTransfer, Supplier, PurchaseOrder, Category, StockMovement } from '@/types/erp';
 import { auditLog } from '@/lib/auditService';
+import { isDemoMode } from '@/lib/api/config';
 
 // ============= MODE DETECTION =============
 export function isElectronMode(): boolean {
@@ -105,6 +106,10 @@ function lsSet<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function getDemoDefault<T>(factory: () => T, emptyValue: T): T {
+  return isDemoMode() ? factory() : emptyValue;
+}
+
 function emitProductsChanged(branchId?: string): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(PRODUCTS_CHANGED_EVENT, { detail: { branchId } }));
@@ -116,7 +121,7 @@ export async function getBranches(): Promise<Branch[]> {
     const rows = await dbGetAll<any>('branches');
     return rows.map(mapBranchFromDb);
   }
-  return lsGet<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
+  return lsGet<Branch[]>(STORAGE_KEYS.branches, getDemoDefault(getDefaultBranches, []));
 }
 
 export async function saveBranch(branch: Branch): Promise<void> {
@@ -125,7 +130,7 @@ export async function saveBranch(branch: Branch): Promise<void> {
     auditLog('create', 'branches', `Filial "${branch.name}" guardada`, 'Sistema');
     return;
   }
-  const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, getDefaultBranches());
+  const branches = lsGet<Branch[]>(STORAGE_KEYS.branches, []);
   const index = branches.findIndex(b => b.id === branch.id);
   const isNew = index < 0;
   if (index >= 0) branches[index] = branch;
@@ -159,7 +164,7 @@ export async function getProducts(branchId?: string): Promise<Product[]> {
     const rows = await dbGetAll<any>('products');
     return filterProductsForBranch(rows.map(mapProductFromDb), branchId, includeSharedProducts);
   }
-  const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
+  const products = lsGet<Product[]>(STORAGE_KEYS.products, getDemoDefault(getDefaultProducts, []));
   return filterProductsForBranch(products, branchId, includeSharedProducts);
 }
 
@@ -177,7 +182,7 @@ export async function saveProduct(product: Product): Promise<void> {
     auditLog(existing?.data ? 'update' : 'create', 'products', `Produto "${product.name}" (${product.sku}) ${existing?.data ? 'actualizado' : 'criado'}`, 'Sistema');
     return;
   }
-  const products = lsGet<Product[]>(STORAGE_KEYS.products, getDefaultProducts());
+  const products = lsGet<Product[]>(STORAGE_KEYS.products, []);
   const index = products.findIndex(p => p.id === product.id);
   const isNew = index < 0;
   if (index >= 0) products[index] = product;
@@ -508,14 +513,14 @@ export async function getUsers(): Promise<User[]> {
     const rows = await dbGetAll<any>('users');
     return rows.map(mapUserFromDb);
   }
-  return lsGet<User[]>(STORAGE_KEYS.users, getDefaultUsers());
+  return lsGet<User[]>(STORAGE_KEYS.users, getDemoDefault(getDefaultUsers, []));
 }
 
 export async function saveUser(user: User): Promise<void> {
   if (isElectronMode()) {
     await dbInsert('users', mapUserToDb(user));
   } else {
-    const users = lsGet<User[]>(STORAGE_KEYS.users, getDefaultUsers());
+    const users = lsGet<User[]>(STORAGE_KEYS.users, []);
     const index = users.findIndex(u => u.id === user.id);
     if (index >= 0) users[index] = { ...user, updatedAt: new Date().toISOString() };
     else users.push(user);
@@ -610,7 +615,7 @@ export async function getCategories(): Promise<Category[]> {
     const rows = await dbGetAll<any>('categories');
     return rows.map(mapCategoryFromDb);
   }
-  return lsGet<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
+  return lsGet<Category[]>(STORAGE_KEYS.categories, getDemoDefault(getDefaultCategories, []));
 }
 
 export async function saveCategory(category: Category): Promise<void> {
@@ -623,7 +628,7 @@ export async function saveCategory(category: Category): Promise<void> {
       is_active: category.isActive ? 1 : 0,
     });
   } else {
-    const categories = lsGet<Category[]>(STORAGE_KEYS.categories, getDefaultCategories());
+    const categories = lsGet<Category[]>(STORAGE_KEYS.categories, []);
     const index = categories.findIndex(c => c.id === category.id);
     if (index >= 0) categories[index] = category;
     else categories.push(category);

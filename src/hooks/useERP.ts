@@ -462,11 +462,13 @@ async function initAuthStateOnce() {
       // API not available, check locally
     }
     
-    const users = await storage.getUsers();
-    const validUser = users.find(u => u.id === currentUser.id && u.isActive);
-    if (validUser) {
-      setAuthState({ user: currentUser, isLoading: false });
-      return;
+    if (isDemoMode()) {
+      const users = await storage.getUsers();
+      const validUser = users.find(u => u.id === currentUser.id && u.isActive);
+      if (validUser) {
+        setAuthState({ user: currentUser, isLoading: false });
+        return;
+      }
     }
     storage.setCurrentUser(null);
   }
@@ -602,15 +604,17 @@ export function useAuth() {
     }
 
     // Demo mode fallback
-    const users = await storage.getUsers();
-    const foundUser = users.find(u =>
-      u.isActive && (u.username === normalized || u.email === normalized || u.email === maybeEmail)
-    );
+    if (isDemoMode()) {
+      const users = await storage.getUsers();
+      const foundUser = users.find(u =>
+        u.isActive && (u.username === normalized || u.email === normalized || u.email === maybeEmail)
+      );
 
-    if (foundUser) {
-      storage.setCurrentUser(foundUser);
-      setAuthState({ user: foundUser });
-      return true;
+      if (foundUser) {
+        storage.setCurrentUser(foundUser);
+        setAuthState({ user: foundUser });
+        return true;
+      }
     }
     return false;
   }, []);
