@@ -822,6 +822,12 @@ export const api = {
         "SELECT * FROM open_items WHERE entity_type = $1 AND entity_id = $2 AND status != 'cleared' ORDER BY document_date ASC",
         [entityType, entityId]
       );
+      if (isDemoMode()) {
+        const items = JSON.parse(localStorage.getItem('kwanzaerp_open_items') || '[]')
+          .filter((oi: any) => oi.entityType === entityType && oi.entityId === entityId && oi.status !== 'cleared')
+          .sort((a: any, b: any) => `${a.documentDate || ''}${a.createdAt || ''}`.localeCompare(`${b.documentDate || ''}${b.createdAt || ''}`));
+        return Promise.resolve({ data: items }) as Promise<ApiResponse<any[]>>;
+      }
       return apiFetch<any[]>(`/payments/open-items/${entityType}/${entityId}`);
     },
     balance: (entityType: string, entityId: string) => {
@@ -831,6 +837,15 @@ export const api = {
            FROM open_items WHERE entity_type = $1 AND entity_id = $2 AND status != 'cleared'`,
           [entityType, entityId]
         ).then(r => ({ data: r.data?.[0] }));
+      }
+      if (isDemoMode()) {
+        const items = JSON.parse(localStorage.getItem('kwanzaerp_open_items') || '[]')
+          .filter((oi: any) => oi.entityType === entityType && oi.entityId === entityId && oi.status !== 'cleared');
+        const balance = items.reduce((sum: number, oi: any) => {
+          const remaining = Number(oi.remainingAmount ?? oi.originalAmount ?? 0);
+          return sum + (oi.isDebit ? remaining : -remaining);
+        }, 0);
+        return Promise.resolve({ data: { balance, open_items_count: items.length } }) as Promise<ApiResponse<any>>;
       }
       return apiFetch<any>(`/payments/balance/${entityType}/${entityId}`);
     },
