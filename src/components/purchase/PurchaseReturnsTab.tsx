@@ -251,11 +251,6 @@ export function PurchaseReturnsTab() {
         notes,
       };
 
-      // Save the return document
-      await saveSupplierReturn(returnDoc);
-
-      // NOTE: Stock OUT is handled by processTransaction below — no duplicate movements
-
       // Create linked Nota de Débito document
       const debitNoteDoc: ERPDocument = {
         id: generateId(),
@@ -301,8 +296,6 @@ export function PurchaseReturnsTab() {
         confirmedBy: returnDoc.createdBy,
         confirmedAt: new Date().toISOString(),
       };
-
-      await saveDocument(debitNoteDoc);
 
       // Reverse accounting — debit supplier (reduce payable), credit purchase account + IVA
       const purchaseAccountCode = selectedInvoice.purchaseAccountCode || '2.1.1';
@@ -393,6 +386,9 @@ export function PurchaseReturnsTab() {
       if (!txResult.success) {
         throw new Error(txResult.errors.join('; ') || 'Falha ao actualizar stock, conta corrente e contabilidade.');
       }
+
+      await saveSupplierReturn(returnDoc);
+      await saveDocument(debitNoteDoc);
 
       toast({ title: 'Devolução criada', description: `${returnNumber} — ${selectedLines.length} linha(s)` });
       setCreateOpen(false);
