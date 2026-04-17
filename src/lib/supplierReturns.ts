@@ -29,6 +29,7 @@ export interface SupplierReturn {
 }
 
 export interface SupplierReturnItem {
+  sourceLineId?: string;
   productId: string;
   productName: string;
   sku: string;
