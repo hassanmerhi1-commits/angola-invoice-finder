@@ -76,6 +76,8 @@ function emitStatus(event) {
   // Dedupe back-to-back 'healthy' so we don't fire a toast every 30s.
   if (payload.state === 'healthy' && lastHealthState === 'healthy') return;
   lastHealthState = payload.state;
+  // Phase 6: persist status events to today's log too.
+  try { writeLog(logStream, 'status', Buffer.from(`${payload.state}${payload.detail ? ' — ' + payload.detail : ''}`)); } catch (_) {}
   try { statusListener && statusListener(payload); } catch (_) {}
 }
 
@@ -290,12 +292,16 @@ function spawnBackend(entryPath, port) {
 
   proc.stdout.on('data', (chunk) => {
     process.stdout.write(`[backend] ${chunk}`);
+    writeLog(logStream, 'stdout', chunk);
   });
   proc.stderr.on('data', (chunk) => {
     process.stderr.write(`[backend!] ${chunk}`);
+    writeLog(logStream, 'stderr', chunk);
   });
   proc.on('exit', (code, signal) => {
-    console.log(`[BackendManager] child exited code=${code} signal=${signal}`);
+    const msg = `[BackendManager] child exited code=${code} signal=${signal}`;
+    console.log(msg);
+    writeLog(logStream, 'lifecycle', Buffer.from(msg));
     if (childProc === proc) {
       childProc = null;
       boundPort = null;
