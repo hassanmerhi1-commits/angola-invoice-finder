@@ -1015,6 +1015,36 @@ app.whenReady().then(async () => {
   const dbResult = await initDatabase();
   console.log('[Init] Database result:', dbResult);
 
+  // ===== Phases 1–4: Auto-spawn Express backend =====
+  // Mode mapping:
+  //   - PG connection string in IP file → this PC IS the server → spawn Express here
+  //   - hostname/IP in IP file          → this PC is a CLIENT  → DO NOT spawn
+  //   - IP file missing/invalid         → treat as standalone (spawn, let user fix later)
+  let backendMode = 'unknown';
+  if (dbResult?.mode === 'server') backendMode = 'server';
+  else if (dbResult?.mode === 'client') backendMode = 'client';
+  else if (dbResult?.needsConfig) backendMode = 'standalone';
+
+  try {
+    const spawnResult = await backendManager.start({ mode: backendMode });
+    if (spawnResult.started) {
+      backendPort = spawnResult.port;
+      console.log(`[Init] Backend up on port ${backendPort} (mode=${backendMode})`);
+    } else if (spawnResult.skipped) {
+      console.log(`[Init] Backend spawn skipped (${spawnResult.reason}) — using remote server`);
+    } else if (spawnResult.error) {
+      console.warn(`[Init] Backend spawn failed: ${spawnResult.error}`);
+      // Surface to renderer once it's ready so the user gets a clear message
+      const send = () => mainWindow?.webContents.send('backend:status', {
+        ok: false, code: spawnResult.code, error: spawnResult.error,
+      });
+      if (mainWindow?.webContents?.isLoading() === false) send();
+      else mainWindow?.webContents?.once('did-finish-load', send);
+    }
+  } catch (err) {
+    console.error('[Init] Backend spawn threw:', err);
+  }
+
   // Check for updates (production only)
   const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
   if (!isDev) {
@@ -1030,11 +1060,18 @@ app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
 });
 
-// Cleanup on quit
-app.on('before-quit', async () => {
-  if (wss) { wss.close(); wss = null; }
-  if (wsClient) { wsClient.close(); wsClient = null; }
-  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); }
+// Renderer needs to know which port the backend bound (3000..3009).
+ipcMain.handle('backend:getPort', () => backendManager.getPort());
+ipcMain.handle('backend:getStatus', () => backendManager.getStatus());
+
+// Cleanup on quit — stop backend gracefully BEFORE killing WS.
+app.on('before-quit', async (event) => {
+  if (backendManager.getStatus().running) {
+    event.preventDefault();
+    try { await backendManager.stop(); } catch (e) { console.error('[Quit] backend stop failed:', e); }
+    if (wss) { wss.close(); wss = null; }
+    if (wsClient) { wsClient.close(); wsClient = null; }
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); }
   if (purchaseProductPickerWindow && !purchaseProductPickerWindow.isDestroyed()) {
     purchaseProductPickerWindow.destroy();
     purchaseProductPickerWindow = null;
