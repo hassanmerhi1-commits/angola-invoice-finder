@@ -43,6 +43,10 @@ const HEALTH_FAILS_BEFORE_RESTART = 3;  // 3 consecutive misses → restart
 const RESTART_BACKOFF_MS = 2000;        // wait between restart attempts
 const MAX_RESTART_ATTEMPTS = 3;         // give up after this many in a row
 
+// Phase 6: log retention
+const LOG_RETENTION_DAYS = 30;
+const LOG_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // sweep every 6h while app runs
+
 let childProc = null;
 let boundPort = null;
 let lastMode = 'unknown';
@@ -55,6 +59,12 @@ let restartAttempts = 0;
 let isRestarting = false;
 let statusListener = null;          // (status) => void  set by main.cjs
 let lastHealthState = null;         // dedupe identical 'healthy' emits
+
+// Phase 6 state
+let logDir = null;                  // set by main.cjs via setLogDir()
+let logStream = null;               // current day's WriteStream
+let logStreamDate = null;           // 'YYYY-MM-DD' the stream was opened for
+let logCleanupTimer = null;
 
 function setStatusListener(fn) {
   statusListener = typeof fn === 'function' ? fn : null;
