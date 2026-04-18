@@ -80,6 +80,118 @@ function emitStatus(event) {
 }
 
 // --------------------------------------------------------------------------
+// Phase 6: rotating log files
+//   - File: <logDir>/backend-YYYY-MM-DD.log  (one per local-time day)
+//   - Both stdout and stderr are tee'd: console (for Electron logs) + file.
+//   - Stream is reopened automatically when the date rolls over.
+//   - Files older than LOG_RETENTION_DAYS days are deleted on a 6h sweep.
+//   - All file I/O is best-effort: a failure to write a log line must NEVER
+//     crash the backend lifecycle.
+// --------------------------------------------------------------------------
+function setLogDir(dir) {
+  if (!dir) return;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    logDir = dir;
+    // Sweep once on init, then on a slow timer.
+    sweepOldLogs();
+    if (!logCleanupTimer) {
+      logCleanupTimer = setInterval(sweepOldLogs, LOG_CLEANUP_INTERVAL_MS);
+      if (logCleanupTimer.unref) logCleanupTimer.unref();
+    }
+    console.log(`[BackendManager] log dir: ${logDir}`);
+  } catch (e) {
+    console.error('[BackendManager] failed to init log dir:', e?.message || e);
+    logDir = null;
+  }
+}
+
+function getLogDir() {
+  return logDir;
+}
+
+function todayStamp() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function ensureLogStream() {
+  if (!logDir) return null;
+  const stamp = todayStamp();
+  if (logStream && logStreamDate === stamp) return logStream;
+
+  // Date rolled or first open — close prior stream and open new.
+  if (logStream) {
+    try { logStream.end(); } catch (_) {}
+    logStream = null;
+  }
+  try {
+    const file = path.join(logDir, `backend-${stamp}.log`);
+    logStream = fs.createWriteStream(file, { flags: 'a', encoding: 'utf8' });
+    logStream.on('error', (err) => {
+      console.error('[BackendManager] log stream error:', err?.message || err);
+      try { logStream && logStream.end(); } catch (_) {}
+      logStream = null;
+    });
+    logStreamDate = stamp;
+    // Header on rollover so the file is self-describing.
+    logStream.write(`\n===== Kwanza ERP backend log opened ${new Date().toISOString()} =====\n`);
+  } catch (e) {
+    console.error('[BackendManager] failed to open log file:', e?.message || e);
+    logStream = null;
+  }
+  return logStream;
+}
+
+function writeLog(stream, prefix, chunk) {
+  const s = ensureLogStream();
+  if (!s) return;
+  try {
+    const text = chunk.toString('utf8');
+    // Prefix every line with a timestamp + stream tag so debugging is sane.
+    const ts = new Date().toISOString();
+    const lines = text.split(/\r?\n/);
+    // Drop the trailing empty string from a final newline so we don't write blank lines.
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    for (const line of lines) {
+      s.write(`${ts} [${prefix}] ${line}\n`);
+    }
+  } catch (_) { /* swallow */ }
+}
+
+function sweepOldLogs() {
+  if (!logDir) return;
+  fs.readdir(logDir, (err, files) => {
+    if (err) return;
+    const cutoff = Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    for (const name of files) {
+      // Only touch our own files; never wipe foreign content.
+      const m = /^backend-(\d{4})-(\d{2})-(\d{2})\.log$/.exec(name);
+      if (!m) continue;
+      const fileDate = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`).getTime();
+      if (Number.isFinite(fileDate) && fileDate < cutoff) {
+        fs.unlink(path.join(logDir, name), () => {});
+      }
+    }
+  });
+}
+
+function closeLogStream() {
+  if (logStream) {
+    try { logStream.end(); } catch (_) {}
+    logStream = null;
+    logStreamDate = null;
+  }
+  if (logCleanupTimer) {
+    clearInterval(logCleanupTimer);
+    logCleanupTimer = null;
+  }
+}
+
+// --------------------------------------------------------------------------
 // Path resolution: backend lives next to electron/ in dev, and is shipped via
 // extraResources (electron-builder.json) in production at:
 //   <resourcesPath>/backend/src/server.js
