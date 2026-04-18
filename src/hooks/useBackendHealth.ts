@@ -39,7 +39,8 @@ export function useBackendHealth() {
     const api = (typeof window !== 'undefined' ? window.electronAPI : undefined);
     if (!api?.backend?.onStatus) return; // web preview or older preload
 
-    api.backend.onStatus((raw: BackendStatus) => {
+    api.backend.onStatus((data: unknown) => {
+      const raw = data as BackendStatus;
       switch (raw.state) {
         case 'healthy': {
           if (incidentOpen.current) {
