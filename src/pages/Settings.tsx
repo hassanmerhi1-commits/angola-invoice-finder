@@ -25,6 +25,7 @@ import {
 import { CompanySettingsDialog } from '@/components/settings/CompanySettingsDialog';
 import { NetworkSettingsCard } from '@/components/settings/NetworkSettingsCard';
 import { HotUpdateSettingsCard } from '@/components/settings/HotUpdateSettingsCard';
+import { BackendLogsCard } from '@/components/settings/BackendLogsCard';
 import { toast } from 'sonner';
 import { downloadBackup, parseBackupFile, restoreBackup, getStorageStats } from '@/lib/backup';
 import type { UpdateStatus, SetupConfig } from '@/types/electron';
