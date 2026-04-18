@@ -36,10 +36,38 @@ const DOCKER_PG_PORT = 5432;
 const DOCKER_TCP_TIMEOUT = 1500;
 const SHUTDOWN_GRACE_MS = 4000;
 
+// Phase 5: health monitor tunables
+const HEALTH_INTERVAL_MS = 30000;       // poll cadence
+const HEALTH_TIMEOUT_MS = 4000;         // single-probe timeout
+const HEALTH_FAILS_BEFORE_RESTART = 3;  // 3 consecutive misses → restart
+const RESTART_BACKOFF_MS = 2000;        // wait between restart attempts
+const MAX_RESTART_ATTEMPTS = 3;         // give up after this many in a row
+
 let childProc = null;
 let boundPort = null;
 let lastMode = 'unknown';
 let lastDockerOk = false;
+
+// Phase 5 state
+let healthTimer = null;
+let consecutiveFails = 0;
+let restartAttempts = 0;
+let isRestarting = false;
+let statusListener = null;          // (status) => void  set by main.cjs
+let lastHealthState = null;         // dedupe identical 'healthy' emits
+
+function setStatusListener(fn) {
+  statusListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitStatus(event) {
+  // event: { state: 'healthy'|'degraded'|'down'|'restarting'|'restarted'|'failed', detail? }
+  const payload = { ...event, port: boundPort, mode: lastMode, ts: Date.now() };
+  // Dedupe back-to-back 'healthy' so we don't fire a toast every 30s.
+  if (payload.state === 'healthy' && lastHealthState === 'healthy') return;
+  lastHealthState = payload.state;
+  try { statusListener && statusListener(payload); } catch (_) {}
+}
 
 // --------------------------------------------------------------------------
 // Path resolution: backend lives next to electron/ in dev, and is shipped via
