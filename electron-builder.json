@@ -54,7 +54,7 @@
     {
       "from": "backend",
       "to": "backend",
-      "filter": ["**/*", "!node_modules/**/*"]
+      "filter": ["**/*"]
     },
     {
       "from": "public/splash.png",
