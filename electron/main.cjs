@@ -1038,6 +1038,15 @@ app.whenReady().then(async () => {
   else if (dbResult?.mode === 'client') backendMode = 'client';
   else if (dbResult?.needsConfig) backendMode = 'standalone';
 
+  // Phase 5: forward backend health events from backendManager → renderer.
+  // Single status channel; payload shape: { state, detail?, port?, mode?, code?, fails?, attempts?, ts }
+  backendManager.setStatusListener((status) => {
+    backendPort = backendManager.getPort();
+    try {
+      mainWindow?.webContents.send('backend:status', status);
+    } catch (_) { /* renderer may be reloading */ }
+  });
+
   try {
     const spawnResult = await backendManager.start({ mode: backendMode });
     if (spawnResult.started) {
@@ -1047,9 +1056,8 @@ app.whenReady().then(async () => {
       console.log(`[Init] Backend spawn skipped (${spawnResult.reason}) — using remote server`);
     } else if (spawnResult.error) {
       console.warn(`[Init] Backend spawn failed: ${spawnResult.error}`);
-      // Surface to renderer once it's ready so the user gets a clear message
       const send = () => mainWindow?.webContents.send('backend:status', {
-        ok: false, code: spawnResult.code, error: spawnResult.error,
+        state: 'down', detail: spawnResult.error, code: spawnResult.code, mode: backendMode, ts: Date.now(),
       });
       if (mainWindow?.webContents?.isLoading() === false) send();
       else mainWindow?.webContents?.once('did-finish-load', send);

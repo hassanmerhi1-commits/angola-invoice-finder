@@ -36,10 +36,38 @@ const DOCKER_PG_PORT = 5432;
 const DOCKER_TCP_TIMEOUT = 1500;
 const SHUTDOWN_GRACE_MS = 4000;
 
+// Phase 5: health monitor tunables
+const HEALTH_INTERVAL_MS = 30000;       // poll cadence
+const HEALTH_TIMEOUT_MS = 4000;         // single-probe timeout
+const HEALTH_FAILS_BEFORE_RESTART = 3;  // 3 consecutive misses → restart
+const RESTART_BACKOFF_MS = 2000;        // wait between restart attempts
+const MAX_RESTART_ATTEMPTS = 3;         // give up after this many in a row
+
 let childProc = null;
 let boundPort = null;
 let lastMode = 'unknown';
 let lastDockerOk = false;
+
+// Phase 5 state
+let healthTimer = null;
+let consecutiveFails = 0;
+let restartAttempts = 0;
+let isRestarting = false;
+let statusListener = null;          // (status) => void  set by main.cjs
+let lastHealthState = null;         // dedupe identical 'healthy' emits
+
+function setStatusListener(fn) {
+  statusListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitStatus(event) {
+  // event: { state: 'healthy'|'degraded'|'down'|'restarting'|'restarted'|'failed', detail? }
+  const payload = { ...event, port: boundPort, mode: lastMode, ts: Date.now() };
+  // Dedupe back-to-back 'healthy' so we don't fire a toast every 30s.
+  if (payload.state === 'healthy' && lastHealthState === 'healthy') return;
+  lastHealthState = payload.state;
+  try { statusListener && statusListener(payload); } catch (_) {}
+}
 
 // --------------------------------------------------------------------------
 // Path resolution: backend lives next to electron/ in dev, and is shipped via
@@ -235,10 +263,15 @@ async function start(opts = {}) {
   }
 
   console.log(`[BackendManager] backend ready on http://127.0.0.1:${port}`);
+  consecutiveFails = 0;
+  restartAttempts = 0;
+  startHealthMonitor();
+  emitStatus({ state: 'healthy', detail: 'Backend ready' });
   return { started: true, port, mode };
 }
 
 async function stop() {
+  stopHealthMonitor();
   if (!childProc) return { stopped: true, alreadyStopped: true };
   const proc = childProc;
   childProc = null;
@@ -278,4 +311,102 @@ function getStatus() {
   };
 }
 
-module.exports = { start, stop, getPort, getStatus, probeDockerPostgres, findFreePort };
+// --------------------------------------------------------------------------
+// Phase 5: Health monitor + auto-restart
+// --------------------------------------------------------------------------
+function probeHealthOnce(port, timeoutMs = HEALTH_TIMEOUT_MS) {
+  const http = require('http');
+  return new Promise((resolve) => {
+    if (!port) return resolve(false);
+    const req = http.get({ host: '127.0.0.1', port, path: '/api/health', timeout: timeoutMs }, (res) => {
+      res.resume();
+      // Any 2xx/3xx counts as alive. 5xx = degraded → fail.
+      resolve(res.statusCode != null && res.statusCode < 500);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+  });
+}
+
+function startHealthMonitor() {
+  stopHealthMonitor();
+  if (!shouldSpawnForMode(lastMode)) return; // client mode polls remote separately
+  healthTimer = setInterval(runHealthCheck, HEALTH_INTERVAL_MS);
+}
+
+function stopHealthMonitor() {
+  if (healthTimer) { clearInterval(healthTimer); healthTimer = null; }
+}
+
+async function runHealthCheck() {
+  if (isRestarting) return;
+  const port = boundPort;
+  const ok = await probeHealthOnce(port);
+
+  if (ok) {
+    if (consecutiveFails > 0) {
+      console.log('[BackendManager] health recovered after', consecutiveFails, 'misses');
+      emitStatus({ state: 'healthy', detail: 'Backend reconnected' });
+    } else {
+      emitStatus({ state: 'healthy' });
+    }
+    consecutiveFails = 0;
+    restartAttempts = 0;
+    return;
+  }
+
+  consecutiveFails += 1;
+  console.warn(`[BackendManager] health probe FAILED (${consecutiveFails}/${HEALTH_FAILS_BEFORE_RESTART}) port=${port}`);
+
+  if (consecutiveFails === 1) {
+    emitStatus({ state: 'degraded', detail: 'Backend not responding', fails: consecutiveFails });
+  } else if (consecutiveFails < HEALTH_FAILS_BEFORE_RESTART) {
+    emitStatus({ state: 'degraded', detail: `Health check failed (${consecutiveFails}/${HEALTH_FAILS_BEFORE_RESTART})`, fails: consecutiveFails });
+  } else {
+    await attemptRestart('health-check-failed');
+  }
+}
+
+async function attemptRestart(reason) {
+  if (isRestarting) return;
+  isRestarting = true;
+  restartAttempts += 1;
+
+  if (restartAttempts > MAX_RESTART_ATTEMPTS) {
+    console.error(`[BackendManager] giving up after ${MAX_RESTART_ATTEMPTS} restart attempts (${reason})`);
+    emitStatus({ state: 'failed', detail: `Backend unrecoverable after ${MAX_RESTART_ATTEMPTS} restart attempts`, attempts: restartAttempts });
+    isRestarting = false;
+    stopHealthMonitor();
+    return;
+  }
+
+  console.warn(`[BackendManager] restarting backend (attempt ${restartAttempts}/${MAX_RESTART_ATTEMPTS}, reason=${reason})`);
+  emitStatus({ state: 'restarting', detail: `Restarting backend (attempt ${restartAttempts}/${MAX_RESTART_ATTEMPTS})`, attempts: restartAttempts });
+
+  const previousMode = lastMode;
+  try { await stop(); } catch (e) { console.error('[BackendManager] stop during restart failed:', e); }
+  await new Promise((r) => setTimeout(r, RESTART_BACKOFF_MS));
+
+  // start() will re-init everything (port, docker check, ready wait) and reset counters on success.
+  const result = await start({ mode: previousMode });
+  isRestarting = false;
+
+  if (result?.started) {
+    consecutiveFails = 0;
+    emitStatus({ state: 'restarted', detail: 'Backend restarted successfully', port: result.port });
+  } else {
+    const detail = result?.error || result?.reason || 'Restart failed';
+    emitStatus({ state: 'down', detail, code: result?.code });
+    // Schedule another attempt via the next health tick (monitor restarted by start()).
+    if (!healthTimer) {
+      // start() failed → it didn't arm the monitor. Re-arm a slow retry.
+      healthTimer = setInterval(runHealthCheck, HEALTH_INTERVAL_MS);
+    }
+  }
+}
+
+module.exports = {
+  start, stop, getPort, getStatus,
+  probeDockerPostgres, findFreePort,
+  setStatusListener,
+};
