@@ -13,7 +13,7 @@
  *   Client: SERVIDOR or 10.0.0.5  (hostname/IP = client mode)
  */
 
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -1024,6 +1024,17 @@ app.whenReady().then(async () => {
   createSplashWindow();
   createWindow();
 
+  // Phase 6: initialize backend log directory under userData (cross-platform).
+  // Windows: %APPDATA%\Kwanza ERP\logs
+  // macOS:   ~/Library/Application Support/Kwanza ERP/logs
+  // Linux:   ~/.config/Kwanza ERP/logs
+  try {
+    const userLogDir = path.join(app.getPath('userData'), 'logs');
+    backendManager.setLogDir(userLogDir);
+  } catch (e) {
+    console.error('[Init] Could not set log dir:', e?.message || e);
+  }
+
   // Initialize database based on IP file
   const dbResult = await initDatabase();
   console.log('[Init] Database result:', dbResult);
@@ -1084,6 +1095,23 @@ app.on('web-contents-created', (event, contents) => {
 // Renderer needs to know which port the backend bound (3000..3009).
 ipcMain.handle('backend:getPort', () => backendManager.getPort());
 ipcMain.handle('backend:getStatus', () => backendManager.getStatus());
+
+// Phase 6: log folder access for the Settings UI.
+ipcMain.handle('backend:getLogDir', () => backendManager.getLogDir() || null);
+ipcMain.handle('backend:openLogDir', async () => {
+  const dir = backendManager.getLogDir();
+  if (!dir) return { success: false, error: 'Log directory not initialized' };
+  try {
+    // Ensure it exists (first launch may not have written anything yet).
+    fs.mkdirSync(dir, { recursive: true });
+    const result = await shell.openPath(dir);
+    // openPath returns '' on success, or an error string.
+    if (result) return { success: false, error: result };
+    return { success: true, path: dir };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+});
 
 // Cleanup on quit — stop backend gracefully BEFORE killing WS / pool.
 let isQuittingCleanly = false;
