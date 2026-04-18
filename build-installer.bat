@@ -53,7 +53,16 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [3/5] Building web application...
+echo [3/5] Installing backend dependencies...
+call npm --prefix backend install
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to install backend dependencies
+    pause
+    exit /b 1
+)
+
+echo.
+echo [4/6] Building web application...
 call npm run build
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to build web app
@@ -62,7 +71,7 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [4/5] Building Windows installer...
+echo [5/6] Building Windows installer...
 call npx electron-builder --win
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to build installer
