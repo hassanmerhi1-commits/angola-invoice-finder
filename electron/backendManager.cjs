@@ -537,4 +537,6 @@ module.exports = {
   start, stop, getPort, getStatus,
   probeDockerPostgres, findFreePort,
   setStatusListener,
+  // Phase 6
+  setLogDir, getLogDir, closeLogStream,
 };
