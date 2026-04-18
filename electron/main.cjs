@@ -995,6 +995,19 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   }
 
+  // Inject the auto-spawned backend port into the renderer BEFORE React mounts
+  // so getApiUrl() in src/lib/api/config.ts picks it up on first call.
+  // We re-inject on every load (handles hot-update reloads + navigation).
+  const injectBackendPort = () => {
+    const port = backendManager.getPort();
+    if (port == null) return;
+    mainWindow?.webContents
+      .executeJavaScript(`window.__KWANZA_BACKEND_PORT__ = ${port};`, true)
+      .catch(() => {});
+  };
+  mainWindow.webContents.on('dom-ready', injectBackendPort);
+  mainWindow.webContents.on('did-finish-load', injectBackendPort);
+
   mainWindow.once('ready-to-show', () => {
     setTimeout(() => {
       if (splashWindow) { splashWindow.close(); splashWindow = null; }
