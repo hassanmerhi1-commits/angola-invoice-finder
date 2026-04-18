@@ -25,6 +25,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
       - name: Install Electron build dependencies
         run: npm install --save-dev electron electron-builder
 
