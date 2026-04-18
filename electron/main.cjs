@@ -18,6 +18,27 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
+const backendManager = require('./backendManager.cjs');
+
+// ============= SINGLE-INSTANCE LOCK (Phase 2) =============
+// Prevent a second .exe launch from spawning a duplicate Express backend or
+// stealing the same port. Second launch focuses the existing window instead.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  console.log('[Startup] Another Kwanza ERP instance is already running — exiting.');
+  app.quit();
+  process.exit(0);
+}
+app.on('second-instance', () => {
+  if (typeof mainWindow !== 'undefined' && mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
+// Backend port chosen by backendManager — exposed to renderer via preload.
+let backendPort = null;
 
 function requireRuntimeModule(moduleName) {
   const candidates = [
