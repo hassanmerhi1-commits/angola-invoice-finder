@@ -1064,24 +1064,34 @@ app.on('web-contents-created', (event, contents) => {
 ipcMain.handle('backend:getPort', () => backendManager.getPort());
 ipcMain.handle('backend:getStatus', () => backendManager.getStatus());
 
-// Cleanup on quit — stop backend gracefully BEFORE killing WS.
+// Cleanup on quit — stop backend gracefully BEFORE killing WS / pool.
+let isQuittingCleanly = false;
 app.on('before-quit', async (event) => {
-  if (backendManager.getStatus().running) {
-    event.preventDefault();
-    try { await backendManager.stop(); } catch (e) { console.error('[Quit] backend stop failed:', e); }
+  if (isQuittingCleanly) return; // second pass after we re-trigger app.quit()
+  event.preventDefault();
+  isQuittingCleanly = true;
+  try {
+    if (backendManager.getStatus().running) {
+      try { await backendManager.stop(); } catch (e) { console.error('[Quit] backend stop failed:', e); }
+    }
     if (wss) { wss.close(); wss = null; }
     if (wsClient) { wsClient.close(); wsClient = null; }
     if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); }
-  if (purchaseProductPickerWindow && !purchaseProductPickerWindow.isDestroyed()) {
-    purchaseProductPickerWindow.destroy();
-    purchaseProductPickerWindow = null;
+    if (purchaseProductPickerWindow && !purchaseProductPickerWindow.isDestroyed()) {
+      purchaseProductPickerWindow.destroy();
+      purchaseProductPickerWindow = null;
+    }
+    if (purchaseInvoiceWindow && !purchaseInvoiceWindow.isDestroyed()) {
+      purchaseInvoiceWindow.destroy();
+      purchaseInvoiceWindow = null;
+    }
+    resolvePendingProductPicker({ success: false, cancelled: true });
+    if (pool) { try { await pool.end(); } catch (e) {} }
+  } catch (e) {
+    console.error('[Quit] cleanup error:', e);
+  } finally {
+    app.quit();
   }
-  if (purchaseInvoiceWindow && !purchaseInvoiceWindow.isDestroyed()) {
-    purchaseInvoiceWindow.destroy();
-    purchaseInvoiceWindow = null;
-  }
-  resolvePendingProductPicker({ success: false, cancelled: true });
-  if (pool) { try { await pool.end(); } catch (e) {} }
 });
 
 // ============= IPC HANDLERS =============
