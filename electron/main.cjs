@@ -1136,6 +1136,7 @@ app.on('before-quit', async (event) => {
     }
     resolvePendingProductPicker({ success: false, cancelled: true });
     if (pool) { try { await pool.end(); } catch (e) {} }
+    try { backendManager.closeLogStream(); } catch (_) {} // Phase 6: flush log file
   } catch (e) {
     console.error('[Quit] cleanup error:', e);
   } finally {

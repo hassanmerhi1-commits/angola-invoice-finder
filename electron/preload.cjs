@@ -82,6 +82,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('backend:status');
       ipcRenderer.on('backend:status', (_, data) => callback(data));
     },
+    // Phase 6
+    getLogDir: () => ipcRenderer.invoke('backend:getLogDir'),
+    openLogDir: () => ipcRenderer.invoke('backend:openLogDir'),
   },
 
   // App controls
