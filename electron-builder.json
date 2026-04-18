@@ -90,7 +90,10 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Kwanza ERP"
+    "shortcutName": "Kwanza ERP",
+    "include": "build/installer.nsh",
+    "perMachine": true,
+    "allowElevation": true
   },
   "portable": {
     "artifactName": "KwanzaERP-Portable-${version}.${ext}"
