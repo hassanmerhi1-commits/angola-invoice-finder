@@ -434,6 +434,9 @@ export default function Settings() {
 
         {/* Hot Update Settings Card */}
         <HotUpdateSettingsCard />
+
+        {/* Phase 6: Backend logs (Electron only) */}
+        <BackendLogsCard />
       </div>
     </div>
   );
