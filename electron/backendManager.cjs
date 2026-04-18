@@ -216,6 +216,18 @@ function resolveBackendCwd(entryPath) {
   return path.resolve(path.dirname(entryPath), '..');
 }
 
+function buildBackendNodePath() {
+  const candidates = [
+    process.env.NODE_PATH,
+    process.resourcesPath ? path.join(process.resourcesPath, 'runtime-deps', 'node_modules') : null,
+    process.resourcesPath ? path.join(process.resourcesPath, 'app.asar', 'node_modules') : null,
+    process.resourcesPath ? path.join(process.resourcesPath, 'app', 'node_modules') : null,
+    path.join(__dirname, '..', 'node_modules'),
+  ].filter(Boolean);
+
+  return Array.from(new Set(candidates)).join(path.delimiter);
+}
+
 // --------------------------------------------------------------------------
 // 2) Port detection
 // --------------------------------------------------------------------------
@@ -272,6 +284,7 @@ function shouldSpawnForMode(mode) {
 // --------------------------------------------------------------------------
 function spawnBackend(entryPath, port) {
   const cwd = resolveBackendCwd(entryPath);
+  const nodePath = buildBackendNodePath();
 
   // Use Electron's own binary as Node.   ELECTRON_RUN_AS_NODE=1 makes it
   // behave as a bare Node process (no Chromium), so users don't need a
@@ -281,6 +294,7 @@ function spawnBackend(entryPath, port) {
     ELECTRON_RUN_AS_NODE: '1',
     PORT: String(port),
     NODE_ENV: process.env.NODE_ENV || 'production',
+    NODE_PATH: nodePath,
   };
 
   const proc = spawn(process.execPath, [entryPath], {
