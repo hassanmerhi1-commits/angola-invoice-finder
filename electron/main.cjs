@@ -18,6 +18,27 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
+const backendManager = require('./backendManager.cjs');
+
+// ============= SINGLE-INSTANCE LOCK (Phase 2) =============
+// Prevent a second .exe launch from spawning a duplicate Express backend or
+// stealing the same port. Second launch focuses the existing window instead.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  console.log('[Startup] Another Kwanza ERP instance is already running — exiting.');
+  app.quit();
+  process.exit(0);
+}
+app.on('second-instance', () => {
+  if (typeof mainWindow !== 'undefined' && mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
+// Backend port chosen by backendManager — exposed to renderer via preload.
+let backendPort = null;
 
 function requireRuntimeModule(moduleName) {
   const candidates = [
@@ -974,6 +995,19 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   }
 
+  // Inject the auto-spawned backend port into the renderer BEFORE React mounts
+  // so getApiUrl() in src/lib/api/config.ts picks it up on first call.
+  // We re-inject on every load (handles hot-update reloads + navigation).
+  const injectBackendPort = () => {
+    const port = backendManager.getPort();
+    if (port == null) return;
+    mainWindow?.webContents
+      .executeJavaScript(`window.__KWANZA_BACKEND_PORT__ = ${port};`, true)
+      .catch(() => {});
+  };
+  mainWindow.webContents.on('dom-ready', injectBackendPort);
+  mainWindow.webContents.on('did-finish-load', injectBackendPort);
+
   mainWindow.once('ready-to-show', () => {
     setTimeout(() => {
       if (splashWindow) { splashWindow.close(); splashWindow = null; }
@@ -994,6 +1028,36 @@ app.whenReady().then(async () => {
   const dbResult = await initDatabase();
   console.log('[Init] Database result:', dbResult);
 
+  // ===== Phases 1–4: Auto-spawn Express backend =====
+  // Mode mapping:
+  //   - PG connection string in IP file → this PC IS the server → spawn Express here
+  //   - hostname/IP in IP file          → this PC is a CLIENT  → DO NOT spawn
+  //   - IP file missing/invalid         → treat as standalone (spawn, let user fix later)
+  let backendMode = 'unknown';
+  if (dbResult?.mode === 'server') backendMode = 'server';
+  else if (dbResult?.mode === 'client') backendMode = 'client';
+  else if (dbResult?.needsConfig) backendMode = 'standalone';
+
+  try {
+    const spawnResult = await backendManager.start({ mode: backendMode });
+    if (spawnResult.started) {
+      backendPort = spawnResult.port;
+      console.log(`[Init] Backend up on port ${backendPort} (mode=${backendMode})`);
+    } else if (spawnResult.skipped) {
+      console.log(`[Init] Backend spawn skipped (${spawnResult.reason}) — using remote server`);
+    } else if (spawnResult.error) {
+      console.warn(`[Init] Backend spawn failed: ${spawnResult.error}`);
+      // Surface to renderer once it's ready so the user gets a clear message
+      const send = () => mainWindow?.webContents.send('backend:status', {
+        ok: false, code: spawnResult.code, error: spawnResult.error,
+      });
+      if (mainWindow?.webContents?.isLoading() === false) send();
+      else mainWindow?.webContents?.once('did-finish-load', send);
+    }
+  } catch (err) {
+    console.error('[Init] Backend spawn threw:', err);
+  }
+
   // Check for updates (production only)
   const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === 'true';
   if (!isDev) {
@@ -1009,21 +1073,38 @@ app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
 });
 
-// Cleanup on quit
-app.on('before-quit', async () => {
-  if (wss) { wss.close(); wss = null; }
-  if (wsClient) { wsClient.close(); wsClient = null; }
-  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); }
-  if (purchaseProductPickerWindow && !purchaseProductPickerWindow.isDestroyed()) {
-    purchaseProductPickerWindow.destroy();
-    purchaseProductPickerWindow = null;
+// Renderer needs to know which port the backend bound (3000..3009).
+ipcMain.handle('backend:getPort', () => backendManager.getPort());
+ipcMain.handle('backend:getStatus', () => backendManager.getStatus());
+
+// Cleanup on quit — stop backend gracefully BEFORE killing WS / pool.
+let isQuittingCleanly = false;
+app.on('before-quit', async (event) => {
+  if (isQuittingCleanly) return; // second pass after we re-trigger app.quit()
+  event.preventDefault();
+  isQuittingCleanly = true;
+  try {
+    if (backendManager.getStatus().running) {
+      try { await backendManager.stop(); } catch (e) { console.error('[Quit] backend stop failed:', e); }
+    }
+    if (wss) { wss.close(); wss = null; }
+    if (wsClient) { wsClient.close(); wsClient = null; }
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); }
+    if (purchaseProductPickerWindow && !purchaseProductPickerWindow.isDestroyed()) {
+      purchaseProductPickerWindow.destroy();
+      purchaseProductPickerWindow = null;
+    }
+    if (purchaseInvoiceWindow && !purchaseInvoiceWindow.isDestroyed()) {
+      purchaseInvoiceWindow.destroy();
+      purchaseInvoiceWindow = null;
+    }
+    resolvePendingProductPicker({ success: false, cancelled: true });
+    if (pool) { try { await pool.end(); } catch (e) {} }
+  } catch (e) {
+    console.error('[Quit] cleanup error:', e);
+  } finally {
+    app.quit();
   }
-  if (purchaseInvoiceWindow && !purchaseInvoiceWindow.isDestroyed()) {
-    purchaseInvoiceWindow.destroy();
-    purchaseInvoiceWindow = null;
-  }
-  resolvePendingProductPicker({ success: false, cancelled: true });
-  if (pool) { try { await pool.end(); } catch (e) {} }
 });
 
 // ============= IPC HANDLERS =============

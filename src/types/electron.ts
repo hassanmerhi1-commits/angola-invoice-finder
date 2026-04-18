@@ -142,6 +142,13 @@ export interface ElectronAPI {
     html: (html: string, options?: { silent?: boolean }) => Promise<{ success: boolean; error?: string }>;
   };
 
+  // Auto-spawned Express backend (Option A)
+  backend?: {
+    getPort: () => Promise<number | null>;
+    getStatus: () => Promise<{ running: boolean; port: number | null; mode: string; dockerOk: boolean }>;
+    onStatus: (callback: (data: { ok: boolean; code?: string; error?: string }) => void) => void;
+  };
+
   // App
   app: {
     relaunch: () => Promise<void>;

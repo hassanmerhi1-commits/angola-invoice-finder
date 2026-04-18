@@ -74,6 +74,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     html: (html, options) => ipcRenderer.invoke('print:html', html, options),
   },
 
+  // Backend (auto-spawned Express child process — Option A)
+  backend: {
+    getPort: () => ipcRenderer.invoke('backend:getPort'),
+    getStatus: () => ipcRenderer.invoke('backend:getStatus'),
+    onStatus: (callback) => {
+      ipcRenderer.removeAllListeners('backend:status');
+      ipcRenderer.on('backend:status', (_, data) => callback(data));
+    },
+  },
+
   // App controls
   app: {
     relaunch: () => ipcRenderer.invoke('app:relaunch'),

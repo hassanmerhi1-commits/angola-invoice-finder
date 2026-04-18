@@ -22,11 +22,17 @@ export function isDemoMode(): boolean {
   return _isDemoMode;
 }
 
-// Get API URL from localStorage or use default
+// Get API URL from localStorage or use default.
+// In Electron, prefer the dynamic port chosen by backendManager (3000..3009),
+// injected as window.__KWANZA_BACKEND_PORT__ before the React app loads.
 export function getApiUrl(): string {
   if (typeof window !== 'undefined') {
     const savedUrl = localStorage.getItem('kwanza_api_url');
     if (savedUrl) return savedUrl;
+    const dynamicPort = (window as any).__KWANZA_BACKEND_PORT__;
+    if (typeof dynamicPort === 'number' && dynamicPort > 0) {
+      return `http://localhost:${dynamicPort}`;
+    }
   }
   return DEFAULT_API_URL;
 }
