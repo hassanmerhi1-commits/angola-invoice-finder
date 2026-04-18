@@ -43,6 +43,10 @@ const HEALTH_FAILS_BEFORE_RESTART = 3;  // 3 consecutive misses → restart
 const RESTART_BACKOFF_MS = 2000;        // wait between restart attempts
 const MAX_RESTART_ATTEMPTS = 3;         // give up after this many in a row
 
+// Phase 6: log retention
+const LOG_RETENTION_DAYS = 30;
+const LOG_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // sweep every 6h while app runs
+
 let childProc = null;
 let boundPort = null;
 let lastMode = 'unknown';
@@ -56,6 +60,12 @@ let isRestarting = false;
 let statusListener = null;          // (status) => void  set by main.cjs
 let lastHealthState = null;         // dedupe identical 'healthy' emits
 
+// Phase 6 state
+let logDir = null;                  // set by main.cjs via setLogDir()
+let logStream = null;               // current day's WriteStream
+let logStreamDate = null;           // 'YYYY-MM-DD' the stream was opened for
+let logCleanupTimer = null;
+
 function setStatusListener(fn) {
   statusListener = typeof fn === 'function' ? fn : null;
 }
@@ -66,7 +76,121 @@ function emitStatus(event) {
   // Dedupe back-to-back 'healthy' so we don't fire a toast every 30s.
   if (payload.state === 'healthy' && lastHealthState === 'healthy') return;
   lastHealthState = payload.state;
+  // Phase 6: persist status events to today's log too.
+  try { writeLog(logStream, 'status', Buffer.from(`${payload.state}${payload.detail ? ' — ' + payload.detail : ''}`)); } catch (_) {}
   try { statusListener && statusListener(payload); } catch (_) {}
+}
+
+// --------------------------------------------------------------------------
+// Phase 6: rotating log files
+//   - File: <logDir>/backend-YYYY-MM-DD.log  (one per local-time day)
+//   - Both stdout and stderr are tee'd: console (for Electron logs) + file.
+//   - Stream is reopened automatically when the date rolls over.
+//   - Files older than LOG_RETENTION_DAYS days are deleted on a 6h sweep.
+//   - All file I/O is best-effort: a failure to write a log line must NEVER
+//     crash the backend lifecycle.
+// --------------------------------------------------------------------------
+function setLogDir(dir) {
+  if (!dir) return;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    logDir = dir;
+    // Sweep once on init, then on a slow timer.
+    sweepOldLogs();
+    if (!logCleanupTimer) {
+      logCleanupTimer = setInterval(sweepOldLogs, LOG_CLEANUP_INTERVAL_MS);
+      if (logCleanupTimer.unref) logCleanupTimer.unref();
+    }
+    console.log(`[BackendManager] log dir: ${logDir}`);
+  } catch (e) {
+    console.error('[BackendManager] failed to init log dir:', e?.message || e);
+    logDir = null;
+  }
+}
+
+function getLogDir() {
+  return logDir;
+}
+
+function todayStamp() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function ensureLogStream() {
+  if (!logDir) return null;
+  const stamp = todayStamp();
+  if (logStream && logStreamDate === stamp) return logStream;
+
+  // Date rolled or first open — close prior stream and open new.
+  if (logStream) {
+    try { logStream.end(); } catch (_) {}
+    logStream = null;
+  }
+  try {
+    const file = path.join(logDir, `backend-${stamp}.log`);
+    logStream = fs.createWriteStream(file, { flags: 'a', encoding: 'utf8' });
+    logStream.on('error', (err) => {
+      console.error('[BackendManager] log stream error:', err?.message || err);
+      try { logStream && logStream.end(); } catch (_) {}
+      logStream = null;
+    });
+    logStreamDate = stamp;
+    // Header on rollover so the file is self-describing.
+    logStream.write(`\n===== Kwanza ERP backend log opened ${new Date().toISOString()} =====\n`);
+  } catch (e) {
+    console.error('[BackendManager] failed to open log file:', e?.message || e);
+    logStream = null;
+  }
+  return logStream;
+}
+
+function writeLog(stream, prefix, chunk) {
+  const s = ensureLogStream();
+  if (!s) return;
+  try {
+    const text = chunk.toString('utf8');
+    // Prefix every line with a timestamp + stream tag so debugging is sane.
+    const ts = new Date().toISOString();
+    const lines = text.split(/\r?\n/);
+    // Drop the trailing empty string from a final newline so we don't write blank lines.
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    for (const line of lines) {
+      s.write(`${ts} [${prefix}] ${line}\n`);
+    }
+  } catch (_) { /* swallow */ }
+}
+
+function sweepOldLogs() {
+  if (!logDir) return;
+  fs.readdir(logDir, (err, files) => {
+    if (err) return;
+    const cutoff = Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    for (const name of files) {
+      // Only touch our own files; never wipe foreign content.
+      const m = /^backend-(\d{4})-(\d{2})-(\d{2})\.log$/.exec(name);
+      if (!m) continue;
+      const fileDate = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`).getTime();
+      if (Number.isFinite(fileDate) && fileDate < cutoff) {
+        fs.unlink(path.join(logDir, name), () => {});
+      }
+    }
+  });
+}
+
+function closeLogStream() {
+  if (logStream) {
+    try { logStream.end(); } catch (_) {}
+    logStream = null;
+    logStreamDate = null;
+  }
+  if (logCleanupTimer) {
+    clearInterval(logCleanupTimer);
+    logCleanupTimer = null;
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -168,12 +292,16 @@ function spawnBackend(entryPath, port) {
 
   proc.stdout.on('data', (chunk) => {
     process.stdout.write(`[backend] ${chunk}`);
+    writeLog(logStream, 'stdout', chunk);
   });
   proc.stderr.on('data', (chunk) => {
     process.stderr.write(`[backend!] ${chunk}`);
+    writeLog(logStream, 'stderr', chunk);
   });
   proc.on('exit', (code, signal) => {
-    console.log(`[BackendManager] child exited code=${code} signal=${signal}`);
+    const msg = `[BackendManager] child exited code=${code} signal=${signal}`;
+    console.log(msg);
+    writeLog(logStream, 'lifecycle', Buffer.from(msg));
     if (childProc === proc) {
       childProc = null;
       boundPort = null;
@@ -409,4 +537,6 @@ module.exports = {
   start, stop, getPort, getStatus,
   probeDockerPostgres, findFreePort,
   setStatusListener,
+  // Phase 6
+  setLogDir, getLogDir, closeLogStream,
 };

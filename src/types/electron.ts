@@ -142,7 +142,7 @@ export interface ElectronAPI {
     html: (html: string, options?: { silent?: boolean }) => Promise<{ success: boolean; error?: string }>;
   };
 
-  // Auto-spawned Express backend (Option A, phases 1–5)
+  // Auto-spawned Express backend (Option A, phases 1–6)
   backend?: {
     getPort: () => Promise<number | null>;
     getStatus: () => Promise<{ running: boolean; port: number | null; mode: string; dockerOk: boolean }>;
@@ -156,6 +156,9 @@ export interface ElectronAPI {
       attempts?: number;
       ts?: number;
     }) => void) => void;
+    // Phase 6
+    getLogDir: () => Promise<string | null>;
+    openLogDir: () => Promise<{ success: boolean; path?: string; error?: string }>;
   };
 
   // App
