@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "com.kwanza.erp",
+  "appId": "com.nexor.erp",
   "productName": "NEXOR ERP",
-  "copyright": "Copyright © 2024 NEXOR ERP",
+  "copyright": "Copyright © 2026 NEXOR ERP",
   "directories": {
     "output": "release",
     "buildResources": "build"
