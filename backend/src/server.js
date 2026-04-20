@@ -55,8 +55,9 @@ if (!fs.existsSync(webappPath)) {
 // Serve static files from webapp folder
 app.use('/app', express.static(webappPath));
 
-// Serve index.html for SPA routing (any /app/* route)
-app.get('/app/*', (req, res) => {
+// Serve index.html for SPA routing under /app on Express/path-to-regexp versions
+// that reject bare wildcard strings like '/app/*'.
+app.get(/^\/app(?:\/.*)?$/, (req, res) => {
   const indexPath = path.join(webappPath, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
