@@ -486,7 +486,7 @@ export function NetworkSettingsCard() {
               <div className="text-center">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  Procurando servidores Kwanza ERP na rede...
+                  Procurando servidores NEXOR ERP na rede...
                 </p>
               </div>
             </div>

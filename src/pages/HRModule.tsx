@@ -1,4 +1,4 @@
-// Kwanza ERP - HR Module Page
+// NEXOR ERP - HR Module Page
 // Employee management, attendance, payroll, leaves
 
 import { useState, useMemo } from 'react';

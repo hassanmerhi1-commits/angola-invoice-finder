@@ -141,10 +141,11 @@ export default function Setup() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="mx-auto w-20 h-20 rounded-2xl bg-primary flex items-center justify-center mb-4">
-            <span className="text-primary-foreground font-bold text-4xl">K</span>
+            <span className="text-primary-foreground font-bold text-4xl">N</span>
           </div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Kwanza ERP</h1>
-          <p className="text-muted-foreground text-lg">Configuração Inicial</p>
+          <h1 className="text-4xl font-bold text-foreground mb-2">NEXOR ERP</h1>
+          <p className="text-muted-foreground text-lg">O futuro é construído com nós</p>
+          <p className="text-muted-foreground text-sm mt-1">Configuração Inicial</p>
         </div>
 
         {/* Mode Selection */}

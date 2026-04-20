@@ -1,5 +1,5 @@
 /**
- * Kwanza ERP - Core Business Logic Hooks
+ * NEXOR ERP - Core Business Logic Hooks
  * 
  * API-First architecture: All hooks try the backend API first,
  * falling back to localStorage for web preview / demo mode.

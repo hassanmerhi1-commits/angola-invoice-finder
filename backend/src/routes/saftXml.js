@@ -93,7 +93,7 @@ module.exports = function(saftJsonRouter) {
             TaxEntity: 'Global',
             ProductCompanyTaxID: '000000000',
             SoftwareCertificateNumber: '0000',
-            ProductID: 'Kwanza ERP',
+            ProductID: 'NEXOR ERP',
             ProductVersion: '2.0',
           },
           MasterFiles: {

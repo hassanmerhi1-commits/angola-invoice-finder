@@ -1,4 +1,4 @@
-// Kwanza ERP - A4 Document PDF Generator
+// NEXOR ERP - A4 Document PDF Generator
 // Angolan-standard professional invoice layout matching AGT requirements
 
 import { ERPDocument, DOCUMENT_TYPE_CONFIG, DocumentLine } from '@/types/documents';
@@ -198,7 +198,7 @@ export function generateDocumentHTML(doc: ERPDocument, options: PDFOptions = {})
   <!-- HEADER -->
   <div class="header">
     <div class="company-block">
-      <div class="company-name">${company.name || company.tradeName || 'Kwanza ERP'}</div>
+      <div class="company-name">${company.name || company.tradeName || 'NEXOR ERP'}</div>
       ${company.logo ? `<div style="margin-bottom: 4px;"><img src="${company.logo}" alt="Logo" style="max-height: 50px; max-width: 160px; object-fit: contain;"></div>` : ''}
       <div class="company-detail">
         <span>Contribuinte N.º:</span> ${company.nif || ''}<br>

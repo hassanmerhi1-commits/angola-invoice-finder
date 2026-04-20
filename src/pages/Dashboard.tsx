@@ -1,4 +1,4 @@
-// Kwanza ERP Dashboard - With Real KPIs and Financial Charts
+// NEXOR ERP Dashboard - With Real KPIs and Financial Charts
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBranchContext } from '@/contexts/BranchContext';

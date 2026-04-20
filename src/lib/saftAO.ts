@@ -224,7 +224,7 @@ function buildHeader(
     TaxEntity: 'Global',
     ProductCompanyTaxID: company.nif,
     SoftwareCertificateNumber: company.agtCertificateNumber || 'SW/AGT/0000/0000',
-    ProductID: 'Kwanza ERP',
+    ProductID: 'NEXOR ERP',
     ProductVersion: company.softwareVersion || '1.0.0',
     HeaderComment: `SAF-T AO Export - ${company.name}`,
     Telephone: company.phone,

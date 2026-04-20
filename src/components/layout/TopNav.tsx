@@ -1,4 +1,4 @@
-// Kwanza ERP - Modern Top Navigation
+// NEXOR ERP - Modern Top Navigation
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Branch, User } from '@/types/erp';

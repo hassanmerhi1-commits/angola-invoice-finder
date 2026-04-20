@@ -1,73 +1,52 @@
-# Welcome to your Lovable project
+# NEXOR ERP
 
-## Project info
+> **O futuro é construído com nós** — *The future is built with us*
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+A premium, AGT-compliant ERP/POS for the Angolan market. Local-first Electron desktop app powered by PostgreSQL (Docker) with full SAF-T AO 1.01_01 compliance, multi-branch isolation, double-entry accounting, and real-time LAN sync.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Highlights
 
-**Use Lovable**
+- 🇦🇴 **AGT-Compliant** — SAF-T AO XML export, RSA-SHA256 invoice signing, QR codes, Original/Duplicado labels
+- 💼 **Full ERP** — POS, Inventory (WAC), Purchases, Sales, Accounting, HR/Payroll, Production, Imports
+- 🏬 **Multi-Branch** — Strict Sede/Filial isolation, inter-branch stock transfers, branch-scoped pricing
+- 💱 **Multi-Currency** — Daily exchange rates (USD/EUR/ZAR → AOA), gain/loss tracking
+- 🖨️ **Hardware** — 80mm/58mm thermal printers (USB/Serial), barcode scanners, shelf labels
+- 🔄 **Real-Time Sync** — WebSockets on LAN port 4546 across all clients
+- 🧩 **Single Transaction Engine** — Stock → WAC → Journals → Clearing → Links → Balances (atomic)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Tech Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Frontend:** React 18 · Vite · TypeScript · Tailwind · shadcn/ui
+- **Desktop:** Electron 41 (HashRouter, file:// loading)
+- **Backend:** Node.js + Express + Socket.io · PostgreSQL 16 (Docker)
+- **Build:** electron-builder (NSIS installer + portable .exe)
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Quick Start (Development)
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+git clone <repo>
+npm install
+docker-compose up -d            # Start PostgreSQL
+cd backend && npm install && node src/migrations/run.js && npm start
+cd .. && npm run electron:dev   # Launch Electron + Vite dev server
 ```
 
-**Edit a file directly in GitHub**
+## Build Installer (Windows)
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+build-installer.bat
+```
 
-**Use GitHub Codespaces**
+Outputs: `release/NEXOR-ERP-<version>-x64.exe` (NSIS) + `release/NEXOR-ERP-Portable-<version>.exe`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Documentation
 
-## What technologies are used for this project?
+- [`DESKTOP-APP.md`](./DESKTOP-APP.md) — Desktop packaging
+- [`DOCKER-SETUP.md`](./DOCKER-SETUP.md) — Database setup
+- [`backend/README.md`](./backend/README.md) — Backend server
 
-This project is built with:
+## License
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Copyright © 2026 NEXOR ERP. All rights reserved.

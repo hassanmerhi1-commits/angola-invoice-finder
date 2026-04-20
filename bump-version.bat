@@ -1,5 +1,5 @@
 @echo off
-title Kwanza ERP - Bump Version and Push Tag
+title NEXOR ERP - Bump Version and Push Tag
 color 0E
 
 echo.

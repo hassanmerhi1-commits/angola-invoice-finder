@@ -1,5 +1,5 @@
 ; ============================================================================
-; Kwanza ERP — NSIS installer hooks (Phase 7) — v1.0.34
+; NEXOR ERP — NSIS installer hooks (Phase 7) — v1.0.34
 ; ----------------------------------------------------------------------------
 ; Registers / removes Windows Firewall inbound rules so the auto-spawned
 ; Express backend (ports 3000-3009, see electron/backendManager.cjs) can
@@ -19,7 +19,7 @@
 ; ============================================================================
 
 !macro customInstall
-  DetailPrint "Configuring Windows Firewall for Kwanza ERP backend..."
+  DetailPrint "Configuring Windows Firewall for NEXOR ERP backend..."
 
   ${If} ${RunningX64}
     SetRegView 64
@@ -31,7 +31,7 @@
     nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="KwanzaERP-Backend-$0"'
     Pop $1
 
-    nsExec::ExecToLog 'netsh advfirewall firewall add rule name="KwanzaERP-Backend-$0" dir=in action=allow protocol=TCP localport=$0 profile=private,domain description="Kwanza ERP Express backend (auto-spawned)"'
+    nsExec::ExecToLog 'netsh advfirewall firewall add rule name="KwanzaERP-Backend-$0" dir=in action=allow protocol=TCP localport=$0 profile=private,domain description="NEXOR ERP Express backend (auto-spawned)"'
     Pop $1
     ${If} $1 == 0
       DetailPrint "  + Firewall rule added for TCP port $0"
@@ -47,7 +47,7 @@
 
   nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="KwanzaERP-WS-4546"'
   Pop $1
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="KwanzaERP-WS-4546" dir=in action=allow protocol=UDP localport=4546 profile=private,domain description="Kwanza ERP LAN discovery / realtime sync"'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="KwanzaERP-WS-4546" dir=in action=allow protocol=UDP localport=4546 profile=private,domain description="NEXOR ERP LAN discovery / realtime sync"'
   Pop $1
   ${If} $1 == 0
     DetailPrint "  + Firewall rule added for UDP port 4546 (LAN discovery)"
@@ -57,7 +57,7 @@
 !macroend
 
 !macro customUnInstall
-  DetailPrint "Removing Kwanza ERP firewall rules..."
+  DetailPrint "Removing NEXOR ERP firewall rules..."
 
   Push 3000
   Loop_DelRule:

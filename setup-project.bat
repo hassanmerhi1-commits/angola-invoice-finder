@@ -1,5 +1,5 @@
 @echo off
-title Kwanza ERP - First Time Setup
+title NEXOR ERP - First Time Setup
 color 0E
 
 echo.

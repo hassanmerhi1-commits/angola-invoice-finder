@@ -1,5 +1,5 @@
 /**
- * Accounting Storage for Kwanza ERP
+ * Accounting Storage for NEXOR ERP
  * Handles Caixa, Bank Accounts, Expenses, and Cash Transactions
  * 
  * DUAL-MODE: Electron → SQLite (erp.db) | Web → localStorage

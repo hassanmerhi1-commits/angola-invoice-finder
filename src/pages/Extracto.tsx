@@ -1,4 +1,4 @@
-// Kwanza ERP - Extracto (Account Statement)
+// NEXOR ERP - Extracto (Account Statement)
 // Shows all documents linked to a customer/supplier with running balance
 
 import { useState, useMemo, useEffect } from 'react';

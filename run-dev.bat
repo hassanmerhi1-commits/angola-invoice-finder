@@ -1,5 +1,5 @@
 @echo off
-title Kwanza ERP - Development Mode
+title NEXOR ERP - Development Mode
 color 0B
 
 echo.
@@ -23,7 +23,7 @@ if not exist "node_modules" (
     call npm install
 )
 
-echo [INFO] Starting Kwanza ERP in development mode...
+echo [INFO] Starting NEXOR ERP in development mode...
 echo [INFO] The app will open automatically when ready.
 echo [INFO] Press Ctrl+C to stop.
 echo.

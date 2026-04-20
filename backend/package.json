@@ -1,7 +1,7 @@
 {
-  "name": "kwanza-erp-backend",
+  "name": "nexor-erp-backend",
   "version": "1.0.0",
-  "description": "Kwanza ERP Backend Server - PostgreSQL + WebSocket",
+  "description": "NEXOR ERP Backend Server - PostgreSQL + WebSocket",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

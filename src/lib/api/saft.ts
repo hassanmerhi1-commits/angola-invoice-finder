@@ -146,7 +146,7 @@ function generateSAFTXML(sales: Sale[], company: CompanyInfo, period: string): s
     <TaxEntity>Global</TaxEntity>
     <ProductCompanyTaxID>${company.nif}</ProductCompanyTaxID>
     <SoftwareCertificateNumber>0000</SoftwareCertificateNumber>
-    <ProductID>Kwanza ERP</ProductID>
+    <ProductID>NEXOR ERP</ProductID>
     <ProductVersion>1.0</ProductVersion>
   </Header>
   <MasterFiles>

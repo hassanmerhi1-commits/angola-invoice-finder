@@ -1,4 +1,4 @@
-// Kwanza ERP Faturas/Vouchers workspace
+// NEXOR ERP Faturas/Vouchers workspace
 // Multi-tab document browser with linked conversion flow
 
 import { useState, useMemo, useCallback, useEffect } from 'react';

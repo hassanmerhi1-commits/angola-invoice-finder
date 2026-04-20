@@ -315,7 +315,7 @@ export function DailySalesDetailReport({
         ${printContent.innerHTML}
         <div class="footer">
           <p>Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: pt })}</p>
-          <p>Kwanza ERP - Sistema de Gestão Empresarial</p>
+          <p>NEXOR ERP - Sistema de Gestão Empresarial</p>
         </div>
       </body>
       </html>

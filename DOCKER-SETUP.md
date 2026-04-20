@@ -1,4 +1,4 @@
-# Kwanza ERP - Docker PostgreSQL Setup
+# NEXOR ERP - Docker PostgreSQL Setup
 
 Portable PostgreSQL database using Docker — copy the entire server + data to any PC and start the ERP immediately.
 

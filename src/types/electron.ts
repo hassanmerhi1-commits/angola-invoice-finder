@@ -1,4 +1,4 @@
-// Shared Electron API type definitions - Kwanza ERP
+// Shared Electron API type definitions - NEXOR ERP
 // Matches preload.cjs API exactly
 
 export interface HotUpdateConfig {

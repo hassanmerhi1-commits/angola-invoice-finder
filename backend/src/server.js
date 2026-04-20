@@ -1,4 +1,4 @@
-// Kwanza ERP - Main Server (THE HEART)
+// NEXOR ERP - Main Server (THE HEART)
 // This runs on your main PC and all other computers connect to it
 
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
@@ -17,7 +17,7 @@ const server = http.createServer(app);
 // Server discovery broadcaster
 const PORT = process.env.PORT || 3000;
 const discoveryBroadcaster = new DiscoveryBroadcaster(PORT, {
-  name: process.env.SERVER_NAME || 'Kwanza ERP Server',
+  name: process.env.SERVER_NAME || 'NEXOR ERP Server',
   version: '1.0.0',
   branch: process.env.BRANCH_NAME || null
 });
@@ -237,7 +237,7 @@ app.get('/api/health', async (req, res) => {
   res.json({ 
     status: dbConnected ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    serverName: process.env.SERVER_NAME || 'Kwanza ERP Server',
+    serverName: process.env.SERVER_NAME || 'NEXOR ERP Server',
     version: '1.0.0',
     connectedClients: io.sockets.sockets.size,
     database: {
@@ -259,7 +259,7 @@ app.get('/api/health', async (req, res) => {
 app.get('/api/server-info', (req, res) => {
   const localIPs = discoveryBroadcaster.getLocalIPs();
   res.json({
-    name: process.env.SERVER_NAME || 'Kwanza ERP Server',
+    name: process.env.SERVER_NAME || 'NEXOR ERP Server',
     version: '1.0.0',
     port: PORT,
     hostname: os.hostname(),

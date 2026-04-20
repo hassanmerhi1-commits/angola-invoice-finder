@@ -71,7 +71,8 @@ export const pt: TranslationKeys = {
     loginButton: "Entrar",
     loginError: "Credenciais inválidas",
     welcomeBack: "Bem-vindo de volta",
-    signInToContinue: "Entre para continuar no Kwanza ERP",
+    signInToContinue: "Entre para continuar no NEXOR ERP",
+    tagline: "O futuro é construído com nós",
   },
 
   // Dashboard

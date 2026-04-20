@@ -1,4 +1,4 @@
-// Kwanza ERP - Production Module
+// NEXOR ERP - Production Module
 // BOM, Production Orders, Material Consumption, Finished Goods
 
 import { useState, useMemo } from 'react';

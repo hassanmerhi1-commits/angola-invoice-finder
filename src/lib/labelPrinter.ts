@@ -1,5 +1,5 @@
 /**
- * Label/Barcode Printer Service for Kwanza ERP
+ * Label/Barcode Printer Service for NEXOR ERP
  * Supports printing product labels with barcodes on thermal label printers
  */
 

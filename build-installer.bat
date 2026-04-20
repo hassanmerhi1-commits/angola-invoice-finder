@@ -2,7 +2,7 @@
 :: Always run from the folder where this script lives (project root)
 cd /d "%~dp0"
 
-title Kwanza ERP - Build Installer
+title NEXOR ERP - Build Installer
 color 0A
 
 echo.

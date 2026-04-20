@@ -1,4 +1,4 @@
-// Pro Forma (Orçamento) Types for Kwanza ERP
+// Pro Forma (Orçamento) Types for NEXOR ERP
 
 export interface ProFormaItem {
   id?: string;

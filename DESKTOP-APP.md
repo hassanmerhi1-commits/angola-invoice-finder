@@ -1,6 +1,6 @@
-# Kwanza ERP - Desktop App Setup
+# NEXOR ERP - Desktop App Setup
 
-This guide shows you how to build and run Kwanza ERP as a standalone desktop application (.exe for Windows).
+This guide shows you how to build and run NEXOR ERP as a standalone desktop application (.exe for Windows).
 
 ## Prerequisites
 
