@@ -88,7 +88,11 @@
       }
     ],
     "icon": "build/icon.ico",
-    "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
+    "artifactName": "KwanzaERP-${version}-${arch}.${ext}",
+    "signAndEditExecutable": false,
+    "signtoolOptions": {
+      "sign": null
+    }
   },
   "nsis": {
     "oneClick": false,
