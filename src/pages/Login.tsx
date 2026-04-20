@@ -10,15 +10,85 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Shield } from 'lucide-react';
 import { z } from 'zod';
 import defaultLogo from '/icon.png?url';
-...
+
+const loginSchema = z.object({
+  username: z.string().min(3, 'Username must be at least 3 characters').max(50, 'Username too long'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+export default function Login() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+  const { login } = useAuth();
+  const { companyName, logo } = useCompanyLogo();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+
+    const result = loginSchema.safeParse({ username, password });
+    if (!result.success) {
+      const fieldErrors: { username?: string; password?: string } = {};
+      result.error.errors.forEach(err => {
+        if (err.path[0] === 'username') fieldErrors.username = err.message;
+        if (err.path[0] === 'password') fieldErrors.password = err.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const success = await login(username, password);
+      if (success) {
+        toast({ title: 'Bem-vindo!', description: 'Login efectuado com sucesso.' });
+        navigate('/');
+      } else {
+        toast({ title: 'Erro de Autenticação', description: 'Utilizador ou senha inválidos.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Erro', description: 'Falha na conexão ao servidor.', variant: 'destructive' });
+    }
+    setIsLoading(false);
+  };
+
+  const logoSrc = logo || defaultLogo;
+
+  return (
+    <div className="min-h-screen flex">
+      <div className="hidden lg:flex flex-1 gradient-primary items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-white/20 blur-3xl" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-white/10 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 text-center text-white max-w-md">
           <div className="mx-auto w-24 h-24 rounded-3xl bg-white/10 backdrop-blur-sm flex items-center justify-center mb-8 shadow-xl overflow-hidden">
-            <img src={logo || defaultLogo} alt={companyName} className="w-16 h-16 object-contain" />
+            <img src={logoSrc} alt={companyName} className="w-16 h-16 object-contain" />
           </div>
           <h1 className="text-4xl font-extrabold mb-3 tracking-tight">{companyName}</h1>
-...
+          <p className="text-lg text-white/70 font-medium">O futuro é construído com nós</p>
+          <div className="mt-12 flex items-center justify-center gap-6 text-white/50 text-sm">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4" /> Seguro
+            </div>
+            <div className="w-1 h-1 rounded-full bg-white/30" />
+            <div>Multi-Filial</div>
+            <div className="w-1 h-1 rounded-full bg-white/30" />
+            <div>AGT Compliance</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center p-6 bg-background">
+        <div className="w-full max-w-sm space-y-8">
           <div className="lg:hidden text-center">
             <div className="mx-auto w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mb-4 shadow-glow overflow-hidden">
-              <img src={logo || defaultLogo} alt={companyName} className="w-10 h-10 object-contain" />
+              <img src={logoSrc} alt={companyName} className="w-10 h-10 object-contain" />
             </div>
             <h1 className="text-2xl font-extrabold text-gradient">{companyName}</h1>
           </div>
@@ -42,6 +112,7 @@ import defaultLogo from '/icon.png?url';
               />
               {errors.username && <p className="text-xs text-destructive">{errors.username}</p>}
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm font-semibold">Senha</Label>
               <Input
@@ -55,6 +126,7 @@ import defaultLogo from '/icon.png?url';
               />
               {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
             </div>
+
             <Button type="submit" className="w-full h-11 rounded-xl text-sm font-bold gradient-primary shadow-glow" disabled={isLoading}>
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
