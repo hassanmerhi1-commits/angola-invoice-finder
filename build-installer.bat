@@ -80,7 +80,9 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [5/6] Building Windows installer...
-call npx electron-builder --win
+set CSC_IDENTITY_AUTO_DISCOVERY=false
+set WIN_CSC_LINK=
+call npx electron-builder --win -c.win.signAndEditExecutable=false
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to build installer
     pause
