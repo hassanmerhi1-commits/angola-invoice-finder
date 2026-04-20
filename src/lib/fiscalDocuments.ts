@@ -156,7 +156,7 @@ export function generateTransportDocNumber(branchCode: string): string {
 
 export function getCompanyInfo(): CompanyInfo {
   return getItem<CompanyInfo>(STORAGE_KEYS.companyInfo, {
-    name: 'Empresa Demo, Lda',
+    name: 'NEXOR ERP',
     nif: '5000000000',
     address: 'Rua Principal, 123',
     city: 'Luanda',
@@ -164,7 +164,7 @@ export function getCompanyInfo(): CompanyInfo {
     postalCode: '0000',
     country: 'AO',
     phone: '+244 923 456 789',
-    email: 'info@empresa.ao',
+    email: 'info@nexorerp.co.ao',
     activityCode: '47111',
     fiscalYear: new Date().getFullYear().toString(),
   });
