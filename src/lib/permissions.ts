@@ -1,4 +1,4 @@
-// Kwanza ERP - User Roles & Permissions System
+// NEXOR ERP - User Roles & Permissions System
 // Every button, every tab, every action is permission-controlled
 
 export type UserRole = 'admin' | 'manager' | 'cashier' | 'viewer';

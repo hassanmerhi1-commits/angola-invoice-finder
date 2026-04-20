@@ -1,8 +1,8 @@
 /**
- * Kwanza ERP - Main Process (PostgreSQL Edition)
+ * NEXOR ERP - Main Process (PostgreSQL Edition)
  * 
  * Architecture:
- * - IP file at C:\Kwanza ERP\IP determines mode
+ * - IP file at C:\NEXOR ERP\IP determines mode
  * - Server mode: PostgreSQL connection string → connects to PG, starts WebSocket server
  * - Client mode: server hostname/IP → connects via WebSocket
  * - Auto-updater via GitHub releases
@@ -25,7 +25,7 @@ const backendManager = require('./backendManager.cjs');
 // stealing the same port. Second launch focuses the existing window instead.
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
-  console.log('[Startup] Another Kwanza ERP instance is already running — exiting.');
+  console.log('[Startup] Another NEXOR ERP instance is already running — exiting.');
   app.quit();
   process.exit(0);
 }
@@ -106,7 +106,7 @@ autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.logger = console;
 
 // ============= CONFIGURATION =============
-const INSTALL_DIR = 'C:\\Kwanza ERP';
+const INSTALL_DIR = 'C:\\NEXOR ERP';
 const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
 const COMPANIES_FILE_PATH = path.join(INSTALL_DIR, 'companies.json');
 const WS_PORT = 4546;
@@ -796,7 +796,7 @@ function showRendererRecoveryScreen(targetWindow, message) {
   <html>
     <head>
       <meta charset="utf-8" />
-      <title>Kwanza ERP</title>
+      <title>NEXOR ERP</title>
       <style>
         body { font-family: Segoe UI, Arial, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f7fb; color: #121826; }
         .card { width: min(560px, calc(100vw - 32px)); background: white; border: 1px solid #d9deea; border-radius: 16px; padding: 24px; box-shadow: 0 16px 40px rgba(16,24,40,.08); }
@@ -807,7 +807,7 @@ function showRendererRecoveryScreen(targetWindow, message) {
     </head>
     <body>
       <div class="card">
-        <h1>Kwanza ERP could not load</h1>
+        <h1>NEXOR ERP could not load</h1>
         <p>The desktop app could not open the live update server or packaged app files.</p>
         <p>${String(message || 'Unknown startup error')}</p>
         <code>Tip: disable Hot Updates or start the local backend server on the configured URL.</code>
@@ -971,7 +971,7 @@ function createWindow() {
   });
 
   const menuTemplate = [
-    { label: 'Kwanza ERP', submenu: [
+    { label: 'NEXOR ERP', submenu: [
       { label: 'About', role: 'about' },
       { type: 'separator' },
       { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() }
@@ -1025,9 +1025,9 @@ app.whenReady().then(async () => {
   createWindow();
 
   // Phase 6: initialize backend log directory under userData (cross-platform).
-  // Windows: %APPDATA%\Kwanza ERP\logs
-  // macOS:   ~/Library/Application Support/Kwanza ERP/logs
-  // Linux:   ~/.config/Kwanza ERP/logs
+  // Windows: %APPDATA%\NEXOR ERP\logs
+  // macOS:   ~/Library/Application Support/NEXOR ERP/logs
+  // Linux:   ~/.config/NEXOR ERP/logs
   try {
     const userLogDir = path.join(app.getPath('userData'), 'logs');
     backendManager.setLogDir(userLogDir);
@@ -1551,6 +1551,6 @@ ipcMain.handle('tx:generateInvoiceNumber', async (_, branchCode) => {
   }
 });
 
-console.log('🏢 Kwanza ERP - Main process loaded (Direct PostgreSQL mode)');
+console.log('🏢 NEXOR ERP - Main process loaded (Direct PostgreSQL mode)');
 console.log(`📁 Install directory: ${INSTALL_DIR}`);
 console.log(`📄 IP file: ${IP_FILE_PATH}`);

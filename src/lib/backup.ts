@@ -1,5 +1,5 @@
 /**
- * Backup & Restore for Kwanza ERP
+ * Backup & Restore for NEXOR ERP
  * Exports/imports all localStorage data as JSON
  */
 

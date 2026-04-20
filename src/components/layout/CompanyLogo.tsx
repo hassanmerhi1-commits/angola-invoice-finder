@@ -22,7 +22,7 @@ export function CompanyLogo({ size = 'md', showName = true, subtitle }: CompanyL
         {logo ? (
           <img src={logo} alt={companyName} className="w-full h-full object-contain" />
         ) : (
-          <img src={defaultLogo} alt="Kwanza ERP" className="w-full h-full object-contain p-1" />
+          <img src={defaultLogo} alt="NEXOR ERP" className="w-full h-full object-contain p-1" />
         )}
       </div>
       {showName && (

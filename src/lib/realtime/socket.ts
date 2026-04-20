@@ -1,4 +1,4 @@
-// Real-time WebSocket connection for Kwanza ERP
+// Real-time WebSocket connection for NEXOR ERP
 // This handles live sync from the server - when data changes, ALL clients update instantly
 
 import { getWsUrl } from '../api/config';

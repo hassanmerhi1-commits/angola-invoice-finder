@@ -143,7 +143,7 @@ export default function Setup() {
           <div className="mx-auto w-20 h-20 rounded-2xl bg-primary flex items-center justify-center mb-4">
             <span className="text-primary-foreground font-bold text-4xl">K</span>
           </div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Kwanza ERP</h1>
+          <h1 className="text-4xl font-bold text-foreground mb-2">NEXOR ERP</h1>
           <p className="text-muted-foreground text-lg">Configuração Inicial</p>
         </div>
 

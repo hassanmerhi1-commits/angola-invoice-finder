@@ -1,5 +1,5 @@
 /**
- * Thermal Printer Service for Kwanza ERP
+ * Thermal Printer Service for NEXOR ERP
  * Supports 58mm and 80mm thermal printers (ESC/POS compatible)
  * Works with USB, Serial, and Network printers
  */
@@ -164,7 +164,7 @@ export function generateReceiptText(
   lines.push('');
   lines.push(divider);
   lines.push(center('Documento processado por'));
-  lines.push(center(company.tradeName || company.name || 'Kwanza ERP'));
+  lines.push(center(company.tradeName || company.name || 'NEXOR ERP'));
   lines.push('');
   lines.push(center('Obrigado pela preferencia!'));
   lines.push('');
@@ -276,7 +276,7 @@ export function generateESCPOSReceipt(
   addText('\n');
   addCommand(ESC_POS.ALIGN_CENTER);
   addText('Documento processado por\n');
-  addText((company.tradeName || company.name || 'Kwanza ERP') + '\n\n');
+  addText((company.tradeName || company.name || 'NEXOR ERP') + '\n\n');
   addText('Obrigado pela preferencia!\n');
   
   // Feed and cut
@@ -468,7 +468,7 @@ export async function printViaBrowser(
   <div class="divider"></div>
   
   <div class="footer center">
-    <div>Software: ${company.tradeName || company.name || 'Kwanza ERP'}</div>
+    <div>Software: ${company.tradeName || company.name || 'NEXOR ERP'}</div>
     <div style="font-size: 9px;">Certificado AGT</div>
     <br>
     <div>Obrigado pela preferência!</div>

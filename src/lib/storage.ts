@@ -1,5 +1,5 @@
 /**
- * Kwanza ERP - Storage Layer
+ * NEXOR ERP - Storage Layer
  * 
  * Dual-mode storage:
  * 1. Electron mode: Uses electronAPI.db (SQLite via IPC → WebSocket)

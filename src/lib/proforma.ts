@@ -1,4 +1,4 @@
-// Pro Forma storage and management for Kwanza ERP
+// Pro Forma storage and management for NEXOR ERP
 // DUAL-MODE: Electron → SQLite | Web → localStorage
 import { ProForma, ProFormaItem } from '@/types/proforma';
 import { isElectronMode, dbGetAll, dbInsert, dbDelete as dbDeleteRow, lsGet, lsSet } from '@/lib/dbHelper';

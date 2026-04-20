@@ -3,13 +3,13 @@ import { getCompanySettings } from '@/lib/companySettings';
 
 export function useCompanyLogo() {
   const [logo, setLogo] = useState<string | null>(null);
-  const [companyName, setCompanyName] = useState('Kwanza ERP');
+  const [companyName, setCompanyName] = useState('NEXOR ERP');
 
   useEffect(() => {
     const loadSettings = () => {
       const settings = getCompanySettings();
       setLogo(settings.logo || null);
-      setCompanyName(settings.tradeName || settings.name || 'Kwanza ERP');
+      setCompanyName(settings.tradeName || settings.name || 'NEXOR ERP');
     };
     loadSettings();
     // Listen for storage changes (when settings are saved)

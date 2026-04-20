@@ -1,5 +1,5 @@
 /**
- * Kwanza ERP - Preload Script
+ * NEXOR ERP - Preload Script
  * 
  * Clean IPC API matching PayrollAO architecture.
  * All database operations transparently routed through main process
@@ -139,4 +139,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
 });
 
-console.log('🏢 Kwanza ERP running in Electron desktop mode');
+console.log('🏢 NEXOR ERP running in Electron desktop mode');

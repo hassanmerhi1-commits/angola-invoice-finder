@@ -1,5 +1,5 @@
 /**
- * Company Settings Management for Kwanza ERP
+ * Company Settings Management for NEXOR ERP
  * Stores company information for invoices and receipts
  */
 
@@ -53,7 +53,7 @@ const STORAGE_KEY = 'kwanza_company_settings';
 
 const DEFAULT_SETTINGS: CompanySettings = {
   name: 'Empresa Demo, Lda',
-  tradeName: 'Kwanza ERP Demo',
+  tradeName: 'NEXOR ERP Demo',
   nif: '5000000000',
   address: 'Rua Comandante Gika, 123',
   city: 'Luanda',

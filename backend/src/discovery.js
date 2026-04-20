@@ -1,4 +1,4 @@
-// Kwanza ERP - Server Discovery Broadcaster
+// NEXOR ERP - Server Discovery Broadcaster
 // Responds to discovery requests from clients on the local network
 
 const dgram = require('dgram');
@@ -11,7 +11,7 @@ const DISCOVERY_RESPONSE = 'KWANZA_ERP_SERVER';
 class DiscoveryBroadcaster {
   constructor(serverPort, options = {}) {
     this.serverPort = serverPort;
-    this.serverName = options.name || 'Kwanza ERP Server';
+    this.serverName = options.name || 'NEXOR ERP Server';
     this.version = options.version || '1.0.0';
     this.branch = options.branch || null;
     this.socket = null;

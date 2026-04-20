@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Kwanza ERP - Electron Setup Script
+ * NEXOR ERP - Electron Setup Script
  * 
  * Run this ONCE after cloning:
  *   node setup-electron.js
@@ -14,7 +14,7 @@ const path = require('path');
 
 const packageJsonPath = path.join(__dirname, 'package.json');
 
-console.log('🚀 Setting up Kwanza ERP Desktop App...\n');
+console.log('🚀 Setting up NEXOR ERP Desktop App...\n');
 
 // Read current package.json
 let packageJson;

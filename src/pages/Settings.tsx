@@ -210,7 +210,7 @@ export default function Settings() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Application</span>
-              <span className="font-medium">Kwanza ERP</span>
+              <span className="font-medium">NEXOR ERP</span>
             </div>
             <Separator />
             <div className="flex items-center justify-between">

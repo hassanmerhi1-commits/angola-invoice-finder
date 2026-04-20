@@ -1,5 +1,5 @@
 /**
- * Kwanza ERP — Backend Manager (Option A, Phases 1–4)
+ * NEXOR ERP — Backend Manager (Option A, Phases 1–4)
  *
  * Responsibilities:
  *   1. Spawn the Express backend (backend/src/server.js) as a child process
@@ -140,7 +140,7 @@ function ensureLogStream() {
     });
     logStreamDate = stamp;
     // Header on rollover so the file is self-describing.
-    logStream.write(`\n===== Kwanza ERP backend log opened ${new Date().toISOString()} =====\n`);
+    logStream.write(`\n===== NEXOR ERP backend log opened ${new Date().toISOString()} =====\n`);
   } catch (e) {
     console.error('[BackendManager] failed to open log file:', e?.message || e);
     logStream = null;
@@ -287,7 +287,7 @@ function spawnBackend(entryPath, port) {
   const nodePath = buildBackendNodePath();
 
   // CRITICAL: Always use the Electron executable (never system node).
-  // app.getPath('exe') returns the Kwanza ERP.exe path even on Windows
+  // app.getPath('exe') returns the NEXOR ERP.exe path even on Windows
   // where PATH might shadow with system node v24 — that previously caused
   // "Cannot find module 'dotenv'" because system Node can't see the
   // bundled backend node_modules.

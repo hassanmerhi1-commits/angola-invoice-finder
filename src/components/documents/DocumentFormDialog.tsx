@@ -1,4 +1,4 @@
-// Kwanza ERP Document Creation/Edit Dialog
+// NEXOR ERP Document Creation/Edit Dialog
 // Used for all document types: Proforma, Fatura, Recibo, Pagamento, etc.
 
 import { useState, useEffect, useMemo } from 'react';

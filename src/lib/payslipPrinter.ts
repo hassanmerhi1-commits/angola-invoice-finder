@@ -51,7 +51,7 @@ export function generatePayslipHTML(entry: PayrollEntry, employee?: Employee): s
 <div class="slip">
   <div class="header">
     <div>
-      <div class="company-name">${company.name || 'Kwanza ERP'}</div>
+      <div class="company-name">${company.name || 'NEXOR ERP'}</div>
       <div class="company-info">
         ${company.address ? company.address + '<br>' : ''}
         ${company.nif ? 'NIF: ' + company.nif : ''} ${company.phone ? ' | Tel: ' + company.phone : ''}
@@ -113,7 +113,7 @@ export function generatePayslipHTML(entry: PayrollEntry, employee?: Employee): s
   </div>
 
   <div class="legal">
-    Documento processado por ${company.name || 'Kwanza ERP'} • Este recibo é válido como comprovativo de pagamento
+    Documento processado por ${company.name || 'NEXOR ERP'} • Este recibo é válido como comprovativo de pagamento
   </div>
 </div>
 </body></html>`;

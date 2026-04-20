@@ -1,5 +1,5 @@
 /**
- * A4 Pro Forma Printer for Kwanza ERP
+ * A4 Pro Forma Printer for NEXOR ERP
  * Generates professional A4 pro forma documents
  */
 

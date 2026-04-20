@@ -69,7 +69,7 @@ export const en = {
     loginButton: "Sign In",
     loginError: "Invalid credentials",
     welcomeBack: "Welcome back",
-    signInToContinue: "Sign in to continue to Kwanza ERP",
+    signInToContinue: "Sign in to continue to NEXOR ERP",
   },
 
   // Dashboard

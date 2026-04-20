@@ -1,5 +1,5 @@
 import { generateId } from '@/lib/utils';
-// Pro Forma hook for Kwanza ERP — API-First
+// Pro Forma hook for NEXOR ERP — API-First
 import { useState, useCallback, useEffect } from 'react';
 import { ProForma, ProFormaItem } from '@/types/proforma';
 import { Product, Sale, SaleItem } from '@/types/erp';

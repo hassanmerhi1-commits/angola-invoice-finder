@@ -1,4 +1,4 @@
-// Kwanza ERP - HR Module Types
+// NEXOR ERP - HR Module Types
 
 export interface Employee {
   id: string;

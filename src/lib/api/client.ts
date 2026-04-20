@@ -1,5 +1,5 @@
 import { generateId } from '@/lib/utils';
-// Kwanza ERP API Client — API-first transaction routing
+// NEXOR ERP API Client — API-first transaction routing
 // Transactional writes always use the backend HTTP API so browser and desktop share the same execution path
 // Electron IPC stays available only for desktop-only utilities and non-transactional reads
 

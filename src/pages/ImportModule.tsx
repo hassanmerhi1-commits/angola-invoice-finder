@@ -1,4 +1,4 @@
-// Kwanza ERP - Import/Export (Importação) Module
+// NEXOR ERP - Import/Export (Importação) Module
 // Customs, shipping, landed cost, forex
 
 import { useState, useMemo } from 'react';

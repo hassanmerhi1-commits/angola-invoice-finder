@@ -1,5 +1,5 @@
 /**
- * A4 Invoice Printer for Kwanza ERP
+ * A4 Invoice Printer for NEXOR ERP
  * Generates professional A4 invoices with company branding and AGT QR code
  */
 
@@ -583,7 +583,7 @@ export async function generateA4InvoiceHTML(
       <p>${company.footerText || 'Obrigado pela preferência!'}</p>
       <p>${company.website ? `www: ${company.website}` : ''} ${company.email ? `| email: ${company.email}` : ''}</p>
       <div class="software-info">
-        Documento emitido por ${company.tradeName || company.name || 'Kwanza ERP'} v${company.softwareVersion || '1.0.0'} - Software certificado AGT
+        Documento emitido por ${company.tradeName || company.name || 'NEXOR ERP'} v${company.softwareVersion || '1.0.0'} - Software certificado AGT
       </div>
     </div>
   </div>

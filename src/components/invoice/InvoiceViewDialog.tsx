@@ -243,7 +243,7 @@ export function InvoiceViewDialog({
 
           {/* Footer */}
           <div className="p-4 border-t text-center text-xs text-gray-500">
-            <p>Documento processado por programa certificado AGT - {company.tradeName || company.name || 'Kwanza ERP'}</p>
+            <p>Documento processado por programa certificado AGT - {company.tradeName || company.name || 'NEXOR ERP'}</p>
             <p className="mt-1">Este documento não serve como fatura para efeitos fiscais sem validação AGT</p>
           </div>
         </div>

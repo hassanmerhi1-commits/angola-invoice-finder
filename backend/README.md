@@ -1,6 +1,6 @@
-# Kwanza ERP - Backend Server
+# NEXOR ERP - Backend Server
 
-This is the backend server for Kwanza ERP. Run this on your **main server PC** (the "heart" of your system).
+This is the backend server for NEXOR ERP. Run this on your **main server PC** (the "heart" of your system).
 
 ## Requirements
 
