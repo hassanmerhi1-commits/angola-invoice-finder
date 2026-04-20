@@ -54,9 +54,17 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [3/5] Installing backend dependencies...
-call npm --prefix backend install
+call npm --prefix backend install --omit=dev
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to install backend dependencies
+    pause
+    exit /b 1
+)
+
+:: Verify dotenv landed (the dependency that previously broke the installer)
+if not exist "backend\node_modules\dotenv\package.json" (
+    echo [ERROR] backend\node_modules\dotenv is missing after install.
+    echo The installer would ship a broken backend. Aborting.
     pause
     exit /b 1
 )
