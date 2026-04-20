@@ -72,6 +72,7 @@ export const pt: TranslationKeys = {
     loginError: "Credenciais inválidas",
     welcomeBack: "Bem-vindo de volta",
     signInToContinue: "Entre para continuar no NEXOR ERP",
+    tagline: "O futuro é construído com nós",
   },
 
   // Dashboard

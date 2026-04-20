@@ -70,6 +70,7 @@ export const en = {
     loginError: "Invalid credentials",
     welcomeBack: "Welcome back",
     signInToContinue: "Sign in to continue to NEXOR ERP",
+    tagline: "The future is built with us",
   },
 
   // Dashboard
