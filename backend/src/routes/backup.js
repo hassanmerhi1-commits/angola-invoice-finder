@@ -3,16 +3,37 @@ const express = require('express');
 const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 module.exports = function(broadcastTable) {
   const router = express.Router();
 
-  const BACKUP_DIR = process.env.BACKUP_DIR || path.resolve(__dirname, '../../backups');
+  function resolveBackupDir() {
+    const candidates = [
+      process.env.BACKUP_DIR,
+      process.platform === 'win32'
+        ? path.join(process.env.APPDATA || process.env.LOCALAPPDATA || os.homedir(), 'NEXOR ERP', 'backups')
+        : path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'nexor-erp', 'backups'),
+      path.join(os.homedir(), 'NEXOR ERP', 'backups'),
+      path.resolve(process.cwd(), 'backups'),
+      path.resolve(__dirname, '../../backups'),
+    ].filter(Boolean);
 
-  // Ensure backup directory exists
-  if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    for (const candidate of candidates) {
+      try {
+        fs.mkdirSync(candidate, { recursive: true });
+        return candidate;
+      } catch (error) {
+        console.warn(`[BACKUP] Cannot use backup directory ${candidate}: ${error.message}`);
+      }
+    }
+
+    throw new Error('No writable backup directory available');
   }
+
+  const BACKUP_DIR = resolveBackupDir();
+
+  console.log(`[BACKUP] Using backup directory: ${BACKUP_DIR}`);
 
   // Build pg_dump connection args from env
   function getPgArgs() {
