@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { LogIn, Shield } from 'lucide-react';
 import { z } from 'zod';
+import defaultLogo from '/icon.png?url';
 
 const loginSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(50, 'Username too long'),
@@ -44,40 +45,37 @@ export default function Login() {
     try {
       const success = await login(username, password);
       if (success) {
-        toast({ title: "Bem-vindo!", description: "Login efectuado com sucesso." });
+        toast({ title: 'Bem-vindo!', description: 'Login efectuado com sucesso.' });
         navigate('/');
       } else {
-        toast({ title: "Erro de Autenticação", description: "Utilizador ou senha inválidos.", variant: "destructive" });
+        toast({ title: 'Erro de Autenticação', description: 'Utilizador ou senha inválidos.', variant: 'destructive' });
       }
     } catch {
-      toast({ title: "Erro", description: "Falha na conexão ao servidor.", variant: "destructive" });
+      toast({ title: 'Erro', description: 'Falha na conexão ao servidor.', variant: 'destructive' });
     }
     setIsLoading(false);
   };
 
+  const logoSrc = logo || defaultLogo;
+
   return (
     <div className="min-h-screen flex">
-      {/* Left - Branding */}
       <div className="hidden lg:flex flex-1 gradient-primary items-center justify-center p-12 relative overflow-hidden">
-        {/* Background decorations */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-white/20 blur-3xl" />
           <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-white/10 blur-3xl" />
         </div>
+
         <div className="relative z-10 text-center text-white max-w-md">
-          <div className="mx-auto w-24 h-24 rounded-3xl bg-white/10 backdrop-blur-sm flex items-center justify-center mb-8 shadow-xl">
-            {logo ? (
-              <img src={logo} alt={companyName} className="w-16 h-16 object-contain" />
-            ) : (
-              <span className="text-5xl font-extrabold">N</span>
-            )}
+          <div className="mx-auto w-24 h-24 rounded-3xl bg-white/10 backdrop-blur-sm flex items-center justify-center mb-8 shadow-xl overflow-hidden">
+            <img src={logoSrc} alt={companyName} className="w-16 h-16 object-contain" />
           </div>
           <h1 className="text-4xl font-extrabold mb-3 tracking-tight">{companyName}</h1>
-          <p className="text-lg text-white/70 font-medium">
-            O futuro é construído com nós
-          </p>
+          <p className="text-lg text-white/70 font-medium">O futuro é construído com nós</p>
           <div className="mt-12 flex items-center justify-center gap-6 text-white/50 text-sm">
-            <div className="flex items-center gap-2"><Shield className="w-4 h-4" /> Seguro</div>
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4" /> Seguro
+            </div>
             <div className="w-1 h-1 rounded-full bg-white/30" />
             <div>Multi-Filial</div>
             <div className="w-1 h-1 rounded-full bg-white/30" />
@@ -86,17 +84,11 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right - Login Form */}
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <div className="w-full max-w-sm space-y-8">
-          {/* Mobile logo */}
           <div className="lg:hidden text-center">
-            <div className="mx-auto w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mb-4 shadow-glow">
-              {logo ? (
-                <img src={logo} alt={companyName} className="w-10 h-10 object-contain" />
-              ) : (
-                <span className="text-primary-foreground font-extrabold text-2xl">N</span>
-              )}
+            <div className="mx-auto w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mb-4 shadow-glow overflow-hidden">
+              <img src={logoSrc} alt={companyName} className="w-10 h-10 object-contain" />
             </div>
             <h1 className="text-2xl font-extrabold text-gradient">{companyName}</h1>
           </div>
@@ -120,6 +112,7 @@ export default function Login() {
               />
               {errors.username && <p className="text-xs text-destructive">{errors.username}</p>}
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm font-semibold">Senha</Label>
               <Input
@@ -133,6 +126,7 @@ export default function Login() {
               />
               {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
             </div>
+
             <Button type="submit" className="w-full h-11 rounded-xl text-sm font-bold gradient-primary shadow-glow" disabled={isLoading}>
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

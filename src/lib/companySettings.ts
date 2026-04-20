@@ -52,16 +52,16 @@ export interface CompanySettings {
 const STORAGE_KEY = 'kwanza_company_settings';
 
 const DEFAULT_SETTINGS: CompanySettings = {
-  name: 'Empresa Demo, Lda',
-  tradeName: 'NEXOR ERP Demo',
+  name: 'NEXOR ERP',
+  tradeName: 'NEXOR ERP',
   nif: '5000000000',
   address: 'Rua Comandante Gika, 123',
   city: 'Luanda',
   province: 'Luanda',
   country: 'Angola',
   phone: '+244 923 456 789',
-  email: 'info@empresa.co.ao',
-  website: 'www.empresa.co.ao',
+  email: 'info@nexorerp.co.ao',
+  website: 'www.nexorerp.co.ao',
   agtCertificateNumber: 'SW/AGT/2025/0001',
   softwareVersion: '1.0.0',
   invoicePrefix: 'FT',
@@ -70,11 +70,37 @@ const DEFAULT_SETTINGS: CompanySettings = {
   primaryColor: '#2563eb',
 };
 
+function needsBrandMigration(settings: Partial<CompanySettings>): boolean {
+  const brandFields = [settings.name, settings.tradeName, settings.email, settings.website]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return brandFields.includes('kwanza') || brandFields.includes('empresa demo');
+}
+
 export function getCompanySettings(): CompanySettings {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+      const parsed = JSON.parse(saved) as Partial<CompanySettings>;
+      const migrated = needsBrandMigration(parsed)
+        ? {
+            ...parsed,
+            name: 'NEXOR ERP',
+            tradeName: 'NEXOR ERP',
+            email: parsed.email && !parsed.email.includes('empresa.') ? parsed.email : DEFAULT_SETTINGS.email,
+            website: parsed.website && !parsed.website.includes('empresa.') ? parsed.website : DEFAULT_SETTINGS.website,
+          }
+        : parsed;
+
+      const merged = { ...DEFAULT_SETTINGS, ...migrated };
+
+      if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      }
+
+      return merged;
     }
   } catch (error) {
     console.error('Error loading company settings:', error);
