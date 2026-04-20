@@ -88,7 +88,7 @@
       }
     ],
     "icon": "build/icon.ico",
-    "artifactName": "KwanzaERP-${version}-${arch}.${ext}",
+    "artifactName": "NEXOR-ERP-${version}-${arch}.${ext}",
     "signAndEditExecutable": false,
     "signtoolOptions": {
       "sign": null
@@ -105,18 +105,18 @@
     "allowElevation": true
   },
   "portable": {
-    "artifactName": "KwanzaERP-Portable-${version}.${ext}"
+    "artifactName": "NEXOR-ERP-Portable-${version}.${ext}"
   },
   "mac": {
     "target": ["dmg", "zip"],
     "icon": "build/icon.icns",
     "category": "public.app-category.business",
-    "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
+    "artifactName": "NEXOR-ERP-${version}-${arch}.${ext}"
   },
   "linux": {
     "target": ["AppImage", "deb"],
     "icon": "build/icon.png",
     "category": "Office",
-    "artifactName": "KwanzaERP-${version}-${arch}.${ext}"
+    "artifactName": "NEXOR-ERP-${version}-${arch}.${ext}"
   }
 }

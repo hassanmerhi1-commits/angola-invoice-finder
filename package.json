@@ -1,5 +1,7 @@
 {
-  "name": "kwanza-erp",
+  "name": "nexor-erp",
+  "productName": "NEXOR ERP",
+  "description": "NEXOR ERP — O futuro é construído com nós",
   "private": true,
   "version": "1.0.38",
   "type": "module",
