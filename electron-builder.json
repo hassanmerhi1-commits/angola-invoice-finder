@@ -8,10 +8,15 @@
     "buildResources": "build"
   },
   "compression": "store",
+  "npmRebuild": false,
+  "extraMetadata": {
+    "dependencies": {}
+  },
   "files": [
     "dist/**/*",
     "electron/**/*",
-    "package.json"
+    "package.json",
+    "!node_modules/**/*"
   ],
   "asarUnpack": [
     "node_modules/pg/**/*",
