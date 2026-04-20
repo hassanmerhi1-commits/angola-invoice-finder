@@ -7,10 +7,10 @@
     "output": "release",
     "buildResources": "build"
   },
+  "compression": "store",
   "files": [
     "dist/**/*",
     "electron/**/*",
-    "node_modules/**/*",
     "package.json"
   ],
   "asarUnpack": [
