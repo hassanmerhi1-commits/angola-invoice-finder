@@ -286,18 +286,53 @@ function spawnBackend(entryPath, port) {
   const cwd = resolveBackendCwd(entryPath);
   const nodePath = buildBackendNodePath();
 
-  // Use Electron's own binary as Node.   ELECTRON_RUN_AS_NODE=1 makes it
-  // behave as a bare Node process (no Chromium), so users don't need a
-  // separate Node install and we get a known-good runtime version.
+  // CRITICAL: Always use the Electron executable (never system node).
+  // app.getPath('exe') returns the Kwanza ERP.exe path even on Windows
+  // where PATH might shadow with system node v24 — that previously caused
+  // "Cannot find module 'dotenv'" because system Node can't see the
+  // bundled backend node_modules.
+  // ELECTRON_RUN_AS_NODE=1 makes the Electron binary behave as a pure
+  // Node v20 process (no Chromium), which DOES see the resources tree.
+  let electronExe;
+  try {
+    electronExe = app.getPath('exe');
+  } catch (_) {
+    electronExe = process.execPath;
+  }
+
+  // Sanity check: refuse to launch if the resolved exe is system node —
+  // that path is a packaging bug we want to surface, not silently retry.
+  const exeBase = path.basename(electronExe).toLowerCase();
+  if (exeBase === 'node.exe' || exeBase === 'node') {
+    const err = `Refusing to spawn backend with system Node (${electronExe}). Expected Electron exe.`;
+    console.error(`[BackendManager] ${err}`);
+    throw new Error(err);
+  }
+
+  // Verify the backend's own node_modules made it into the install.
+  // If dotenv isn't there, the installer was built without bundling
+  // backend/node_modules — give a clear error instead of a confusing
+  // MODULE_NOT_FOUND deep in server.js.
+  const dotenvPath = path.join(cwd, 'node_modules', 'dotenv');
+  if (!fs.existsSync(dotenvPath)) {
+    const err = `backend/node_modules is missing from this install (looked in ${cwd}). Rebuild the installer with backend/node_modules bundled.`;
+    console.error(`[BackendManager] ${err}`);
+    throw new Error(err);
+  }
+
   const env = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
     PORT: String(port),
     NODE_ENV: process.env.NODE_ENV || 'production',
     NODE_PATH: nodePath,
+    // Strip Electron-only vars that would confuse a pure-Node child.
+    ELECTRON_NO_ATTACH_CONSOLE: '1',
   };
+  delete env.ELECTRON_RUN_AS_NODE_DISABLE_NODE_OPTIONS;
 
-  const proc = spawn(process.execPath, [entryPath], {
+  console.log(`[BackendManager] spawning: ${electronExe} ${entryPath} (cwd=${cwd})`);
+  const proc = spawn(electronExe, [entryPath], {
     cwd,
     env,
     windowsHide: true,
