@@ -69,12 +69,12 @@ export default function Login() {
             {logo ? (
               <img src={logo} alt={companyName} className="w-16 h-16 object-contain" />
             ) : (
-              <span className="text-5xl font-extrabold">K</span>
+              <span className="text-5xl font-extrabold">N</span>
             )}
           </div>
           <h1 className="text-4xl font-extrabold mb-3 tracking-tight">{companyName}</h1>
           <p className="text-lg text-white/70 font-medium">
-            Enterprise Resource Planning
+            O futuro é construído com nós
           </p>
           <div className="mt-12 flex items-center justify-center gap-6 text-white/50 text-sm">
             <div className="flex items-center gap-2"><Shield className="w-4 h-4" /> Seguro</div>
@@ -95,7 +95,7 @@ export default function Login() {
               {logo ? (
                 <img src={logo} alt={companyName} className="w-10 h-10 object-contain" />
               ) : (
-                <span className="text-primary-foreground font-extrabold text-2xl">K</span>
+                <span className="text-primary-foreground font-extrabold text-2xl">N</span>
               )}
             </div>
             <h1 className="text-2xl font-extrabold text-gradient">{companyName}</h1>
